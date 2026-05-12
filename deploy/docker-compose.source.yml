@@ -59,12 +59,12 @@ services:
       retries: 3
       start_period: 30s
     command: >
-      sh -lc '
+      sh -c '
         apk add --no-cache git ca-certificates tzdata build-base wget &&
-        if [ ! -x /root/go/bin/air ]; then
+        if [ ! -x /go/bin/air ]; then
           go install github.com/air-verse/air@latest;
         fi &&
-        /root/go/bin/air -c .air.toml
+        /go/bin/air -c .air.toml
       '
 
   frontend:
@@ -87,10 +87,10 @@ services:
     networks:
       - sub2api-network
     command: >
-      sh -lc '
+      sh -c '
         corepack enable &&
-        pnpm install --frozen-lockfile &&
-        pnpm dev --host 0.0.0.0 --port 3000
+        (pnpm install --frozen-lockfile || true) &&
+        exec node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 3000
       '
 
   postgres:
