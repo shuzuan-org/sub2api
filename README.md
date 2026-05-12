@@ -161,6 +161,53 @@ curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install
 
 Deploy with Docker Compose, including PostgreSQL and Redis containers.
 
+#### Backend Hot Reload Development
+
+If you only want to mount backend source code into Docker for local development, use:
+
+```bash
+cd deploy
+docker compose -f docker-compose.backend-dev.yml up
+```
+
+This mode:
+
+- bind-mounts `backend/` into the container
+- runs the Go server with `air` for hot reload
+- keeps runtime data in `deploy/data`
+
+Backend API:
+
+- `http://localhost:28080` (override with `BACKEND_DEV_PORT`)
+
+Note: this mode does not embed or serve the frontend UI. If you need the frontend too, use `deploy/docker-compose.source.yml` or run `pnpm dev` separately.
+
+#### Source-Mounted Development
+
+If you want the container to run directly from local source code instead of a prebuilt image, use the source-mounted compose file:
+
+```bash
+cd deploy
+docker compose -f docker-compose.source.yml up
+```
+
+Access:
+
+- Frontend (Vite HMR): `http://localhost:3000`
+- Backend API: `http://localhost:8080`
+
+This mode mounts the repository into the containers:
+
+- backend code is run with `air` for auto-rebuild
+- frontend code is run with `vite` for hot reload
+- runtime data is still stored in `deploy/data`
+
+Stop it with:
+
+```bash
+docker compose -f docker-compose.source.yml down
+```
+
 #### Prerequisites
 
 - Docker 20.10+
