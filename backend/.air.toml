@@ -1,0 +1,14 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/sub2api ./cmd/server"
+bin = "./tmp/sub2api"
+include_ext = ["go", "yaml"]
+include_dir = ["cmd", "ent", "internal"]
+exclude_dir = ["tmp", "vendor"]
+delay = 1000
+stop_on_error = true
+
+[misc]
+clean_on_exit = true

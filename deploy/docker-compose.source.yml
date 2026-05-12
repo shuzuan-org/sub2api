@@ -1,0 +1,150 @@
+# =============================================================================
+# Sub2API Docker Compose - Source Mounted Development
+# =============================================================================
+# Usage:
+#   cd deploy
+#   docker compose -f docker-compose.source.yml up
+#
+# Access:
+#   Frontend (Vite HMR): http://localhost:3000
+#   Backend API:         http://localhost:8080
+# =============================================================================
+
+services:
+  backend:
+    image: golang:1.26.1-alpine
+    container_name: sub2api-backend-src
+    working_dir: /workspace/backend
+    restart: unless-stopped
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${SERVER_PORT:-8080}:8080"
+    volumes:
+      - ..:/workspace
+      - ./data:/app/data
+      - sub2api-go-mod:/go/pkg/mod
+      - sub2api-go-build:/root/.cache/go-build
+    environment:
+      - DATA_DIR=/app/data
+      - AUTO_SETUP=true
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=debug
+      - RUN_MODE=${RUN_MODE:-standard}
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_SSLMODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@sub2api.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
+      - TZ=${TZ:-Asia/Shanghai}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: >
+      sh -lc '
+        apk add --no-cache git ca-certificates tzdata build-base wget &&
+        if [ ! -x /root/go/bin/air ]; then
+          go install github.com/air-verse/air@latest;
+        fi &&
+        /root/go/bin/air -c .air.toml
+      '
+
+  frontend:
+    image: node:24-alpine
+    container_name: sub2api-frontend-src
+    working_dir: /workspace/frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ..:/workspace
+      - sub2api-frontend-node-modules:/workspace/frontend/node_modules
+      - sub2api-pnpm-store:/root/.local/share/pnpm/store
+    environment:
+      - VITE_DEV_PROXY_TARGET=http://backend:8080
+      - VITE_DEV_PORT=3000
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - sub2api-network
+    command: >
+      sh -lc '
+        corepack enable &&
+        pnpm install --frozen-lockfile &&
+        pnpm dev --host 0.0.0.0 --port 3000
+      '
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: sub2api-postgres-src
+    restart: unless-stopped
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-sub2api}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-sub2api}
+      - PGDATA=/var/lib/postgresql/data
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    container_name: sub2api-redis-src
+    restart: unless-stopped
+    volumes:
+      - ./redis_data:/data
+    command: >
+      sh -c '
+        redis-server
+        --save 60 1
+        --appendonly yes
+        --appendfsync everysec
+        ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}'
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - REDISCLI_AUTH=${REDIS_PASSWORD:-}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+networks:
+  sub2api-network:
+    driver: bridge
+
+volumes:
+  sub2api-go-mod:
+  sub2api-go-build:
+  sub2api-frontend-node-modules:
+  sub2api-pnpm-store:
