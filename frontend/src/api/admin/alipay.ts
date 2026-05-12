@@ -7,22 +7,8 @@ import type { PaymentPackage } from '../payment'
 
 export type AlipayPackage = PaymentPackage
 
-export type AlipayMode = 'public_key' | 'cert'
-
-export interface AlipayConfig {
-  mode: AlipayMode
-  app_id: string
-  seller_id: string
-  private_key: string
-  public_key: string
-  app_public_cert: string
-  alipay_public_cert: string
-  alipay_root_cert: string
-  is_prod: boolean
-}
-
 export interface AlipayConfigResponse {
-  mode: AlipayMode
+  mode: string
   app_id: string
   seller_id: string
   notify_url: string
@@ -55,10 +41,6 @@ export async function getConfig(): Promise<AlipayConfigResponse> {
   return data
 }
 
-export async function updateConfig(cfg: AlipayConfig): Promise<void> {
-  await apiClient.put('/admin/alipay/config', cfg)
-}
-
 export async function setEnabled(enabled: boolean): Promise<void> {
   await apiClient.put('/admin/alipay/enabled', { enabled })
 }
@@ -87,7 +69,6 @@ export async function listOrders(page = 1, pageSize = 20, status = ''): Promise<
 
 export const adminAlipayAPI = {
   getConfig,
-  updateConfig,
   setEnabled,
   getPackages,
   updatePackages,

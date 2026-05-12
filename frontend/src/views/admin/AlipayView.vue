@@ -3,9 +3,8 @@
     <div class="space-y-6">
       <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">支付宝充值配置</h1>
-        <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">配置支付宝启用状态、支付参数、充值套餐和订单记录</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">支付宝凭证由服务器证书目录提供；此处配置启用状态、充值套餐和订单记录</p>
       </div>
-
 
       <div class="card">
         <div class="flex items-center justify-between p-6">
@@ -28,94 +27,6 @@
             />
           </button>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">支付宝参数</h2>
-        </div>
-        <form @submit.prevent="saveConfig" class="space-y-4 p-6">
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label class="input-label">配置模式</label>
-              <select v-model="config.mode" class="input mt-1">
-                <option value="public_key">公钥模式</option>
-                <option value="cert">证书模式</option>
-              </select>
-            </div>
-            <div>
-              <label class="input-label">AppID</label>
-              <input v-model="config.app_id" type="text" class="input mt-1" placeholder="2021..." />
-            </div>
-            <div>
-              <label class="input-label">Seller ID</label>
-              <input v-model="config.seller_id" type="text" class="input mt-1" placeholder="支付宝收款账号 PID（可选，但建议填写）" />
-            </div>
-            <div>
-              <label class="input-label">环境</label>
-              <select v-model="config.is_prod" class="input mt-1">
-                <option :value="false">沙箱</option>
-                <option :value="true">正式</option>
-              </select>
-            </div>
-            <div class="sm:col-span-2">
-              <label class="input-label">回调地址（自动生成）</label>
-              <input :value="config.notify_url" type="text" class="input mt-1 cursor-default bg-gray-50 text-gray-500 dark:bg-dark-700" readonly />
-            </div>
-          </div>
-          <div>
-            <label class="input-label">应用私钥</label>
-            <textarea
-              v-model="config.private_key"
-              class="input mt-1 font-mono text-xs"
-              rows="6"
-              :placeholder="config.private_key_set ? '已配置（留空保留原值）' : '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'"
-            />
-          </div>
-          <div v-if="config.mode === 'public_key'">
-            <label class="input-label">支付宝公钥</label>
-            <textarea
-              v-model="config.public_key"
-              class="input mt-1 font-mono text-xs"
-              rows="6"
-              :placeholder="config.public_key_set ? '已配置（留空保留原值）' : '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----'"
-            />
-          </div>
-          <template v-else>
-            <div>
-              <label class="input-label">应用公钥证书</label>
-              <textarea
-                v-model="config.app_public_cert"
-                class="input mt-1 font-mono text-xs"
-                rows="6"
-                :placeholder="config.app_public_cert_set ? '已配置（留空保留原值）' : '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
-              />
-            </div>
-            <div>
-              <label class="input-label">支付宝公钥证书</label>
-              <textarea
-                v-model="config.alipay_public_cert"
-                class="input mt-1 font-mono text-xs"
-                rows="6"
-                :placeholder="config.alipay_public_cert_set ? '已配置（留空保留原值）' : '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
-              />
-            </div>
-            <div>
-              <label class="input-label">支付宝根证书</label>
-              <textarea
-                v-model="config.alipay_root_cert"
-                class="input mt-1 font-mono text-xs"
-                rows="6"
-                :placeholder="config.alipay_root_cert_set ? '已配置（留空保留原值）' : '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'"
-              />
-            </div>
-          </template>
-          <div class="flex justify-end">
-            <button type="submit" :disabled="savingConfig" class="btn btn-primary">
-              {{ savingConfig ? '保存中...' : '保存配置' }}
-            </button>
-          </div>
-        </form>
       </div>
 
       <div class="card">
@@ -232,7 +143,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { adminAlipayAPI, type AlipayConfig, type AlipayMode, type AlipayOrderRecord, type AlipayPackage } from '@/api/admin/alipay'
+import { adminAlipayAPI, type AlipayOrderRecord, type AlipayPackage } from '@/api/admin/alipay'
 
 const loadingOrders = ref(false)
 const loadError = ref('')
@@ -242,65 +153,19 @@ const page = ref(1)
 const pageSize = 20
 const statusFilter = ref('')
 const enabled = ref(false)
-const savingConfig = ref(false)
 const savingPackages = ref(false)
 const packages = ref<AlipayPackage[]>([])
-const config = ref<{
-  mode: AlipayMode
-  app_id: string
-  seller_id: string
-  private_key: string
-  public_key: string
-  app_public_cert: string
-  alipay_public_cert: string
-  alipay_root_cert: string
-  is_prod: boolean
-  notify_url: string
-  private_key_set: boolean
-  public_key_set: boolean
-  app_public_cert_set: boolean
-  alipay_public_cert_set: boolean
-  alipay_root_cert_set: boolean
-}>({
-  mode: 'public_key',
-  app_id: '',
-  seller_id: '',
-  private_key: '',
-  public_key: '',
-  app_public_cert: '',
-  alipay_public_cert: '',
-  alipay_root_cert: '',
-  is_prod: false,
-  notify_url: '',
-  private_key_set: false,
-  public_key_set: false,
-  app_public_cert_set: false,
-  alipay_public_cert_set: false,
-  alipay_root_cert_set: false,
-})
 
 let nextPackageId = 100
 
 onMounted(async () => {
-  await Promise.allSettled([loadConfig(), loadPackages(), loadOrders()])
+  await Promise.allSettled([loadEnabled(), loadPackages(), loadOrders()])
 })
 
-async function loadConfig() {
+async function loadEnabled() {
   try {
     const cfg = await adminAlipayAPI.getConfig()
     enabled.value = cfg.enabled ?? false
-    config.value.mode = cfg.mode ?? 'public_key'
-    config.value.notify_url = cfg.notify_url ?? ''
-    if (cfg.configured) {
-      config.value.app_id = cfg.app_id ?? ''
-      config.value.seller_id = cfg.seller_id ?? ''
-      config.value.is_prod = cfg.is_prod ?? false
-      config.value.private_key_set = cfg.private_key_set ?? false
-      config.value.public_key_set = cfg.public_key_set ?? false
-      config.value.app_public_cert_set = cfg.app_public_cert_set ?? false
-      config.value.alipay_public_cert_set = cfg.alipay_public_cert_set ?? false
-      config.value.alipay_root_cert_set = cfg.alipay_root_cert_set ?? false
-    }
   } catch {}
 }
 
@@ -310,35 +175,6 @@ async function toggleEnabled() {
     await adminAlipayAPI.setEnabled(enabled.value)
   } catch {
     enabled.value = !enabled.value
-  }
-}
-
-async function saveConfig() {
-  savingConfig.value = true
-  try {
-    const payload: AlipayConfig = {
-      mode: config.value.mode,
-      app_id: config.value.app_id,
-      seller_id: config.value.seller_id,
-      private_key: config.value.private_key,
-      public_key: config.value.public_key,
-      app_public_cert: config.value.app_public_cert,
-      alipay_public_cert: config.value.alipay_public_cert,
-      alipay_root_cert: config.value.alipay_root_cert,
-      is_prod: config.value.is_prod,
-    }
-    await adminAlipayAPI.updateConfig(payload)
-    config.value.private_key = ''
-    config.value.public_key = ''
-    config.value.app_public_cert = ''
-    config.value.alipay_public_cert = ''
-    config.value.alipay_root_cert = ''
-    await loadConfig()
-    alert('配置已保存')
-  } catch (e: any) {
-    alert(e?.response?.data?.message || '保存失败')
-  } finally {
-    savingConfig.value = false
   }
 }
 
