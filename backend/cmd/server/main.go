@@ -151,6 +151,14 @@ func runMainServer() {
 	}
 	defer app.Cleanup()
 
+	// 首次部署时把 SettingService 的默认开关写入数据库（含 registration_enabled=true）。
+	// 已存在 registration_enabled 时此调用为 no-op，因此对升级场景安全。
+	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := app.SettingService.InitializeDefaultSettings(initCtx); err != nil {
+		log.Printf("Failed to initialize default settings: %v", err)
+	}
+	initCancel()
+
 	// 启动服务器
 	go func() {
 		if err := app.Server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

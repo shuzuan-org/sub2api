@@ -254,8 +254,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	accountPricingSyncService := service.ProvideAccountPricingSyncService(accountRepository, pricingService, opsService, timingWheelService)
 	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, tokenRefreshService, accountExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, accountPricingSyncService)
 	application := &Application{
-		Server:  httpServer,
-		Cleanup: v,
+		Server:         httpServer,
+		Cleanup:        v,
+		SettingService: settingService,
 	}
 	return application, nil
 }
@@ -263,8 +264,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 // wire.go:
 
 type Application struct {
-	Server  *http.Server
-	Cleanup func()
+	Server         *http.Server
+	Cleanup        func()
+	SettingService *service.SettingService
 }
 
 func providePrivacyClientFactory() service.PrivacyClientFactory {

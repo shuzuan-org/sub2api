@@ -481,10 +481,10 @@
             {{ t('home.cta.description') }}
           </p>
           <router-link
-            to="/register"
+            :to="ctaTarget"
             class="btn btn-primary px-8 py-3 text-base shadow-lg shadow-primary-500/30"
           >
-            {{ t('home.cta.button') }}
+            {{ ctaLabel }}
             <Icon name="arrowRight" size="md" class="ml-2" :stroke-width="2" />
           </router-link>
         </div>
@@ -581,6 +581,16 @@ const isDark = ref(document.documentElement.classList.contains('dark'))
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
 const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dashboard')
+
+const registrationEnabled = computed(() => appStore.cachedPublicSettings?.registration_enabled ?? true)
+const ctaTarget = computed(() => {
+  if (isAuthenticated.value) return dashboardPath.value
+  return registrationEnabled.value ? '/register' : '/login'
+})
+const ctaLabel = computed(() => {
+  if (isAuthenticated.value) return t('home.goToDashboard')
+  return registrationEnabled.value ? t('home.cta.button') : t('home.getStarted')
+})
 const userInitial = computed(() => {
   const user = authStore.user
   if (!user || !user.email) return ''
