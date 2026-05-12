@@ -406,8 +406,7 @@ export default {
     mySubscriptions: '我的订阅',
     buySubscription: '充值/订阅',
     docs: '文档',
-    sora: 'Sora 创作',
-    wechatPay: '微信充值'
+    sora: 'Sora 创作'
   },
 
   // Auth
@@ -1004,6 +1003,10 @@ export default {
 
   // Admin
   admin: {
+    // Alipay
+    alipay: {
+      title: '支付宝充值'
+    },
     // Dashboard
     dashboard: {
       title: '管理控制台',

@@ -75,7 +75,7 @@ var ProviderSet = wire.NewSet(
 	NewUserGroupRateRepository,
 	NewErrorPassthroughRepository,
 	NewTLSFingerprintProfileRepository,
-	NewWechatPayOrderRepository,
+	NewAlipayOrderRepository,
 
 	// Cache implementations
 	NewGatewayCache,

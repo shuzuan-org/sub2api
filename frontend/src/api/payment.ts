@@ -67,6 +67,3 @@ export const alipayAPI = {
   getOrderStatus: alipayGetOrderStatus,
   listOrders: alipayListOrders
 }
-
-// ---- 微信支付（暂时屏蔽）----
-// export const wechatPayAPI = { ... }

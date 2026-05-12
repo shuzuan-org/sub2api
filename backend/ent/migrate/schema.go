@@ -1200,51 +1200,6 @@ var (
 			},
 		},
 	}
-	// WechatPayOrdersColumns holds the columns for the "wechat_pay_orders" table.
-	WechatPayOrdersColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "order_no", Type: field.TypeString, Unique: true, Size: 64},
-		{Name: "user_id", Type: field.TypeInt64},
-		{Name: "package_id", Type: field.TypeInt},
-		{Name: "cny_fee", Type: field.TypeInt},
-		{Name: "usd_amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
-		{Name: "status", Type: field.TypeString, Size: 20, Default: "pending"},
-		{Name: "wechat_trade_no", Type: field.TypeString, Nullable: true, Size: 64},
-		{Name: "code_url", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
-		{Name: "expires_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "paid_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "notify_data", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
-		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-	}
-	// WechatPayOrdersTable holds the schema information for the "wechat_pay_orders" table.
-	WechatPayOrdersTable = &schema.Table{
-		Name:       "wechat_pay_orders",
-		Columns:    WechatPayOrdersColumns,
-		PrimaryKey: []*schema.Column{WechatPayOrdersColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "wechatpayorder_user_id",
-				Unique:  false,
-				Columns: []*schema.Column{WechatPayOrdersColumns[2]},
-			},
-			{
-				Name:    "wechatpayorder_order_no",
-				Unique:  false,
-				Columns: []*schema.Column{WechatPayOrdersColumns[1]},
-			},
-			{
-				Name:    "wechatpayorder_status",
-				Unique:  false,
-				Columns: []*schema.Column{WechatPayOrdersColumns[6]},
-			},
-			{
-				Name:    "wechatpayorder_user_id_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{WechatPayOrdersColumns[2], WechatPayOrdersColumns[12]},
-			},
-		},
-	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APIKeysTable,
@@ -1271,7 +1226,6 @@ var (
 		UserAttributeDefinitionsTable,
 		UserAttributeValuesTable,
 		UserSubscriptionsTable,
-		WechatPayOrdersTable,
 	}
 )
 
@@ -1370,8 +1324,5 @@ func init() {
 	UserSubscriptionsTable.ForeignKeys[2].RefTable = UsersTable
 	UserSubscriptionsTable.Annotation = &entsql.Annotation{
 		Table: "user_subscriptions",
-	}
-	WechatPayOrdersTable.Annotation = &entsql.Annotation{
-		Table: "wechat_pay_orders",
 	}
 }

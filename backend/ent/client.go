@@ -39,7 +39,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/wechatpayorder"
 
 	stdsql "database/sql"
 )
@@ -97,8 +96,6 @@ type Client struct {
 	UserAttributeValue *UserAttributeValueClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
-	// WechatPayOrder is the client for interacting with the WechatPayOrder builders.
-	WechatPayOrder *WechatPayOrderClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -134,7 +131,6 @@ func (c *Client) init() {
 	c.UserAttributeDefinition = NewUserAttributeDefinitionClient(c.config)
 	c.UserAttributeValue = NewUserAttributeValueClient(c.config)
 	c.UserSubscription = NewUserSubscriptionClient(c.config)
-	c.WechatPayOrder = NewWechatPayOrderClient(c.config)
 }
 
 type (
@@ -251,7 +247,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		UserAttributeDefinition: NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:      NewUserAttributeValueClient(cfg),
 		UserSubscription:        NewUserSubscriptionClient(cfg),
-		WechatPayOrder:          NewWechatPayOrderClient(cfg),
 	}, nil
 }
 
@@ -295,7 +290,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		UserAttributeDefinition: NewUserAttributeDefinitionClient(cfg),
 		UserAttributeValue:      NewUserAttributeValueClient(cfg),
 		UserSubscription:        NewUserSubscriptionClient(cfg),
-		WechatPayOrder:          NewWechatPayOrderClient(cfg),
 	}, nil
 }
 
@@ -330,7 +324,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret,
 		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
 		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserSubscription, c.WechatPayOrder,
+		c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -345,7 +339,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret,
 		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
 		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserSubscription, c.WechatPayOrder,
+		c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -402,8 +396,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.UserAttributeValue.mutate(ctx, m)
 	case *UserSubscriptionMutation:
 		return c.UserSubscription.mutate(ctx, m)
-	case *WechatPayOrderMutation:
-		return c.WechatPayOrder.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -4319,139 +4311,6 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 	}
 }
 
-// WechatPayOrderClient is a client for the WechatPayOrder schema.
-type WechatPayOrderClient struct {
-	config
-}
-
-// NewWechatPayOrderClient returns a client for the WechatPayOrder from the given config.
-func NewWechatPayOrderClient(c config) *WechatPayOrderClient {
-	return &WechatPayOrderClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `wechatpayorder.Hooks(f(g(h())))`.
-func (c *WechatPayOrderClient) Use(hooks ...Hook) {
-	c.hooks.WechatPayOrder = append(c.hooks.WechatPayOrder, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `wechatpayorder.Intercept(f(g(h())))`.
-func (c *WechatPayOrderClient) Intercept(interceptors ...Interceptor) {
-	c.inters.WechatPayOrder = append(c.inters.WechatPayOrder, interceptors...)
-}
-
-// Create returns a builder for creating a WechatPayOrder entity.
-func (c *WechatPayOrderClient) Create() *WechatPayOrderCreate {
-	mutation := newWechatPayOrderMutation(c.config, OpCreate)
-	return &WechatPayOrderCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of WechatPayOrder entities.
-func (c *WechatPayOrderClient) CreateBulk(builders ...*WechatPayOrderCreate) *WechatPayOrderCreateBulk {
-	return &WechatPayOrderCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *WechatPayOrderClient) MapCreateBulk(slice any, setFunc func(*WechatPayOrderCreate, int)) *WechatPayOrderCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &WechatPayOrderCreateBulk{err: fmt.Errorf("calling to WechatPayOrderClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*WechatPayOrderCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &WechatPayOrderCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for WechatPayOrder.
-func (c *WechatPayOrderClient) Update() *WechatPayOrderUpdate {
-	mutation := newWechatPayOrderMutation(c.config, OpUpdate)
-	return &WechatPayOrderUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *WechatPayOrderClient) UpdateOne(_m *WechatPayOrder) *WechatPayOrderUpdateOne {
-	mutation := newWechatPayOrderMutation(c.config, OpUpdateOne, withWechatPayOrder(_m))
-	return &WechatPayOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *WechatPayOrderClient) UpdateOneID(id int64) *WechatPayOrderUpdateOne {
-	mutation := newWechatPayOrderMutation(c.config, OpUpdateOne, withWechatPayOrderID(id))
-	return &WechatPayOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for WechatPayOrder.
-func (c *WechatPayOrderClient) Delete() *WechatPayOrderDelete {
-	mutation := newWechatPayOrderMutation(c.config, OpDelete)
-	return &WechatPayOrderDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *WechatPayOrderClient) DeleteOne(_m *WechatPayOrder) *WechatPayOrderDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *WechatPayOrderClient) DeleteOneID(id int64) *WechatPayOrderDeleteOne {
-	builder := c.Delete().Where(wechatpayorder.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &WechatPayOrderDeleteOne{builder}
-}
-
-// Query returns a query builder for WechatPayOrder.
-func (c *WechatPayOrderClient) Query() *WechatPayOrderQuery {
-	return &WechatPayOrderQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeWechatPayOrder},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a WechatPayOrder entity by its id.
-func (c *WechatPayOrderClient) Get(ctx context.Context, id int64) (*WechatPayOrder, error) {
-	return c.Query().Where(wechatpayorder.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *WechatPayOrderClient) GetX(ctx context.Context, id int64) *WechatPayOrder {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *WechatPayOrderClient) Hooks() []Hook {
-	return c.hooks.WechatPayOrder
-}
-
-// Interceptors returns the client interceptors.
-func (c *WechatPayOrderClient) Interceptors() []Interceptor {
-	return c.inters.WechatPayOrder
-}
-
-func (c *WechatPayOrderClient) mutate(ctx context.Context, m *WechatPayOrderMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&WechatPayOrderCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&WechatPayOrderUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&WechatPayOrderUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&WechatPayOrderDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown WechatPayOrder mutation op: %q", m.Op())
-	}
-}
-
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
@@ -4459,16 +4318,14 @@ type (
 		ErrorPassthroughRule, Group, IdempotencyRecord, PromoCode, PromoCodeUsage,
 		Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
 		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserSubscription,
-		WechatPayOrder []ent.Hook
+		UserAttributeDefinition, UserAttributeValue, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, AlipayOrder, Announcement, AnnouncementRead,
 		ErrorPassthroughRule, Group, IdempotencyRecord, PromoCode, PromoCodeUsage,
 		Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
 		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserSubscription,
-		WechatPayOrder []ent.Interceptor
+		UserAttributeDefinition, UserAttributeValue, UserSubscription []ent.Interceptor
 	}
 )
 

@@ -406,8 +406,7 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     docs: 'Docs',
-    sora: 'Sora Studio',
-    wechatPay: 'WeChat Pay'
+    sora: 'Sora Studio'
   },
 
   // Auth
@@ -999,6 +998,10 @@ export default {
 
   // Admin
   admin: {
+    // Alipay
+    alipay: {
+      title: 'Alipay Recharge'
+    },
     // Dashboard
     dashboard: {
       title: 'Admin Dashboard',

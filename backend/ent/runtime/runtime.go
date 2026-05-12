@@ -30,7 +30,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/wechatpayorder"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -1315,46 +1314,6 @@ func init() {
 	usersubscriptionDescAssignedAt := usersubscriptionFields[12].Descriptor()
 	// usersubscription.DefaultAssignedAt holds the default value on creation for the assigned_at field.
 	usersubscription.DefaultAssignedAt = usersubscriptionDescAssignedAt.Default.(func() time.Time)
-	wechatpayorderFields := schema.WechatPayOrder{}.Fields()
-	_ = wechatpayorderFields
-	// wechatpayorderDescOrderNo is the schema descriptor for order_no field.
-	wechatpayorderDescOrderNo := wechatpayorderFields[0].Descriptor()
-	// wechatpayorder.OrderNoValidator is a validator for the "order_no" field. It is called by the builders before save.
-	wechatpayorder.OrderNoValidator = func() func(string) error {
-		validators := wechatpayorderDescOrderNo.Validators
-		fns := [...]func(string) error{
-			validators[0].(func(string) error),
-			validators[1].(func(string) error),
-		}
-		return func(order_no string) error {
-			for _, fn := range fns {
-				if err := fn(order_no); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}()
-	// wechatpayorderDescStatus is the schema descriptor for status field.
-	wechatpayorderDescStatus := wechatpayorderFields[5].Descriptor()
-	// wechatpayorder.DefaultStatus holds the default value on creation for the status field.
-	wechatpayorder.DefaultStatus = wechatpayorderDescStatus.Default.(string)
-	// wechatpayorder.StatusValidator is a validator for the "status" field. It is called by the builders before save.
-	wechatpayorder.StatusValidator = wechatpayorderDescStatus.Validators[0].(func(string) error)
-	// wechatpayorderDescWechatTradeNo is the schema descriptor for wechat_trade_no field.
-	wechatpayorderDescWechatTradeNo := wechatpayorderFields[6].Descriptor()
-	// wechatpayorder.WechatTradeNoValidator is a validator for the "wechat_trade_no" field. It is called by the builders before save.
-	wechatpayorder.WechatTradeNoValidator = wechatpayorderDescWechatTradeNo.Validators[0].(func(string) error)
-	// wechatpayorderDescCreatedAt is the schema descriptor for created_at field.
-	wechatpayorderDescCreatedAt := wechatpayorderFields[11].Descriptor()
-	// wechatpayorder.DefaultCreatedAt holds the default value on creation for the created_at field.
-	wechatpayorder.DefaultCreatedAt = wechatpayorderDescCreatedAt.Default.(func() time.Time)
-	// wechatpayorderDescUpdatedAt is the schema descriptor for updated_at field.
-	wechatpayorderDescUpdatedAt := wechatpayorderFields[12].Descriptor()
-	// wechatpayorder.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	wechatpayorder.DefaultUpdatedAt = wechatpayorderDescUpdatedAt.Default.(func() time.Time)
-	// wechatpayorder.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	wechatpayorder.UpdateDefaultUpdatedAt = wechatpayorderDescUpdatedAt.UpdateDefault.(func() time.Time)
 }
 
 const (

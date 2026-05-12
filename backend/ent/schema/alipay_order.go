@@ -34,11 +34,11 @@ func (AlipayOrder) Fields() []ent.Field {
 			Unique(),
 		// 下单用户 ID
 		field.Int64("user_id"),
-		// 套餐 ID（来自 Setting 表 wechat_pay_packages 中的 id，与微信共用）
+		// 套餐 ID（来自 Setting 表 alipay_packages 中的 id；自定义金额时为 0）
 		field.Int("package_id"),
 		// 支付金额（人民币，单位：分）
 		field.Int("cny_fee"),
-		// 到账美元金额
+		// 到账金额（U 代币；字段名 usd_amount 保留历史兼容）
 		field.Float("usd_amount").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
 		// 订单状态：pending / paid / expired / refunded

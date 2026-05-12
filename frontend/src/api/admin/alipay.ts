@@ -3,20 +3,36 @@
  */
 
 import { apiClient } from '../client'
+import type { PaymentPackage } from '../payment'
+
+export type AlipayPackage = PaymentPackage
+
+export type AlipayMode = 'public_key' | 'cert'
 
 export interface AlipayConfig {
+  mode: AlipayMode
   app_id: string
+  seller_id: string
   private_key: string
   public_key: string
+  app_public_cert: string
+  alipay_public_cert: string
+  alipay_root_cert: string
   is_prod: boolean
 }
 
 export interface AlipayConfigResponse {
+  mode: AlipayMode
   app_id: string
+  seller_id: string
   notify_url: string
+  enabled: boolean
   is_prod: boolean
   private_key_set: boolean
   public_key_set: boolean
+  app_public_cert_set: boolean
+  alipay_public_cert_set: boolean
+  alipay_root_cert_set: boolean
   configured: boolean
 }
 
@@ -47,6 +63,15 @@ export async function setEnabled(enabled: boolean): Promise<void> {
   await apiClient.put('/admin/alipay/enabled', { enabled })
 }
 
+export async function getPackages(): Promise<AlipayPackage[]> {
+  const { data } = await apiClient.get<AlipayPackage[]>('/admin/alipay/packages')
+  return data
+}
+
+export async function updatePackages(pkgs: AlipayPackage[]): Promise<void> {
+  await apiClient.put('/admin/alipay/packages', pkgs)
+}
+
 export async function listOrders(page = 1, pageSize = 20, status = ''): Promise<{
   items: AlipayOrderRecord[]
   total: number
@@ -64,6 +89,8 @@ export const adminAlipayAPI = {
   getConfig,
   updateConfig,
   setEnabled,
+  getPackages,
+  updatePackages,
   listOrders
 }
 

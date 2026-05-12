@@ -91,8 +91,7 @@ func RegisterAdminRoutes(
 		// 定时测试计划
 		registerScheduledTestRoutes(admin, h)
 
-		// 微信支付管理（暂时屏蔽）
-		// registerWechatPayRoutes(admin, h)
+		// 支付宝充值管理
 		registerAlipayRoutes(admin, h)
 	}
 }
@@ -595,24 +594,14 @@ func registerSubscriptionPlanRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 	}
 }
 
-func registerWechatPayRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	wp := admin.Group("/wechat-pay")
-	{
-		wp.GET("/config", h.Admin.WechatPay.GetConfig)
-		wp.PUT("/config", h.Admin.WechatPay.UpdateConfig)
-		wp.PUT("/enabled", h.Admin.WechatPay.SetEnabled)
-		wp.GET("/packages", h.Admin.WechatPay.GetPackages)
-		wp.PUT("/packages", h.Admin.WechatPay.UpdatePackages)
-		wp.GET("/orders", h.Admin.WechatPay.ListOrders)
-	}
-}
-
 func registerAlipayRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	ap := admin.Group("/alipay")
 	{
 		ap.GET("/config", h.Admin.Alipay.GetConfig)
 		ap.PUT("/config", h.Admin.Alipay.UpdateConfig)
 		ap.PUT("/enabled", h.Admin.Alipay.SetEnabled)
+		ap.GET("/packages", h.Admin.Alipay.GetPackages)
+		ap.PUT("/packages", h.Admin.Alipay.UpdatePackages)
 		ap.GET("/orders", h.Admin.Alipay.ListOrders)
 	}
 }

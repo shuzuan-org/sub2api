@@ -428,7 +428,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountService,
 	NewProxyService,
 	NewRedeemService,
-	NewWechatPayService,
+	NewAlipayService,
 	NewPromoService,
 	NewUsageService,
 	NewDashboardService,

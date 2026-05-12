@@ -579,8 +579,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
-    // { path: '/admin/wechat-pay', label: t('nav.wechatPay'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true },  // 微信支付暂时屏蔽
-    { path: '/admin/alipay', label: '充值订单', icon: RechargeSubscriptionIcon, hideInSimpleMode: true },
+    { path: '/admin/alipay', label: t('admin.alipay.title'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }
   ]
 

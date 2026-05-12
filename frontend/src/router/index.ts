@@ -416,20 +416,6 @@ const routes: RouteRecordRaw[] = [
       descriptionKey: 'admin.usage.description'
     }
   },
-
-  // 微信支付暂时屏蔽
-  // {
-  //   path: '/admin/wechat-pay',
-  //   name: 'AdminWechatPay',
-  //   component: () => import('@/views/admin/WechatPayView.vue'),
-  //   meta: {
-  //     requiresAuth: true,
-  //     requiresAdmin: true,
-  //     title: '微信支付配置',
-  //     titleKey: 'admin.wechatPay.title'
-  //   }
-  // },
-
   {
     path: '/admin/alipay',
     name: 'AdminAlipay',
@@ -437,7 +423,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: '充值订单',
+      title: '支付宝充值',
       titleKey: 'admin.alipay.title'
     }
   },

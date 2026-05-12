@@ -12,6 +12,8 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,11 +38,20 @@ var (
 // ---- Setting 键名常量 ----
 
 const (
-	SettingKeyAlipayConfig  = "alipay_config"
-	SettingKeyAlipayEnabled = "alipay_enabled"
+	SettingKeyAlipayConfig   = "alipay_config"
+	SettingKeyAlipayEnabled  = "alipay_enabled"
+	SettingKeyAlipayPackages = "alipay_packages"
 )
 
 // ---- 数据模型 ----
+
+// AlipayPackage 充值套餐（存 Setting 表）
+type AlipayPackage struct {
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	CnyAmount float64 `json:"cny_amount"` // 人民币金额（元）
+	UsdAmount float64 `json:"usd_amount"` // 到账 U 代币
+}
 
 // AlipayOrder 支付宝订单
 type AlipayOrder struct {
@@ -48,9 +59,9 @@ type AlipayOrder struct {
 	OrderNo       string     `json:"order_no"`
 	UserID        int64      `json:"user_id"`
 	PackageID     int        `json:"package_id"`
-	CnyFee        int        `json:"cny_fee"`     // 人民币金额（分）
-	UsdAmount     float64    `json:"usd_amount"`  // 到账金额（U 代币，字段名保留历史兼容）
-	Status        string     `json:"status"`      // pending / paid / expired / refunded
+	CnyFee        int        `json:"cny_fee"`    // 人民币金额（分）
+	UsdAmount     float64    `json:"usd_amount"` // 到账金额（U 代币，字段名保留历史兼容）
+	Status        string     `json:"status"`     // pending / paid / expired / refunded
 	AlipayTradeNo *string    `json:"alipay_trade_no"`
 	QRCode        *string    `json:"-"`
 	ExpiresAt     time.Time  `json:"expires_at"`
@@ -60,12 +71,35 @@ type AlipayOrder struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
+// AlipayMode 支付宝验签模式
+const (
+	AlipayModePublicKey = "public_key" // 公钥模式：私钥 + 支付宝公钥
+	AlipayModeCert      = "cert"       // 证书模式：私钥 + 应用公钥证书 + 支付宝公钥证书 + 支付宝根证书
+)
+
 // AlipayConfig 支付宝支付配置（存 Setting 表）
 type AlipayConfig struct {
+	Mode       string `json:"mode"` // public_key（默认）/ cert
 	AppID      string `json:"app_id"`
+	SellerID   string `json:"seller_id"`   // 支付宝收款账号 PID（可选）
 	PrivateKey string `json:"private_key"` // 应用私钥（PKCS1 或 PKCS8 PEM，或裸 base64）
-	PublicKey  string `json:"public_key"`  // 支付宝公钥（裸 base64 或 PEM）
 	IsProd     bool   `json:"is_prod"`     // true=正式环境，false=沙箱
+
+	// 公钥模式
+	PublicKey string `json:"public_key"` // 支付宝公钥（裸 base64 或 PEM）
+
+	// 证书模式（PEM 文本）
+	AppPublicCert    string `json:"app_public_cert"`    // 应用公钥证书 appCertPublicKey_xxxx.crt
+	AlipayPublicCert string `json:"alipay_public_cert"` // 支付宝公钥证书 alipayCertPublicKey_RSA2.crt
+	AlipayRootCert   string `json:"alipay_root_cert"`   // 支付宝根证书 alipayRootCert.crt
+}
+
+// modeOrDefault 返回有效的验签模式，空值视为公钥模式（向后兼容旧配置）
+func (c *AlipayConfig) modeOrDefault() string {
+	if c.Mode == AlipayModeCert {
+		return AlipayModeCert
+	}
+	return AlipayModePublicKey
 }
 
 // ---- Repository 接口 ----
@@ -88,11 +122,11 @@ type AlipayService struct {
 	settingRepo SettingRepository
 	userService *UserService
 
-	// 缓存已构建的 alipay client，避免每次创建订单都重新解析私钥。
-	// cacheKey = sha256(appID + privateKey + isProd)，任何字段变更都会重建。
-	clientMu     sync.Mutex
+	// 缓存已构建的 alipay client，避免每次创建订单都重新解析私钥/证书。
+	// cacheKey 由 getOrBuildClient 基于配置全字段计算，任何字段变更都会重建。
+	clientMu       sync.Mutex
 	clientCacheKey string
-	cachedClient *alipay.Client
+	cachedClient   *alipay.Client
 }
 
 func NewAlipayService(
@@ -123,21 +157,38 @@ func (s *AlipayService) NotifyURL(ctx context.Context) (string, bool) {
 	return u, valid
 }
 
-// GetConfig 获取支付宝配置，优先读 config.yaml，未配置时回落到 Setting 表
+// cert 目录中约定的文件名
+const (
+	certFileAppPrivateKey  = "appPrivateKey.pem"
+	certFileAppPublicCert  = "appPublicCert.crt"
+	certFileAlipayPubCert  = "alipayPublicCert.crt"
+	certFileAlipayRootCert = "alipayRootCert.crt"
+)
+
+// GetConfig 获取支付宝配置。
+// 优先级：cert 目录（4 个文件齐全且 config.yaml 配了 app_id）> config.yaml（公钥模式）> Setting 表。
 func (s *AlipayService) GetConfig(ctx context.Context) (*AlipayConfig, error) {
-	// config.yaml 优先：AppID 非空即视为已配置
+	// 1. cert 目录：appPrivateKey.pem + appPublicCert.crt + alipayPublicCert.crt + alipayRootCert.crt 齐全
+	if cfg, ok := s.loadConfigFromCertDir(); ok {
+		return cfg, nil
+	}
+
+	// 2. config.yaml 公钥模式：AppID 非空即视为已配置
 	if s.cfg.Alipay.AppID != "" {
 		if s.cfg.Alipay.PrivateKey == "" || s.cfg.Alipay.PublicKey == "" {
-			return nil, fmt.Errorf("alipay config in config.yaml is incomplete: missing private_key or public_key")
+			return nil, fmt.Errorf("alipay config in config.yaml is incomplete: missing private_key or public_key (or provide certificate files under %s)", s.certDir())
 		}
 		return &AlipayConfig{
+			Mode:       AlipayModePublicKey,
 			AppID:      s.cfg.Alipay.AppID,
+			SellerID:   s.cfg.Alipay.SellerID,
 			PrivateKey: s.cfg.Alipay.PrivateKey,
 			PublicKey:  s.cfg.Alipay.PublicKey,
 			IsProd:     s.cfg.Alipay.IsProd,
 		}, nil
 	}
-	// 回落到 Setting 表（管理后台手动配置）
+
+	// 3. 回落到 Setting 表（管理后台手动配置）
 	val, err := s.settingRepo.GetValue(ctx, SettingKeyAlipayConfig)
 	if err != nil {
 		return nil, ErrAlipayNotConfigured
@@ -146,17 +197,68 @@ func (s *AlipayService) GetConfig(ctx context.Context) (*AlipayConfig, error) {
 	if err := json.Unmarshal([]byte(val), &cfg); err != nil {
 		return nil, ErrAlipayNotConfigured
 	}
+	cfg.Mode = cfg.modeOrDefault()
 	return &cfg, nil
 }
 
+// certDir 返回证书目录路径（默认 ./cert）
+func (s *AlipayService) certDir() string {
+	dir := strings.TrimSpace(s.cfg.Alipay.CertDir)
+	if dir == "" {
+		return "./cert"
+	}
+	return dir
+}
+
+// loadConfigFromCertDir 尝试从证书目录构造证书模式配置；
+// 4 个文件齐全 + config.yaml 配了 app_id 时返回 (cfg, true)，否则 (nil, false)。
+func (s *AlipayService) loadConfigFromCertDir() (*AlipayConfig, bool) {
+	if s.cfg.Alipay.AppID == "" {
+		return nil, false
+	}
+	dir := s.certDir()
+	read := func(name string) (string, bool) {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return "", false
+		}
+		v := strings.TrimSpace(string(b))
+		if v == "" {
+			return "", false
+		}
+		return v, true
+	}
+	priv, ok1 := read(certFileAppPrivateKey)
+	appCert, ok2 := read(certFileAppPublicCert)
+	alipayCert, ok3 := read(certFileAlipayPubCert)
+	rootCert, ok4 := read(certFileAlipayRootCert)
+	if !(ok1 && ok2 && ok3 && ok4) {
+		return nil, false
+	}
+	return &AlipayConfig{
+		Mode:             AlipayModeCert,
+		AppID:            s.cfg.Alipay.AppID,
+		SellerID:         s.cfg.Alipay.SellerID,
+		IsProd:           s.cfg.Alipay.IsProd,
+		PrivateKey:       priv,
+		AppPublicCert:    appCert,
+		AlipayPublicCert: alipayCert,
+		AlipayRootCert:   rootCert,
+	}, true
+}
+
 // getOrBuildClient 返回缓存的 alipay client。
-// cache key = sha256(appID|privateKey|isProd)[:8]，任意字段变更都会触发重建。
+// cache key = sha256(mode|appID|privateKey|isProd|publicKey|appPublicCert|alipayPublicCert|alipayRootCert)[:8]，任意字段变更都会触发重建。
 func (s *AlipayService) getOrBuildClient(cfg *AlipayConfig) (*alipay.Client, error) {
 	isProdStr := "0"
 	if cfg.IsProd {
 		isProdStr = "1"
 	}
-	h := sha256.Sum256([]byte(cfg.AppID + "|" + cfg.PrivateKey + "|" + isProdStr))
+	keyParts := strings.Join([]string{
+		cfg.modeOrDefault(), cfg.AppID, cfg.PrivateKey, isProdStr,
+		cfg.PublicKey, cfg.AppPublicCert, cfg.AlipayPublicCert, cfg.AlipayRootCert,
+	}, "|")
+	h := sha256.Sum256([]byte(keyParts))
 	key := fmt.Sprintf("%x", h[:8])
 
 	s.clientMu.Lock()
@@ -190,18 +292,25 @@ func (s *AlipayService) SaveConfig(ctx context.Context, cfg *AlipayConfig) error
 	return nil
 }
 
-// UpdateConfig 更新配置，私钥/公钥为空时保留已存储的值
+// UpdateConfig 更新配置；私钥/公钥/证书等敏感字段为空时保留已存储的值
 func (s *AlipayService) UpdateConfig(ctx context.Context, incoming *AlipayConfig) error {
-	if incoming.PrivateKey == "" || incoming.PublicKey == "" {
-		existing, err := s.GetConfig(ctx)
-		if err == nil {
-			if incoming.PrivateKey == "" {
-				incoming.PrivateKey = existing.PrivateKey
-			}
-			if incoming.PublicKey == "" {
-				incoming.PublicKey = existing.PublicKey
-			}
+	incoming.Mode = incoming.modeOrDefault()
+
+	existing, err := s.GetConfig(ctx)
+	if err != nil {
+		existing = nil
+	}
+	keep := func(in *string, old string) {
+		if *in == "" {
+			*in = old
 		}
+	}
+	if existing != nil {
+		keep(&incoming.PrivateKey, existing.PrivateKey)
+		keep(&incoming.PublicKey, existing.PublicKey)
+		keep(&incoming.AppPublicCert, existing.AppPublicCert)
+		keep(&incoming.AlipayPublicCert, existing.AlipayPublicCert)
+		keep(&incoming.AlipayRootCert, existing.AlipayRootCert)
 	}
 	return s.SaveConfig(ctx, incoming)
 }
@@ -247,11 +356,11 @@ func (s *AlipayService) CreateOrder(ctx context.Context, userID int64, packageID
 
 	if packageID > 0 {
 		// 从套餐查询
-		pkgs, err := s.wechatPackages(ctx)
+		pkgs, err := s.packages(ctx)
 		if err != nil {
 			return nil, err
 		}
-		var pkg *WechatPayPackage
+		var pkg *AlipayPackage
 		for i := range pkgs {
 			if pkgs[i].ID == packageID {
 				pkg = &pkgs[i]
@@ -297,6 +406,9 @@ func (s *AlipayService) CreateOrder(ctx context.Context, userID int64, packageID
 		Set("out_trade_no", orderNo).
 		Set("total_amount", totalAmount).
 		Set("notify_url", notifyURL)
+	if cfg.SellerID != "" {
+		bm.Set("seller_id", cfg.SellerID)
+	}
 
 	resp, err := client.TradePrecreate(ctx, bm)
 	if err != nil {
@@ -415,17 +527,34 @@ func (s *AlipayService) ListOrders(ctx context.Context, params pagination.Pagina
 }
 
 // GetPackages 返回当前配置的充值套餐列表
-func (s *AlipayService) GetPackages(ctx context.Context) ([]WechatPayPackage, error) {
-	return s.wechatPackages(ctx)
+func (s *AlipayService) GetPackages(ctx context.Context) ([]AlipayPackage, error) {
+	return s.packages(ctx)
 }
 
-// wechatPackages 复用微信套餐配置
-func (s *AlipayService) wechatPackages(ctx context.Context) ([]WechatPayPackage, error) {
-	val, err := s.settingRepo.GetValue(ctx, SettingKeyWechatPayPackages)
-	if err != nil || val == "" {
-		return []WechatPayPackage{}, nil
+// SavePackages 覆盖保存充值套餐配置
+func (s *AlipayService) SavePackages(ctx context.Context, pkgs []AlipayPackage) error {
+	if pkgs == nil {
+		pkgs = []AlipayPackage{}
 	}
-	var pkgs []WechatPayPackage
+	for i := range pkgs {
+		if pkgs[i].CnyAmount <= 0 || pkgs[i].UsdAmount <= 0 {
+			return infraerrors.BadRequest("ALIPAY_INVALID_PACKAGE", "package amount must be positive")
+		}
+	}
+	b, err := json.Marshal(pkgs)
+	if err != nil {
+		return fmt.Errorf("marshal packages: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyAlipayPackages, string(b))
+}
+
+// packages 读取 Setting 表中的支付宝套餐配置
+func (s *AlipayService) packages(ctx context.Context) ([]AlipayPackage, error) {
+	val, err := s.settingRepo.GetValue(ctx, SettingKeyAlipayPackages)
+	if err != nil || val == "" {
+		return []AlipayPackage{}, nil
+	}
+	var pkgs []AlipayPackage
 	if err := json.Unmarshal([]byte(val), &pkgs); err != nil {
 		return nil, fmt.Errorf("unmarshal packages: %w", err)
 	}
@@ -462,15 +591,35 @@ func buildAlipayClient(cfg *AlipayConfig) (*alipay.Client, error) {
 		return nil, fmt.Errorf("new alipay client: %w", err)
 	}
 
-	if cfg.PublicKey != "" {
-		pubKeyPEM := strings.ReplaceAll(cfg.PublicKey, `\n`, "\n")
-		if !strings.Contains(pubKeyPEM, "-----") {
-			pubKeyPEM = "-----BEGIN PUBLIC KEY-----\n" + pubKeyPEM + "\n-----END PUBLIC KEY-----\n"
+	switch cfg.modeOrDefault() {
+	case AlipayModeCert:
+		appCert := normalizePEM(cfg.AppPublicCert)
+		alipayCert := normalizePEM(cfg.AlipayPublicCert)
+		rootCert := normalizePEM(cfg.AlipayRootCert)
+		if appCert == "" || alipayCert == "" || rootCert == "" {
+			return nil, ErrAlipayNotConfigured
 		}
-		client.AutoVerifySign([]byte(pubKeyPEM))
+		if err := client.SetCertSnByContent([]byte(appCert), []byte(rootCert), []byte(alipayCert)); err != nil {
+			return nil, fmt.Errorf("set alipay cert sn: %w", err)
+		}
+		// 证书模式下用支付宝公钥证书做异步通知自动验签
+		client.AutoVerifySign([]byte(alipayCert))
+	default:
+		if cfg.PublicKey != "" {
+			pubKeyPEM := strings.ReplaceAll(cfg.PublicKey, `\n`, "\n")
+			if !strings.Contains(pubKeyPEM, "-----") {
+				pubKeyPEM = "-----BEGIN PUBLIC KEY-----\n" + pubKeyPEM + "\n-----END PUBLIC KEY-----\n"
+			}
+			client.AutoVerifySign([]byte(pubKeyPEM))
+		}
 	}
 
 	return client, nil
+}
+
+// normalizePEM 将字面 \n 转为真实换行，并去掉首尾空白；空值返回 ""
+func normalizePEM(s string) string {
+	return strings.TrimSpace(strings.ReplaceAll(s, `\n`, "\n"))
 }
 
 // ensurePKCS1 若输入是 PKCS8 裸 base64，转为 PKCS1 裸 base64；PKCS1 直接返回
@@ -506,11 +655,24 @@ func stripPEMHeaders(pem string) string {
 	return strings.Join(lines, "")
 }
 
-// AlipayPublicKeyBare 返回支付宝公钥的裸 base64 字符串，供 handler 层验签使用
-func (s *AlipayService) AlipayPublicKeyBare(ctx context.Context) (string, error) {
+// VerifyNotifySign 验证支付宝异步通知签名，自动适配公钥/证书模式
+func (s *AlipayService) VerifyNotifySign(ctx context.Context, notifyMap gopay.BodyMap) (bool, error) {
 	cfg, err := s.GetConfig(ctx)
 	if err != nil {
-		return "", err
+		return false, err
 	}
-	return stripPEMHeaders(strings.ReplaceAll(cfg.PublicKey, `\n`, "\n")), nil
+	switch cfg.modeOrDefault() {
+	case AlipayModeCert:
+		alipayCert := normalizePEM(cfg.AlipayPublicCert)
+		if alipayCert == "" {
+			return false, ErrAlipayNotConfigured
+		}
+		return alipay.VerifySignWithCert([]byte(alipayCert), notifyMap)
+	default:
+		pubKey := stripPEMHeaders(strings.ReplaceAll(cfg.PublicKey, `\n`, "\n"))
+		if pubKey == "" {
+			return false, ErrAlipayNotConfigured
+		}
+		return alipay.VerifySign(pubKey, notifyMap)
+	}
 }

@@ -33,7 +33,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/ent/wechatpayorder"
 )
 
 // The Query interface represents an operation that queries a graph.
@@ -740,33 +739,6 @@ func (f TraverseUserSubscription) Traverse(ctx context.Context, q ent.Query) err
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserSubscriptionQuery", q)
 }
 
-// The WechatPayOrderFunc type is an adapter to allow the use of ordinary function as a Querier.
-type WechatPayOrderFunc func(context.Context, *ent.WechatPayOrderQuery) (ent.Value, error)
-
-// Query calls f(ctx, q).
-func (f WechatPayOrderFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
-	if q, ok := q.(*ent.WechatPayOrderQuery); ok {
-		return f(ctx, q)
-	}
-	return nil, fmt.Errorf("unexpected query type %T. expect *ent.WechatPayOrderQuery", q)
-}
-
-// The TraverseWechatPayOrder type is an adapter to allow the use of ordinary function as Traverser.
-type TraverseWechatPayOrder func(context.Context, *ent.WechatPayOrderQuery) error
-
-// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
-func (f TraverseWechatPayOrder) Intercept(next ent.Querier) ent.Querier {
-	return next
-}
-
-// Traverse calls f(ctx, q).
-func (f TraverseWechatPayOrder) Traverse(ctx context.Context, q ent.Query) error {
-	if q, ok := q.(*ent.WechatPayOrderQuery); ok {
-		return f(ctx, q)
-	}
-	return fmt.Errorf("unexpected query type %T. expect *ent.WechatPayOrderQuery", q)
-}
-
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
@@ -818,8 +790,6 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.UserAttributeValueQuery, predicate.UserAttributeValue, userattributevalue.OrderOption]{typ: ent.TypeUserAttributeValue, tq: q}, nil
 	case *ent.UserSubscriptionQuery:
 		return &query[*ent.UserSubscriptionQuery, predicate.UserSubscription, usersubscription.OrderOption]{typ: ent.TypeUserSubscription, tq: q}, nil
-	case *ent.WechatPayOrderQuery:
-		return &query[*ent.WechatPayOrderQuery, predicate.WechatPayOrder, wechatpayorder.OrderOption]{typ: ent.TypeWechatPayOrder, tq: q}, nil
 	default:
 		return nil, fmt.Errorf("unknown query type %T", q)
 	}

@@ -62,8 +62,6 @@ type Tx struct {
 	UserAttributeValue *UserAttributeValueClient
 	// UserSubscription is the client for interacting with the UserSubscription builders.
 	UserSubscription *UserSubscriptionClient
-	// WechatPayOrder is the client for interacting with the WechatPayOrder builders.
-	WechatPayOrder *WechatPayOrderClient
 
 	// lazily loaded.
 	client     *Client
@@ -219,7 +217,6 @@ func (tx *Tx) init() {
 	tx.UserAttributeDefinition = NewUserAttributeDefinitionClient(tx.config)
 	tx.UserAttributeValue = NewUserAttributeValueClient(tx.config)
 	tx.UserSubscription = NewUserSubscriptionClient(tx.config)
-	tx.WechatPayOrder = NewWechatPayOrderClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

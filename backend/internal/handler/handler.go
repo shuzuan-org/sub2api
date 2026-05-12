@@ -31,7 +31,6 @@ type AdminHandlers struct {
 	APIKey                *admin.AdminAPIKeyHandler
 	ScheduledTest         *admin.ScheduledTestHandler
 	SubscriptionPlan      *admin.SubscriptionPlanHandler
-	WechatPay             *admin.WechatPayHandler
 	Alipay                *admin.AlipayHandler
 }
 
@@ -51,7 +50,6 @@ type Handlers struct {
 	SoraClient    *SoraClientHandler
 	Setting       *SettingHandler
 	Totp          *TotpHandler
-	WechatPay     *WechatPayHandler
 	Alipay        *AlipayHandler
 	Pricing       *PricingHandler
 }

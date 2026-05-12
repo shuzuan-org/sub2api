@@ -111,6 +111,11 @@ backend/config.yaml
 deploy/config.yaml
 backend/.installed
 
+# 支付宝证书/私钥（仅保留目录占位与说明）
+backend/cert/*
+!backend/cert/.gitkeep
+!backend/cert/README.md
+
 # ===================
 # 其他
 # ===================
@@ -132,4 +137,4 @@ docs/*
 frontend/coverage/
 aicodex
 output/
-
+.pnpm-store/

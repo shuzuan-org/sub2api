@@ -90,9 +90,13 @@ type Config struct {
 type AlipayPaymentConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
 	AppID      string `mapstructure:"app_id"`
+	SellerID   string `mapstructure:"seller_id"`   // 支付宝收款账号 PID（可选）
 	PrivateKey string `mapstructure:"private_key"` // PKCS1/PKCS8 PEM 或裸 base64
 	PublicKey  string `mapstructure:"public_key"`  // 支付宝公钥，PEM 或裸 base64
 	IsProd     bool   `mapstructure:"is_prod"`     // true=正式环境
+	// CertDir 证书目录；目录内含 appPrivateKey.pem / appPublicCert.crt /
+	// alipayPublicCert.crt / alipayRootCert.crt 四个文件时，启用证书模式并优先于 private_key/public_key。
+	CertDir string `mapstructure:"cert_dir"`
 }
 
 type LogConfig struct {
@@ -1526,6 +1530,9 @@ func setDefaults() {
 	// Subscription Maintenance (bounded queue + worker pool)
 	viper.SetDefault("subscription_maintenance.worker_count", 2)
 	viper.SetDefault("subscription_maintenance.queue_size", 1024)
+
+	// Alipay
+	viper.SetDefault("alipay.cert_dir", "./cert")
 
 }
 

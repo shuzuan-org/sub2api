@@ -1025,14 +1025,26 @@ alipay:
   # Example: "2021000000000000"
   app_id: ""
 
-  # Application private key / 应用私钥
-  # Can be PKCS8/PKCS1 PEM or bare base64
-  # 可以是 PKCS8/PKCS1 PEM 格式或裸 base64
+  # Seller ID (PID) / 收款账号 PID（可选）
+  seller_id: ""
+
+  # ---- 凭证：两种方式二选一 ----
+  #
+  # 方式 A（推荐）：证书模式 —— 把 4 个文件放到 cert_dir 指定的目录：
+  #   appPrivateKey.pem      应用私钥（PKCS8/PKCS1 PEM 或裸 base64）
+  #   appPublicCert.crt      应用公钥证书
+  #   alipayPublicCert.crt   支付宝公钥证书
+  #   alipayRootCert.crt     支付宝根证书
+  # 目录内 4 个文件齐全时自动启用证书模式，并优先于下面的 private_key/public_key。
+  cert_dir: "./cert"
+
+  # 方式 B：公钥模式 —— 直接在此填写应用私钥 + 支付宝公钥（cert_dir 内文件不全时回落到此）
+  #
+  # Application private key / 应用私钥（PKCS8/PKCS1 PEM 或裸 base64）
   private_key: ""
 
   # Alipay public key / 支付宝公钥（非应用公钥）
-  # 在支付宝开放平台"开发设置 > 接口加签方式"中获取
-  # Can be PEM format or bare base64
+  # 在支付宝开放平台"开发设置 > 接口加签方式"中获取（PEM 或裸 base64）
   public_key: ""
 
   # Production environment / 是否正式环境

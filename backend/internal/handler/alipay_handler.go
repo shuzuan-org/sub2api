@@ -10,7 +10,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/go-pay/gopay"
-	"github.com/go-pay/gopay/alipay"
 )
 
 type AlipayHandler struct {
@@ -112,13 +111,6 @@ func (h *AlipayHandler) HandleNotify(c *gin.Context) {
 	ctx := c.Request.Context()
 	clientIP := c.ClientIP()
 
-	pubKey, err := h.alipayService.AlipayPublicKeyBare(ctx)
-	if err != nil {
-		log.Printf("alipay notify: get public key failed: ip=%s err=%v", clientIP, err)
-		c.String(http.StatusInternalServerError, "fail")
-		return
-	}
-
 	// 解析 form 数据
 	if err := c.Request.ParseForm(); err != nil {
 		log.Printf("alipay notify: parse form failed: ip=%s err=%v", clientIP, err)
@@ -137,7 +129,7 @@ func (h *AlipayHandler) HandleNotify(c *gin.Context) {
 	outTradeNo := notifyMap.GetString("out_trade_no")
 	signType := notifyMap.GetString("sign_type")
 
-	ok, err := alipay.VerifySign(pubKey, notifyMap)
+	ok, err := h.alipayService.VerifyNotifySign(ctx, notifyMap)
 	if err != nil || !ok {
 		log.Printf("alipay notify: verify sign failed: ip=%s out_trade_no=%s trade_status=%s sign_type=%s err=%v ok=%v",
 			clientIP, outTradeNo, tradeStatus, signType, err, ok)
