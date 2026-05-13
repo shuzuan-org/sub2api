@@ -207,6 +207,7 @@ const password = ref<string>('')
 const initialTurnstileToken = ref<string>('')
 const promoCode = ref<string>('')
 const invitationCode = ref<string>('')
+const redirectPath = ref<string>('')
 const hasRegisterData = ref<boolean>(false)
 
 // Public settings
@@ -238,6 +239,7 @@ onMounted(async () => {
       initialTurnstileToken.value = registerData.turnstile_token || ''
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
+      redirectPath.value = registerData.redirect || ''
       hasRegisterData.value = !!(email.value && password.value)
     } catch {
       hasRegisterData.value = false
@@ -411,8 +413,8 @@ async function handleVerify(): Promise<void> {
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
-    // Redirect to dashboard
-    await router.push('/dashboard')
+    // Redirect to intended destination, or default to dashboard
+    await router.push(redirectPath.value || '/dashboard')
   } catch (error: unknown) {
     errorMessage.value = buildAuthErrorMessage(error, {
       fallback: t('auth.verifyFailed')
@@ -425,11 +427,12 @@ async function handleVerify(): Promise<void> {
 }
 
 function handleBack(): void {
+  const redirect = redirectPath.value
   // Clear session data
   sessionStorage.removeItem('register_data')
 
-  // Go back to registration
-  router.push('/register')
+  // Go back to registration, preserving the redirect intent
+  router.push(redirect ? { path: '/register', query: { redirect } } : '/register')
 }
 
 function buildEmailSuffixNotAllowedMessage(): string {

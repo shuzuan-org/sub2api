@@ -151,6 +151,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/keys/generatormckey',
+    name: 'KeyGeneratorMck',
+    component: () => import('@/views/user/KeyGeneratorMckView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Your API Key'
+    }
+  },
+  {
     path: '/usage',
     name: 'Usage',
     component: () => import('@/views/user/UsageView.vue'),
