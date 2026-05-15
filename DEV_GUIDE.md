@@ -232,7 +232,56 @@ git add ent/       # 生成的文件也要提交
 
 ---
 
-### 坑 11：PR 提交前检查清单
+### 坑 12：用 ngrok 暴露本地服务调支付宝回调
+
+**场景**：本地开发时需要让支付宝服务器回调到本机（测 `alipay.trade.precreate` 的 notify_url），用 ngrok 把 `localhost:3000` 暴露成公网域名。
+
+**报错**：
+```
+Blocked request. This host ("xxx.ngrok-free.dev") is not allowed.
+To allow this host, add "xxx.ngrok-free.dev" to `server.allowedHosts` in vite.config.js.
+```
+
+**原因**：Vite dev server 默认只允许 `localhost` 访问，识别不到 ngrok 域名。
+
+**解决**：`frontend/vite.config.ts` 的 `server` 段已加白名单（含通配子域名）：
+```ts
+server: {
+  host: '0.0.0.0',
+  port: devPort,
+  allowedHosts: ['.ngrok-free.dev', '.ngrok.io', '.ngrok.app'],
+  // ...
+}
+```
+- 前导点 `.` = 通配子域名，所有 `*.ngrok-free.dev` 自动放行
+- 改完**必须重启** `pnpm dev`
+
+**联调支付宝回调的完整步骤**：
+
+1. **启动 ngrok**
+   ```bash
+   ngrok http 3000
+   # 拿到形如 https://xxx.ngrok-free.dev 的公网地址
+   ```
+
+2. **后台改 `frontend_url`**（管理员 → SettingsView → 注册设置 → 前端地址）
+   ```
+   https://xxx.ngrok-free.dev
+   ```
+   - 新生成的支付订单 notify_url 会指向 ngrok，无需重启服务
+   - 同一字段也影响密码重置邮件链接
+
+3. **支付宝控制台配置**
+   - 沙箱/正式应用的「授权回调地址」白名单加上 ngrok 域名
+   - 否则签名校验前就会被支付宝拒绝
+
+4. **ngrok 域名漂移**
+   - Free 版每次重启**域名都会变** → 需重新改 `frontend_url` + 重新配支付宝白名单
+   - 有 ngrok 账号可绑定固定域名：`ngrok http --domain=your-static.ngrok-free.dev 3000`
+
+**注意**：`allowedHosts` 只影响 Vite dev server（开发时）。生产部署用 Go 后端直接 serve 静态文件，不走 Vite，因此**只在开发环境有这个坑**。
+
+---
 
 提交 PR 前务必本地验证：
 

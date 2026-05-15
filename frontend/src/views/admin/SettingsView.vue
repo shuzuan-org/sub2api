@@ -804,11 +804,8 @@
               </div>
               <Toggle v-model="form.password_reset_enabled" />
             </div>
-            <!-- Frontend URL - Only show when password reset is enabled -->
-            <div
-              v-if="form.email_verify_enabled && form.password_reset_enabled"
-              class="border-t border-gray-100 pt-4 dark:border-dark-700"
-            >
+            <!-- Frontend URL - always visible: used for password reset emails AND payment notify URLs -->
+            <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
               <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ t('admin.settings.registration.frontendUrl') }}
               </label>

@@ -4415,7 +4415,7 @@ export default {
         passwordResetHint: '允许用户通过邮箱重置密码',
         frontendUrl: '前端地址',
         frontendUrlPlaceholder: 'https://example.com',
-        frontendUrlHint: '用于生成邮件中的密码重置链接，例如 https://example.com',
+        frontendUrlHint: '系统公网访问地址，用于生成邮件密码重置链接、支付宝异步回调等。必须是公网可达的 https URL，例如 https://example.com',
         totp: '双因素认证 (2FA)',
         totpHint: '允许用户使用 Google Authenticator 等应用进行二次验证',
         totpKeyNotConfigured:

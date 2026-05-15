@@ -370,7 +370,10 @@ func (s *AlipayService) CreateOrder(ctx context.Context, userID int64, packageID
 		if pkg == nil {
 			return nil, ErrAlipayInvalidPackage
 		}
-		pkgName = pkg.Name
+		pkgName = strings.TrimSpace(pkg.Name)
+		if pkgName == "" {
+			pkgName = fmt.Sprintf("充值 ¥%.2f", pkg.CnyAmount)
+		}
 		pkgCnyAmount = pkg.CnyAmount
 		pkgUsdAmount = pkg.UsdAmount
 	} else {
@@ -537,6 +540,10 @@ func (s *AlipayService) SavePackages(ctx context.Context, pkgs []AlipayPackage) 
 		pkgs = []AlipayPackage{}
 	}
 	for i := range pkgs {
+		pkgs[i].Name = strings.TrimSpace(pkgs[i].Name)
+		if pkgs[i].Name == "" {
+			return infraerrors.BadRequest("ALIPAY_INVALID_PACKAGE", "package name is required")
+		}
 		if pkgs[i].CnyAmount <= 0 || pkgs[i].UsdAmount <= 0 {
 			return infraerrors.BadRequest("ALIPAY_INVALID_PACKAGE", "package amount must be positive")
 		}

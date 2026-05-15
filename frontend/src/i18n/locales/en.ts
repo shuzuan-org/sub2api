@@ -4249,7 +4249,7 @@ export default {
         passwordResetHint: 'Allow users to reset their password via email',
         frontendUrl: 'Frontend URL',
         frontendUrlPlaceholder: 'https://example.com',
-        frontendUrlHint: 'Used to generate password reset links in emails. Example: https://example.com',
+        frontendUrlHint: 'Public-facing URL of this system. Used for password reset emails and Alipay async callbacks. Must be a public https URL, e.g. https://example.com',
         totp: 'Two-Factor Authentication (2FA)',
         totpHint: 'Allow users to use authenticator apps like Google Authenticator',
         totpKeyNotConfigured:

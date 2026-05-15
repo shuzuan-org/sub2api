@@ -110,6 +110,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',
       port: devPort,
+      allowedHosts: ['.ngrok-free.dev', '.ngrok.io', '.ngrok.app'],
       proxy: {
         '/api': {
           target: backendUrl,
