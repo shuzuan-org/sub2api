@@ -973,6 +973,8 @@ var (
 		{Name: "totp_enabled_at", Type: field.TypeTime, Nullable: true},
 		{Name: "sora_storage_quota_bytes", Type: field.TypeInt64, Default: 0},
 		{Name: "sora_storage_used_bytes", Type: field.TypeInt64, Default: 0},
+		{Name: "referral_code", Type: field.TypeString, Unique: true, Nullable: true, Size: 6},
+		{Name: "referred_by", Type: field.TypeInt64, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
@@ -989,6 +991,11 @@ var (
 				Name:    "user_deleted_at",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[3]},
+			},
+			{
+				Name:    "user_referred_by",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[18]},
 			},
 		},
 	}

@@ -78,6 +78,16 @@ func (User) Fields() []ent.Field {
 			Default(0),
 		field.Int64("sora_storage_used_bytes").
 			Default(0),
+
+		// 邀请好友：专属邀请码（懒创建，6 位大写字母+数字）与邀请人
+		field.String("referral_code").
+			MaxLen(6).
+			Optional().
+			Nillable().
+			Unique(),
+		field.Int64("referred_by").
+			Optional().
+			Nillable(),
 	}
 }
 
@@ -101,5 +111,6 @@ func (User) Indexes() []ent.Index {
 		// email 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("deleted_at"),
+		index.Fields("referred_by"),
 	}
 }

@@ -14,6 +14,8 @@ var (
 	ErrUserNotFound      = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
 	ErrPasswordIncorrect = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
 	ErrInsufficientPerms = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
+	// ErrReferralCodeConflict 表示设置邀请码时发生唯一冲突或目标用户已有邀请码（需重试或视为已存在）。
+	ErrReferralCodeConflict = infraerrors.Conflict("REFERRAL_CODE_CONFLICT", "referral code conflict")
 )
 
 // UserListFilters contains all filter options for listing users
@@ -56,6 +58,15 @@ type UserRepository interface {
 	UpdateTotpSecret(ctx context.Context, userID int64, encryptedSecret *string) error
 	EnableTotp(ctx context.Context, userID int64) error
 	DisableTotp(ctx context.Context, userID int64) error
+
+	// 邀请好友
+	// GetByReferralCode 按专属邀请码查用户；未找到返回 ErrUserNotFound。
+	GetByReferralCode(ctx context.Context, code string) (*User, error)
+	// SetReferralCode 仅当用户当前无邀请码时写入（WHERE referral_code IS NULL）。
+	// 唯一冲突或用户已有码时返回 ErrReferralCodeConflict。
+	SetReferralCode(ctx context.Context, id int64, code string) error
+	// SetReferredBy 设置用户的邀请人。
+	SetReferredBy(ctx context.Context, id int64, referrerID int64) error
 }
 
 // UpdateProfileRequest 更新用户资料请求

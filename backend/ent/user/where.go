@@ -135,6 +135,16 @@ func SoraStorageUsedBytes(v int64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSoraStorageUsedBytes, v))
 }
 
+// ReferralCode applies equality check predicate on the "referral_code" field. It's identical to ReferralCodeEQ.
+func ReferralCode(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReferralCode, v))
+}
+
+// ReferredBy applies equality check predicate on the "referred_by" field. It's identical to ReferredByEQ.
+func ReferredBy(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReferredBy, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -948,6 +958,131 @@ func SoraStorageUsedBytesLT(v int64) predicate.User {
 // SoraStorageUsedBytesLTE applies the LTE predicate on the "sora_storage_used_bytes" field.
 func SoraStorageUsedBytesLTE(v int64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldSoraStorageUsedBytes, v))
+}
+
+// ReferralCodeEQ applies the EQ predicate on the "referral_code" field.
+func ReferralCodeEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReferralCode, v))
+}
+
+// ReferralCodeNEQ applies the NEQ predicate on the "referral_code" field.
+func ReferralCodeNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReferralCode, v))
+}
+
+// ReferralCodeIn applies the In predicate on the "referral_code" field.
+func ReferralCodeIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldReferralCode, vs...))
+}
+
+// ReferralCodeNotIn applies the NotIn predicate on the "referral_code" field.
+func ReferralCodeNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldReferralCode, vs...))
+}
+
+// ReferralCodeGT applies the GT predicate on the "referral_code" field.
+func ReferralCodeGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldReferralCode, v))
+}
+
+// ReferralCodeGTE applies the GTE predicate on the "referral_code" field.
+func ReferralCodeGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldReferralCode, v))
+}
+
+// ReferralCodeLT applies the LT predicate on the "referral_code" field.
+func ReferralCodeLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldReferralCode, v))
+}
+
+// ReferralCodeLTE applies the LTE predicate on the "referral_code" field.
+func ReferralCodeLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldReferralCode, v))
+}
+
+// ReferralCodeContains applies the Contains predicate on the "referral_code" field.
+func ReferralCodeContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldReferralCode, v))
+}
+
+// ReferralCodeHasPrefix applies the HasPrefix predicate on the "referral_code" field.
+func ReferralCodeHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldReferralCode, v))
+}
+
+// ReferralCodeHasSuffix applies the HasSuffix predicate on the "referral_code" field.
+func ReferralCodeHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldReferralCode, v))
+}
+
+// ReferralCodeIsNil applies the IsNil predicate on the "referral_code" field.
+func ReferralCodeIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldReferralCode))
+}
+
+// ReferralCodeNotNil applies the NotNil predicate on the "referral_code" field.
+func ReferralCodeNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldReferralCode))
+}
+
+// ReferralCodeEqualFold applies the EqualFold predicate on the "referral_code" field.
+func ReferralCodeEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldReferralCode, v))
+}
+
+// ReferralCodeContainsFold applies the ContainsFold predicate on the "referral_code" field.
+func ReferralCodeContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldReferralCode, v))
+}
+
+// ReferredByEQ applies the EQ predicate on the "referred_by" field.
+func ReferredByEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReferredBy, v))
+}
+
+// ReferredByNEQ applies the NEQ predicate on the "referred_by" field.
+func ReferredByNEQ(v int64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReferredBy, v))
+}
+
+// ReferredByIn applies the In predicate on the "referred_by" field.
+func ReferredByIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldReferredBy, vs...))
+}
+
+// ReferredByNotIn applies the NotIn predicate on the "referred_by" field.
+func ReferredByNotIn(vs ...int64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldReferredBy, vs...))
+}
+
+// ReferredByGT applies the GT predicate on the "referred_by" field.
+func ReferredByGT(v int64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldReferredBy, v))
+}
+
+// ReferredByGTE applies the GTE predicate on the "referred_by" field.
+func ReferredByGTE(v int64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldReferredBy, v))
+}
+
+// ReferredByLT applies the LT predicate on the "referred_by" field.
+func ReferredByLT(v int64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldReferredBy, v))
+}
+
+// ReferredByLTE applies the LTE predicate on the "referred_by" field.
+func ReferredByLTE(v int64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldReferredBy, v))
+}
+
+// ReferredByIsNil applies the IsNil predicate on the "referred_by" field.
+func ReferredByIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldReferredBy))
+}
+
+// ReferredByNotNil applies the NotNil predicate on the "referred_by" field.
+func ReferredByNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldReferredBy))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.

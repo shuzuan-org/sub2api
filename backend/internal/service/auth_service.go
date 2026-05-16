@@ -71,6 +71,7 @@ type AuthService struct {
 	emailQueueService  *EmailQueueService
 	promoService       *PromoService
 	defaultSubAssigner DefaultSubscriptionAssigner
+	inviteService      *InviteService
 }
 
 type DefaultSubscriptionAssigner interface {
@@ -90,6 +91,7 @@ func NewAuthService(
 	emailQueueService *EmailQueueService,
 	promoService *PromoService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
+	inviteService *InviteService,
 ) *AuthService {
 	return &AuthService{
 		entClient:          entClient,
@@ -103,16 +105,17 @@ func NewAuthService(
 		emailQueueService:  emailQueueService,
 		promoService:       promoService,
 		defaultSubAssigner: defaultSubAssigner,
+		inviteService:      inviteService,
 	}
 }
 
 // Register 用户注册，返回token和用户
 func (s *AuthService) Register(ctx context.Context, email, password string) (string, *User, error) {
-	return s.RegisterWithVerification(ctx, email, password, "", "", "")
+	return s.RegisterWithVerification(ctx, email, password, "", "", "", "")
 }
 
 // RegisterWithVerification 用户注册（支持邮件验证、优惠码和邀请码），返回token和用户
-func (s *AuthService) RegisterWithVerification(ctx context.Context, email, password, verifyCode, promoCode, invitationCode string) (string, *User, error) {
+func (s *AuthService) RegisterWithVerification(ctx context.Context, email, password, verifyCode, promoCode, invitationCode, referralCode string) (string, *User, error) {
 	// 检查是否开放注册（默认关闭：settingService 未配置时不允许注册）
 	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return "", nil, ErrRegDisabled
@@ -206,6 +209,23 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		return "", nil, ErrServiceUnavailable
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
+
+	// 邀请好友归因 + 给邀请人发放固定 U 奖励。
+	// 注意：与现有 invitation_code（redeem 准入码）完全独立；
+	// 任何失败都只记日志、绝不阻断注册。
+	if referralCode != "" && s.inviteService != nil {
+		if tx, txErr := s.entClient.Tx(ctx); txErr != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] referral tx begin failed for user %d: %v", user.ID, txErr)
+		} else {
+			txCtx := dbent.NewTxContext(ctx, tx)
+			inviterID, credited := s.inviteService.AttributeAndReward(txCtx, user.ID, referralCode)
+			if commitErr := tx.Commit(); commitErr != nil {
+				logger.LegacyPrintf("service.auth", "[Auth] referral tx commit failed for user %d: %v", user.ID, commitErr)
+			} else if credited {
+				s.inviteService.InvalidateInviterCache(ctx, inviterID)
+			}
+		}
+	}
 
 	// 标记邀请码为已使用（如果使用了邀请码）
 	if invitationRedeemCode != nil {
