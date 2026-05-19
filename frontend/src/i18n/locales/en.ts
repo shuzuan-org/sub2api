@@ -386,6 +386,7 @@ export default {
     usage: 'Usage',
     redeem: 'Redeem',
     profile: 'Profile',
+    invite: 'Invite Friends',
     users: 'Users',
     groups: 'Groups',
     subscriptions: 'Subscriptions',
@@ -940,6 +941,48 @@ export default {
   // Empty States
   empty: {
     noData: 'No data found'
+  },
+
+  invite: {
+    title: 'Invite Friends to NAPI',
+    description:
+      'Share your personal invite code or link. Friends register and use the platform. This page centralizes the invite entry, key conversion metrics and invite records, ready for future commission settlement.',
+    badge: 'Invite Friends · Future Commission Benefits',
+    copyCode: 'Copy Code',
+    copyLink: 'Copy Invite Link',
+    copied: 'Copied',
+    copyFailed: 'Copy failed, please copy manually',
+    loadFailed: 'Failed to load invite data',
+    linkSectionTitle: 'Invite Link Info',
+    codeFormatHint: '6 uppercase letters + digits only',
+    myCode: 'My Invite Code',
+    myLink: 'My Invite Link',
+    linkUnavailable: 'Invite link not configured (ask admin to set frontend URL)',
+    tagBound: 'Code permanently bound to this account',
+    tagAutoAttribute: 'Auto-attributed when invitee registers',
+    tagCommissionLater: 'Commission rules configurable later',
+    statsSectionTitle: 'Invite Statistics',
+    statsPeriodHint: 'Last 90 days',
+    statInvitedCount: 'Invited',
+    statRechargedCount: 'Recharged',
+    statTotalCommission: 'Total Commission',
+    statWithdrawable: 'Withdrawable',
+    placeholderHint: 'TBD',
+    recordsSectionTitle: 'Invite Records',
+    recordsSortHint: 'Sorted by registration time, newest first',
+    searchPlaceholder: 'Search email or nickname',
+    searchButton: 'Search',
+    colUser: 'Invited User',
+    colRegisteredAt: 'Registered At',
+    colTotalRecharge: 'Total Recharge',
+    colStatus: 'Status',
+    statusRegistered: 'Registered',
+    empty: 'No invite records yet',
+    pageInfo: 'Page {page}/{totalPages} · {total} total',
+    prevPage: 'Prev',
+    nextPage: 'Next',
+    dataNote:
+      'Note: Recharged count, total commission and withdrawable are placeholder fields; commission settlement will be integrated later. Total recharge and status currently show default values.'
   },
 
   // Table

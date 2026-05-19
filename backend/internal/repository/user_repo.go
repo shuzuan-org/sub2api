@@ -637,3 +637,45 @@ func (r *userRepository) DisableTotp(ctx context.Context, userID int64) error {
 	}
 	return nil
 }
+
+// GetByReferralCode 按专属邀请码查用户。
+func (r *userRepository) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {
+	client := clientFromContext(ctx, r.client)
+	m, err := client.User.Query().Where(dbuser.ReferralCodeEQ(code)).Only(ctx)
+	if err != nil {
+		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	return userEntityToService(m), nil
+}
+
+// SetReferralCode 仅当用户当前无邀请码时写入（条件更新 WHERE referral_code IS NULL）。
+// 影响 0 行（用户已有码或不存在）或唯一冲突 → 返回 ErrReferralCodeConflict，调用方据此重试。
+func (r *userRepository) SetReferralCode(ctx context.Context, id int64, code string) error {
+	client := clientFromContext(ctx, r.client)
+	n, err := client.User.Update().
+		Where(dbuser.IDEQ(id), dbuser.ReferralCodeIsNil()).
+		SetReferralCode(code).
+		Save(ctx)
+	if err != nil {
+		if isUniqueConstraintViolation(err) {
+			return service.ErrReferralCodeConflict
+		}
+		return err
+	}
+	if n == 0 {
+		return service.ErrReferralCodeConflict
+	}
+	return nil
+}
+
+// SetReferredBy 设置用户的邀请人。
+func (r *userRepository) SetReferredBy(ctx context.Context, id int64, referrerID int64) error {
+	client := clientFromContext(ctx, r.client)
+	_, err := client.User.UpdateOneID(id).
+		SetReferredBy(referrerID).
+		Save(ctx)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	return nil
+}

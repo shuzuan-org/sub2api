@@ -24900,6 +24900,9 @@ type UserMutation struct {
 	addsora_storage_quota_bytes   *int64
 	sora_storage_used_bytes       *int64
 	addsora_storage_used_bytes    *int64
+	referral_code                 *string
+	referred_by                   *int64
+	addreferred_by                *int64
 	clearedFields                 map[string]struct{}
 	api_keys                      map[int64]struct{}
 	removedapi_keys               map[int64]struct{}
@@ -25726,6 +25729,125 @@ func (m *UserMutation) ResetSoraStorageUsedBytes() {
 	m.addsora_storage_used_bytes = nil
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (m *UserMutation) SetReferralCode(s string) {
+	m.referral_code = &s
+}
+
+// ReferralCode returns the value of the "referral_code" field in the mutation.
+func (m *UserMutation) ReferralCode() (r string, exists bool) {
+	v := m.referral_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferralCode returns the old "referral_code" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldReferralCode(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferralCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferralCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferralCode: %w", err)
+	}
+	return oldValue.ReferralCode, nil
+}
+
+// ClearReferralCode clears the value of the "referral_code" field.
+func (m *UserMutation) ClearReferralCode() {
+	m.referral_code = nil
+	m.clearedFields[user.FieldReferralCode] = struct{}{}
+}
+
+// ReferralCodeCleared returns if the "referral_code" field was cleared in this mutation.
+func (m *UserMutation) ReferralCodeCleared() bool {
+	_, ok := m.clearedFields[user.FieldReferralCode]
+	return ok
+}
+
+// ResetReferralCode resets all changes to the "referral_code" field.
+func (m *UserMutation) ResetReferralCode() {
+	m.referral_code = nil
+	delete(m.clearedFields, user.FieldReferralCode)
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (m *UserMutation) SetReferredBy(i int64) {
+	m.referred_by = &i
+	m.addreferred_by = nil
+}
+
+// ReferredBy returns the value of the "referred_by" field in the mutation.
+func (m *UserMutation) ReferredBy() (r int64, exists bool) {
+	v := m.referred_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferredBy returns the old "referred_by" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldReferredBy(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferredBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferredBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferredBy: %w", err)
+	}
+	return oldValue.ReferredBy, nil
+}
+
+// AddReferredBy adds i to the "referred_by" field.
+func (m *UserMutation) AddReferredBy(i int64) {
+	if m.addreferred_by != nil {
+		*m.addreferred_by += i
+	} else {
+		m.addreferred_by = &i
+	}
+}
+
+// AddedReferredBy returns the value that was added to the "referred_by" field in this mutation.
+func (m *UserMutation) AddedReferredBy() (r int64, exists bool) {
+	v := m.addreferred_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearReferredBy clears the value of the "referred_by" field.
+func (m *UserMutation) ClearReferredBy() {
+	m.referred_by = nil
+	m.addreferred_by = nil
+	m.clearedFields[user.FieldReferredBy] = struct{}{}
+}
+
+// ReferredByCleared returns if the "referred_by" field was cleared in this mutation.
+func (m *UserMutation) ReferredByCleared() bool {
+	_, ok := m.clearedFields[user.FieldReferredBy]
+	return ok
+}
+
+// ResetReferredBy resets all changes to the "referred_by" field.
+func (m *UserMutation) ResetReferredBy() {
+	m.referred_by = nil
+	m.addreferred_by = nil
+	delete(m.clearedFields, user.FieldReferredBy)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
 func (m *UserMutation) AddAPIKeyIDs(ids ...int64) {
 	if m.api_keys == nil {
@@ -26246,7 +26368,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 18)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -26295,6 +26417,12 @@ func (m *UserMutation) Fields() []string {
 	if m.sora_storage_used_bytes != nil {
 		fields = append(fields, user.FieldSoraStorageUsedBytes)
 	}
+	if m.referral_code != nil {
+		fields = append(fields, user.FieldReferralCode)
+	}
+	if m.referred_by != nil {
+		fields = append(fields, user.FieldReferredBy)
+	}
 	return fields
 }
 
@@ -26335,6 +26463,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.SoraStorageQuotaBytes()
 	case user.FieldSoraStorageUsedBytes:
 		return m.SoraStorageUsedBytes()
+	case user.FieldReferralCode:
+		return m.ReferralCode()
+	case user.FieldReferredBy:
+		return m.ReferredBy()
 	}
 	return nil, false
 }
@@ -26376,6 +26508,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldSoraStorageQuotaBytes(ctx)
 	case user.FieldSoraStorageUsedBytes:
 		return m.OldSoraStorageUsedBytes(ctx)
+	case user.FieldReferralCode:
+		return m.OldReferralCode(ctx)
+	case user.FieldReferredBy:
+		return m.OldReferredBy(ctx)
 	}
 	return nil, fmt.Errorf("unknown User field %s", name)
 }
@@ -26497,6 +26633,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSoraStorageUsedBytes(v)
 		return nil
+	case user.FieldReferralCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferralCode(v)
+		return nil
+	case user.FieldReferredBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferredBy(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)
 }
@@ -26517,6 +26667,9 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addsora_storage_used_bytes != nil {
 		fields = append(fields, user.FieldSoraStorageUsedBytes)
 	}
+	if m.addreferred_by != nil {
+		fields = append(fields, user.FieldReferredBy)
+	}
 	return fields
 }
 
@@ -26533,6 +26686,8 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedSoraStorageQuotaBytes()
 	case user.FieldSoraStorageUsedBytes:
 		return m.AddedSoraStorageUsedBytes()
+	case user.FieldReferredBy:
+		return m.AddedReferredBy()
 	}
 	return nil, false
 }
@@ -26570,6 +26725,13 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddSoraStorageUsedBytes(v)
 		return nil
+	case user.FieldReferredBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddReferredBy(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User numeric field %s", name)
 }
@@ -26586,6 +26748,12 @@ func (m *UserMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(user.FieldTotpEnabledAt) {
 		fields = append(fields, user.FieldTotpEnabledAt)
+	}
+	if m.FieldCleared(user.FieldReferralCode) {
+		fields = append(fields, user.FieldReferralCode)
+	}
+	if m.FieldCleared(user.FieldReferredBy) {
+		fields = append(fields, user.FieldReferredBy)
 	}
 	return fields
 }
@@ -26609,6 +26777,12 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldTotpEnabledAt:
 		m.ClearTotpEnabledAt()
+		return nil
+	case user.FieldReferralCode:
+		m.ClearReferralCode()
+		return nil
+	case user.FieldReferredBy:
+		m.ClearReferredBy()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -26665,6 +26839,12 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldSoraStorageUsedBytes:
 		m.ResetSoraStorageUsedBytes()
+		return nil
+	case user.FieldReferralCode:
+		m.ResetReferralCode()
+		return nil
+	case user.FieldReferredBy:
+		m.ResetReferredBy()
 		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)

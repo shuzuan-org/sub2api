@@ -52,6 +52,7 @@ type Handlers struct {
 	Totp          *TotpHandler
 	Alipay        *AlipayHandler
 	Pricing       *PricingHandler
+	Invite        *InviteHandler
 }
 
 // BuildInfo contains build-time information

@@ -197,6 +197,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/invite',
+    name: 'Invite',
+    component: () => import('@/views/user/InviteView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Invite Friends',
+      titleKey: 'invite.title',
+      descriptionKey: 'invite.description'
+    }
+  },
+  {
     path: '/subscriptions',
     name: 'Subscriptions',
     component: () => import('@/views/user/SubscriptionsView.vue'),

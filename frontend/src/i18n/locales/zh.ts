@@ -386,6 +386,7 @@ export default {
     usage: '使用记录',
     redeem: '兑换',
     profile: '个人资料',
+    invite: '邀请好友',
     users: '用户管理',
     groups: '分组管理',
     subscriptions: '订阅管理',
@@ -945,6 +946,48 @@ export default {
   // Empty States
   empty: {
     noData: '暂无数据'
+  },
+
+  invite: {
+    title: '邀请好友加入 NAPI',
+    description:
+      '分享你的专属邀请码或邀请链接，邀请朋友注册并使用平台。页面集中展示邀请入口、核心转化数据与邀请明细，便于后续接入佣金结算能力。',
+    badge: '邀请好友 · 获取未来佣金权益',
+    copyCode: '复制邀请码',
+    copyLink: '复制邀请链接',
+    copied: '已复制',
+    copyFailed: '复制失败，请手动复制',
+    loadFailed: '加载邀请数据失败',
+    linkSectionTitle: '邀请链接信息',
+    codeFormatHint: '仅支持 6 位大写字母 + 数字',
+    myCode: '我的邀请码',
+    myLink: '我的邀请链接',
+    linkUnavailable: '邀请链接未配置（请联系管理员设置前端地址）',
+    tagBound: '邀请码固定绑定当前账号',
+    tagAutoAttribute: '被邀请用户注册后自动归因',
+    tagCommissionLater: '佣金规则可后续配置',
+    statsSectionTitle: '邀请数据统计',
+    statsPeriodHint: '最近 90 天',
+    statInvitedCount: '邀请人数',
+    statRechargedCount: '充值人数',
+    statTotalCommission: '累计佣金',
+    statWithdrawable: '可提取佣金',
+    placeholderHint: '待配置',
+    recordsSectionTitle: '邀请详情记录',
+    recordsSortHint: '按照注册时间从新到旧排序',
+    searchPlaceholder: '搜索邮箱或昵称',
+    searchButton: '搜索',
+    colUser: '邀请用户',
+    colRegisteredAt: '注册时间',
+    colTotalRecharge: '累计充值',
+    colStatus: '状态',
+    statusRegistered: '已注册',
+    empty: '暂无邀请记录',
+    pageInfo: '第 {page}/{totalPages} 页 · 共 {total} 条',
+    prevPage: '上一页',
+    nextPage: '下一页',
+    dataNote:
+      '数据备注：充值人数、累计佣金、可提取佣金为占位字段，佣金结算能力后续接入；累计充值与状态当前默认显示为初始值。'
   },
 
   // Table

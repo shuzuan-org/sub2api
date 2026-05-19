@@ -284,6 +284,53 @@ func (_u *UserUpdate) AddSoraStorageUsedBytes(v int64) *UserUpdate {
 	return _u
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (_u *UserUpdate) SetReferralCode(v string) *UserUpdate {
+	_u.mutation.SetReferralCode(v)
+	return _u
+}
+
+// SetNillableReferralCode sets the "referral_code" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReferralCode(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetReferralCode(*v)
+	}
+	return _u
+}
+
+// ClearReferralCode clears the value of the "referral_code" field.
+func (_u *UserUpdate) ClearReferralCode() *UserUpdate {
+	_u.mutation.ClearReferralCode()
+	return _u
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (_u *UserUpdate) SetReferredBy(v int64) *UserUpdate {
+	_u.mutation.ResetReferredBy()
+	_u.mutation.SetReferredBy(v)
+	return _u
+}
+
+// SetNillableReferredBy sets the "referred_by" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReferredBy(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetReferredBy(*v)
+	}
+	return _u
+}
+
+// AddReferredBy adds value to the "referred_by" field.
+func (_u *UserUpdate) AddReferredBy(v int64) *UserUpdate {
+	_u.mutation.AddReferredBy(v)
+	return _u
+}
+
+// ClearReferredBy clears the value of the "referred_by" field.
+func (_u *UserUpdate) ClearReferredBy() *UserUpdate {
+	_u.mutation.ClearReferredBy()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdate) AddAPIKeyIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -682,6 +729,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ReferralCode(); ok {
+		if err := user.ReferralCodeValidator(v); err != nil {
+			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -762,6 +814,21 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
 		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.ReferralCode(); ok {
+		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
+	}
+	if _u.mutation.ReferralCodeCleared() {
+		_spec.ClearField(user.FieldReferralCode, field.TypeString)
+	}
+	if value, ok := _u.mutation.ReferredBy(); ok {
+		_spec.SetField(user.FieldReferredBy, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedReferredBy(); ok {
+		_spec.AddField(user.FieldReferredBy, field.TypeInt64, value)
+	}
+	if _u.mutation.ReferredByCleared() {
+		_spec.ClearField(user.FieldReferredBy, field.TypeInt64)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1448,6 +1515,53 @@ func (_u *UserUpdateOne) AddSoraStorageUsedBytes(v int64) *UserUpdateOne {
 	return _u
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (_u *UserUpdateOne) SetReferralCode(v string) *UserUpdateOne {
+	_u.mutation.SetReferralCode(v)
+	return _u
+}
+
+// SetNillableReferralCode sets the "referral_code" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReferralCode(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetReferralCode(*v)
+	}
+	return _u
+}
+
+// ClearReferralCode clears the value of the "referral_code" field.
+func (_u *UserUpdateOne) ClearReferralCode() *UserUpdateOne {
+	_u.mutation.ClearReferralCode()
+	return _u
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (_u *UserUpdateOne) SetReferredBy(v int64) *UserUpdateOne {
+	_u.mutation.ResetReferredBy()
+	_u.mutation.SetReferredBy(v)
+	return _u
+}
+
+// SetNillableReferredBy sets the "referred_by" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReferredBy(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetReferredBy(*v)
+	}
+	return _u
+}
+
+// AddReferredBy adds value to the "referred_by" field.
+func (_u *UserUpdateOne) AddReferredBy(v int64) *UserUpdateOne {
+	_u.mutation.AddReferredBy(v)
+	return _u
+}
+
+// ClearReferredBy clears the value of the "referred_by" field.
+func (_u *UserUpdateOne) ClearReferredBy() *UserUpdateOne {
+	_u.mutation.ClearReferredBy()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdateOne) AddAPIKeyIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1859,6 +1973,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ReferralCode(); ok {
+		if err := user.ReferralCodeValidator(v); err != nil {
+			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1956,6 +2075,21 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
 		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.ReferralCode(); ok {
+		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
+	}
+	if _u.mutation.ReferralCodeCleared() {
+		_spec.ClearField(user.FieldReferralCode, field.TypeString)
+	}
+	if value, ok := _u.mutation.ReferredBy(); ok {
+		_spec.SetField(user.FieldReferredBy, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedReferredBy(); ok {
+		_spec.AddField(user.FieldReferredBy, field.TypeInt64, value)
+	}
+	if _u.mutation.ReferredByCleared() {
+		_spec.ClearField(user.FieldReferredBy, field.TypeInt64)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

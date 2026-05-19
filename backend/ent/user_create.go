@@ -238,6 +238,34 @@ func (_c *UserCreate) SetNillableSoraStorageUsedBytes(v *int64) *UserCreate {
 	return _c
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (_c *UserCreate) SetReferralCode(v string) *UserCreate {
+	_c.mutation.SetReferralCode(v)
+	return _c
+}
+
+// SetNillableReferralCode sets the "referral_code" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReferralCode(v *string) *UserCreate {
+	if v != nil {
+		_c.SetReferralCode(*v)
+	}
+	return _c
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (_c *UserCreate) SetReferredBy(v int64) *UserCreate {
+	_c.mutation.SetReferredBy(v)
+	return _c
+}
+
+// SetNillableReferredBy sets the "referred_by" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReferredBy(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetReferredBy(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -529,6 +557,11 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.SoraStorageUsedBytes(); !ok {
 		return &ValidationError{Name: "sora_storage_used_bytes", err: errors.New(`ent: missing required field "User.sora_storage_used_bytes"`)}
 	}
+	if v, ok := _c.mutation.ReferralCode(); ok {
+		if err := user.ReferralCodeValidator(v); err != nil {
+			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -619,6 +652,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SoraStorageUsedBytes(); ok {
 		_spec.SetField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
 		_node.SoraStorageUsedBytes = value
+	}
+	if value, ok := _c.mutation.ReferralCode(); ok {
+		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
+		_node.ReferralCode = &value
+	}
+	if value, ok := _c.mutation.ReferredBy(); ok {
+		_spec.SetField(user.FieldReferredBy, field.TypeInt64, value)
+		_node.ReferredBy = &value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1042,6 +1083,48 @@ func (u *UserUpsert) AddSoraStorageUsedBytes(v int64) *UserUpsert {
 	return u
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (u *UserUpsert) SetReferralCode(v string) *UserUpsert {
+	u.Set(user.FieldReferralCode, v)
+	return u
+}
+
+// UpdateReferralCode sets the "referral_code" field to the value that was provided on create.
+func (u *UserUpsert) UpdateReferralCode() *UserUpsert {
+	u.SetExcluded(user.FieldReferralCode)
+	return u
+}
+
+// ClearReferralCode clears the value of the "referral_code" field.
+func (u *UserUpsert) ClearReferralCode() *UserUpsert {
+	u.SetNull(user.FieldReferralCode)
+	return u
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (u *UserUpsert) SetReferredBy(v int64) *UserUpsert {
+	u.Set(user.FieldReferredBy, v)
+	return u
+}
+
+// UpdateReferredBy sets the "referred_by" field to the value that was provided on create.
+func (u *UserUpsert) UpdateReferredBy() *UserUpsert {
+	u.SetExcluded(user.FieldReferredBy)
+	return u
+}
+
+// AddReferredBy adds v to the "referred_by" field.
+func (u *UserUpsert) AddReferredBy(v int64) *UserUpsert {
+	u.Add(user.FieldReferredBy, v)
+	return u
+}
+
+// ClearReferredBy clears the value of the "referred_by" field.
+func (u *UserUpsert) ClearReferredBy() *UserUpsert {
+	u.SetNull(user.FieldReferredBy)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1343,6 +1426,55 @@ func (u *UserUpsertOne) AddSoraStorageUsedBytes(v int64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateSoraStorageUsedBytes() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSoraStorageUsedBytes()
+	})
+}
+
+// SetReferralCode sets the "referral_code" field.
+func (u *UserUpsertOne) SetReferralCode(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralCode(v)
+	})
+}
+
+// UpdateReferralCode sets the "referral_code" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateReferralCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralCode()
+	})
+}
+
+// ClearReferralCode clears the value of the "referral_code" field.
+func (u *UserUpsertOne) ClearReferralCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferralCode()
+	})
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (u *UserUpsertOne) SetReferredBy(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferredBy(v)
+	})
+}
+
+// AddReferredBy adds v to the "referred_by" field.
+func (u *UserUpsertOne) AddReferredBy(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddReferredBy(v)
+	})
+}
+
+// UpdateReferredBy sets the "referred_by" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateReferredBy() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferredBy()
+	})
+}
+
+// ClearReferredBy clears the value of the "referred_by" field.
+func (u *UserUpsertOne) ClearReferredBy() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferredBy()
 	})
 }
 
@@ -1813,6 +1945,55 @@ func (u *UserUpsertBulk) AddSoraStorageUsedBytes(v int64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateSoraStorageUsedBytes() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSoraStorageUsedBytes()
+	})
+}
+
+// SetReferralCode sets the "referral_code" field.
+func (u *UserUpsertBulk) SetReferralCode(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralCode(v)
+	})
+}
+
+// UpdateReferralCode sets the "referral_code" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateReferralCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralCode()
+	})
+}
+
+// ClearReferralCode clears the value of the "referral_code" field.
+func (u *UserUpsertBulk) ClearReferralCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferralCode()
+	})
+}
+
+// SetReferredBy sets the "referred_by" field.
+func (u *UserUpsertBulk) SetReferredBy(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferredBy(v)
+	})
+}
+
+// AddReferredBy adds v to the "referred_by" field.
+func (u *UserUpsertBulk) AddReferredBy(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddReferredBy(v)
+	})
+}
+
+// UpdateReferredBy sets the "referred_by" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateReferredBy() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferredBy()
+	})
+}
+
+// ClearReferredBy clears the value of the "referred_by" field.
+func (u *UserUpsertBulk) ClearReferredBy() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferredBy()
 	})
 }
 
