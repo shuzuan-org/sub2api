@@ -25,6 +25,10 @@
       d="M12 2.5l2.1 4.7 5.1.5-3.9 3.4 1.2 5-4.5-2.6-4.5 2.6 1.2-5-3.9-3.4 5.1-.5L12 2.5z"
     />
   </svg>
+  <!-- DeepSeek logo (whale) -->
+  <svg v-else-if="platform === 'deepseek'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M21.66 8.34a.99.99 0 0 0-1.04-.13 7.97 7.97 0 0 1-3.27.79c-1.34 0-2.6-.4-3.65-1.1a.99.99 0 0 0-1.18 0 6.4 6.4 0 0 1-7.51-.06.99.99 0 0 0-1.56.78l-.05 5.27a8 8 0 0 0 16-.18l.16-3.97c.03-.51-.45-.92-.93-.4Zm-9.66 6.83a3.17 3.17 0 1 1 0-6.34 3.17 3.17 0 0 1 0 6.34Z" />
+  </svg>
   <!-- Fallback: generic platform icon -->
   <svg v-else :class="sizeClass" fill="currentColor" viewBox="0 0 24 24">
     <path

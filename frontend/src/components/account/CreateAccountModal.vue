@@ -169,6 +169,25 @@
             <Icon name="cloud" size="sm" />
             Antigravity
           </button>
+          <button
+            type="button"
+            @click="form.platform = 'deepseek'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'deepseek'
+                ? 'bg-white text-indigo-600 shadow-sm dark:bg-dark-600 dark:text-indigo-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M21.66 8.34a.99.99 0 0 0-1.04-.13 7.97 7.97 0 0 1-3.27.79c-1.34 0-2.6-.4-3.65-1.1a.99.99 0 0 0-1.18 0 6.4 6.4 0 0 1-7.51-.06.99.99 0 0 0-1.56.78l-.05 5.27a8 8 0 0 0 16-.18l.16-3.97c.03-.51-.45-.92-.93-.4Zm-9.66 6.83a3.17 3.17 0 1 1 0-6.34 3.17 3.17 0 0 1 0 6.34Z" />
+            </svg>
+            DeepSeek
+          </button>
         </div>
       </div>
 
@@ -379,6 +398,38 @@
             <div>
               <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
               <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.responsesApi') }}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (DeepSeek) -->
+      <div v-if="form.platform === 'deepseek'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3" data-tour="account-form-type">
+          <button
+            type="button"
+            @click="accountCategory = 'apikey'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'apikey'
+                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                : 'border-gray-200 hover:border-indigo-300 dark:border-dark-600 dark:hover:border-indigo-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'apikey'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">DeepSeek Platform API Key</span>
             </div>
           </button>
         </div>
@@ -939,7 +990,9 @@
                 ? 'https://api.openai.com'
                 : form.platform === 'gemini'
                   ? 'https://generativelanguage.googleapis.com'
-                  : 'https://api.anthropic.com'
+                  : form.platform === 'deepseek'
+                    ? 'https://api.deepseek.com'
+                    : 'https://api.anthropic.com'
             "
           />
           <p class="input-hint">{{ form.platform === 'sora' ? t('admin.accounts.soraUpstreamBaseUrlHint') : baseUrlHint }}</p>
@@ -956,7 +1009,9 @@
                 ? 'sk-proj-...'
                 : form.platform === 'gemini'
                   ? 'AIza...'
-                  : 'sk-ant-...'
+                  : form.platform === 'deepseek'
+                    ? 'sk-...'
+                    : 'sk-ant-...'
             "
           />
           <p class="input-hint">{{ apiKeyHint }}</p>
@@ -3338,7 +3393,9 @@ watch(
         ? 'https://api.openai.com'
         : newPlatform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
-          : 'https://api.anthropic.com'
+          : newPlatform === 'deepseek'
+            ? 'https://api.deepseek.com'
+            : 'https://api.anthropic.com'
     // Clear model-related settings
     allowedModels.value = []
     modelMappings.value = []
@@ -3375,6 +3432,11 @@ watch(
       addMethod.value = 'oauth'
       form.type = 'oauth'
       soraAccountType.value = 'oauth'
+    }
+    if (newPlatform === 'deepseek') {
+      // DeepSeek 只支持 API Key 接入
+      accountCategory.value = 'apikey'
+      form.type = 'apikey'
     }
     if (newPlatform !== 'openai') {
       openaiPassthroughEnabled.value = false

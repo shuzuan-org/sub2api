@@ -32,7 +32,7 @@ func NewGroupHandler(adminService service.AdminService, dashboardService *servic
 type CreateGroupRequest struct {
 	Name             string             `json:"name" binding:"required"`
 	Description      string             `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora"`
+	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
 	RateMultiplier   float64            `json:"rate_multiplier"`
 	IsExclusive bool `json:"is_exclusive"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
@@ -65,7 +65,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name             string             `json:"name"`
 	Description      string             `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora"`
+	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
 	RateMultiplier   *float64           `json:"rate_multiplier"`
 	IsExclusive *bool `json:"is_exclusive"`
 	Status      string `json:"status" binding:"omitempty,oneof=active inactive"`

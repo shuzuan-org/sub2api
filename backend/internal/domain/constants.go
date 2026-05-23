@@ -23,6 +23,7 @@ const (
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
 	PlatformSora        = "sora"
+	PlatformDeepSeek    = "deepseek"
 )
 
 // Account type constants

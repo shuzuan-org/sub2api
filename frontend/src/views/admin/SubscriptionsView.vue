@@ -929,7 +929,8 @@ const platformFilterOptions = computed(() => [
   { value: 'openai', label: 'OpenAI' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
-  { value: 'sora', label: 'Sora' }
+  { value: 'sora', label: 'Sora' },
+  { value: 'deepseek', label: 'DeepSeek' }
 ])
 
 // Plan options for assign (only active plans)

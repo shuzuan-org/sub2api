@@ -1748,7 +1748,8 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        sora: 'Sora'
+        sora: 'Sora',
+        deepseek: 'DeepSeek'
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -2287,7 +2288,8 @@ export default {
         anthropic: 'Anthropic',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        sora: 'Sora'
+        sora: 'Sora',
+        deepseek: 'DeepSeek'
       },
       types: {
         oauth: 'OAuth',

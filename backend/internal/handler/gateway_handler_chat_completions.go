@@ -204,7 +204,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 
 		// 5. Forward request
 		writerSizeBeforeForward := c.Writer.Size()
-		result, err := h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, body, parsedReq)
+		var result *service.ForwardResult
+		if account.IsDeepSeek() {
+			result, err = h.gatewayService.ForwardDeepSeekChatCompletions(c.Request.Context(), c, account, body)
+		} else {
+			result, err = h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, body, parsedReq)
+		}
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()
