@@ -130,9 +130,13 @@ const qwenModels = [
 ]
 
 // DeepSeek
+// V4 family (released 2026-04-24) is the current generation. The legacy
+// deepseek-chat / deepseek-reasoner aliases are routed to V4 Flash during
+// the grace period and will be removed on 2026-07-24.
 const deepseekModels = [
-  'deepseek-chat', 'deepseek-coder', 'deepseek-reasoner',
-  'deepseek-v3', 'deepseek-v3-0324',
+  'deepseek-v4-pro', 'deepseek-v4-flash',
+  'deepseek-chat', 'deepseek-reasoner',
+  'deepseek-v3', 'deepseek-v3-0324', 'deepseek-v3.1',
   'deepseek-r1', 'deepseek-r1-0528',
   'deepseek-r1-distill-qwen-32b', 'deepseek-r1-distill-qwen-14b', 'deepseek-r1-distill-qwen-7b',
   'deepseek-r1-distill-llama-70b', 'deepseek-r1-distill-llama-8b'

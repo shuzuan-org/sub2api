@@ -26,14 +26,27 @@ const DeepSeekDefaultBaseURL = "https://api.deepseek.com"
 // upstream API. Kept in sync with the frontend whitelist in
 // useModelWhitelist.ts so that the UI and backend agree on what is
 // available out-of-the-box.
-var DeepSeekDefaultModels = []string{
-	"deepseek-chat",
-	"deepseek-coder",
-	"deepseek-reasoner",
-	"deepseek-v3",
-	"deepseek-v3-0324",
-	"deepseek-r1",
-	"deepseek-r1-0528",
+//
+// V4 family (released 2026-04-24) is the current generation. Both V4 models
+// support OpenAI Chat Completions and the Anthropic Messages API, 1M context,
+// and dual Thinking/Non-Thinking modes.
+//
+// deepseek-chat and deepseek-reasoner are LEGACY aliases that DeepSeek
+// transparently routes to deepseek-v4-flash during a grace period. Upstream
+// has scheduled them for removal on 2026-07-24; keep them listed for client
+// compatibility but expect 404s after that date.
+var DeepSeekDefaultModels = []DeepSeekModelInfo{
+	{ID: "deepseek-v4-pro", DisplayName: "DeepSeek V4 Pro", ReleaseDate: "2026-04-24"},
+	{ID: "deepseek-v4-flash", DisplayName: "DeepSeek V4 Flash", ReleaseDate: "2026-04-24"},
+	{ID: "deepseek-chat", DisplayName: "DeepSeek Chat (legacy → V4 Flash, retiring 2026-07-24)", ReleaseDate: "2024-05-07"},
+	{ID: "deepseek-reasoner", DisplayName: "DeepSeek Reasoner (legacy → V4 Flash thinking, retiring 2026-07-24)", ReleaseDate: "2025-01-20"},
+}
+
+// DeepSeekModelInfo carries the minimal metadata exposed via /v1/models.
+type DeepSeekModelInfo struct {
+	ID          string
+	DisplayName string
+	ReleaseDate string // YYYY-MM-DD, used as the OpenAI-compatible `created` timestamp
 }
 
 // ForwardDeepSeekChatCompletions performs a passthrough of an OpenAI-compatible

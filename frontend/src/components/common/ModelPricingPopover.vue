@@ -120,8 +120,9 @@ async function toggle(e: MouseEvent) {
   error.value = ''
   try {
     const result = await getGroupModelPricing(props.groupId)
-    cache.set(props.groupId, result)
-    data.value = result
+    const safe = Array.isArray(result) ? result : []
+    cache.set(props.groupId, safe)
+    data.value = safe
   } catch (err: any) {
     error.value = err?.response?.data?.message || '获取价格失败'
   } finally {

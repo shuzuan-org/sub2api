@@ -1050,6 +1050,8 @@ func (s *PricingService) ListModelsByProvider(platform string) []ModelPricingSum
 		providerPrefix = "openai/"
 	case "gemini":
 		providerPrefix = "google/"
+	case "deepseek":
+		providerPrefix = "deepseek/"
 	default:
 		return nil
 	}

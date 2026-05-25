@@ -890,12 +890,13 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	if platform == service.PlatformDeepSeek {
 		models := make([]claude.Model, 0, len(service.DeepSeekDefaultModels))
-		for _, id := range service.DeepSeekDefaultModels {
+		for _, m := range service.DeepSeekDefaultModels {
+			created := m.ReleaseDate + "T00:00:00Z"
 			models = append(models, claude.Model{
-				ID:          id,
+				ID:          m.ID,
 				Type:        "model",
-				DisplayName: id,
-				CreatedAt:   "2024-01-01T00:00:00Z",
+				DisplayName: m.DisplayName,
+				CreatedAt:   created,
 			})
 		}
 		c.JSON(http.StatusOK, gin.H{

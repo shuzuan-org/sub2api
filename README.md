@@ -569,6 +569,18 @@ In Claude Code, Plan Mode cannot exit automatically. (Normally when using the na
 
 ---
 
+## Documentation
+
+In-depth design / operations docs live under [`docs/`](./docs/):
+
+- [**DeepSeek pricing pipeline**](./docs/deepseek-pricing.md) — how model prices flow from `model_pricing.json` through unit conversion, fuzzy matching, account overrides, and rate multipliers to the final per-request cost (DeepSeek as worked example; mechanism applies to all providers).
+- [开发测试发布指南](./docs/开发测试发布指南.md) — local dev / test / release workflow.
+- [费用相关业务](./docs/费用相关业务.md) — billing business rules overview.
+- [业务流程](./docs/业务流程.md) — end-to-end request/billing flow.
+- [arc.md](./docs/arc.md) / [backendgo.md](./docs/backendgo.md) — architecture and backend internals.
+
+---
+
 ## Project Structure
 
 ```
