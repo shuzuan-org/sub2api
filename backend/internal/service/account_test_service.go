@@ -193,6 +193,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.testGeminiAccountConnection(c, account, modelID, prompt)
 	}
 
+	if account.IsDeepSeek() {
+		return s.testDeepSeekAccountConnection(c, account, modelID)
+	}
+
 	if account.Platform == PlatformAntigravity {
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
@@ -556,6 +560,102 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	// Process SSE stream
 	return s.processOpenAIStream(c, resp.Body)
+}
+
+// testDeepSeekAccountConnection tests a DeepSeek API-key account by sending
+// a minimal non-streaming chat/completions request to the configured base URL.
+// DeepSeek uses the OpenAI-compatible Chat Completions protocol; this test
+// validates the api_key + base_url combination and reports the upstream's
+// HTTP status / error body verbatim.
+func (s *AccountTestService) testDeepSeekAccountConnection(c *gin.Context, account *Account, modelID string) error {
+	ctx := c.Request.Context()
+
+	if account.Type != AccountTypeAPIKey {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type for DeepSeek: %s", account.Type))
+	}
+
+	apiKey := account.GetDeepSeekAPIKey()
+	if apiKey == "" {
+		return s.sendErrorAndEnd(c, "No API key configured for this DeepSeek account")
+	}
+
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = "deepseek-v4-flash"
+	}
+	if mapped := account.GetMappedModel(testModelID); mapped != "" && mapped != testModelID {
+		testModelID = mapped
+	}
+
+	baseURL := account.GetDeepSeekBaseURL()
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+	}
+	apiURL := strings.TrimSuffix(normalizedBaseURL, "/") + "/v1/chat/completions"
+
+	// SSE headers (the test endpoint always streams events back to the UI).
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	payload := map[string]any{
+		"model":    testModelID,
+		"messages": []map[string]string{{"role": "user", "content": "hi"}},
+		// Keep the response minimal — we only care that the upstream accepts the request.
+		"max_tokens": 10,
+		"stream":     false,
+	}
+	payloadBytes, _ := json.Marshal(payload)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 16*1024))
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	// Try to extract assistant content; if shape unexpected, still treat 2xx as success.
+	var parsed struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	_ = json.Unmarshal(body, &parsed)
+	text := ""
+	if len(parsed.Choices) > 0 {
+		text = strings.TrimSpace(parsed.Choices[0].Message.Content)
+	}
+	if text == "" {
+		text = "(no content, but upstream accepted the request)"
+	}
+	s.sendEvent(c, TestEvent{Type: "content", Text: text})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
 }
 
 // testGeminiAccountConnection tests a Gemini account's connection
