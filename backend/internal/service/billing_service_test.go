@@ -99,6 +99,21 @@ func TestCalculateCost_NegativeMultiplierDefaultsToOne(t *testing.T) {
 	require.InDelta(t, costOne.ActualCost, costNeg.ActualCost, 1e-10)
 }
 
+func TestGetModelPricing_Opus48DirectAndFamilyMatch(t *testing.T) {
+	svc := newTestBillingService()
+
+	// Direct match
+	p, err := svc.GetModelPricing("claude-opus-4-8")
+	require.NoError(t, err)
+	require.InDelta(t, 5e-6, p.InputPricePerToken, 1e-12, "claude-opus-4-8 input price")
+	require.InDelta(t, 2.5e-5, p.OutputPricePerToken, 1e-12, "claude-opus-4-8 output price")
+
+	// Family fallback via variant name
+	p2, err := svc.GetModelPricing("claude-opus-4.8-20260522")
+	require.NoError(t, err)
+	require.InDelta(t, 5e-6, p2.InputPricePerToken, 1e-12, "claude-opus-4.8 variant input price")
+}
+
 func TestGetModelPricing_FallbackMatchesByFamily(t *testing.T) {
 	svc := newTestBillingService()
 
