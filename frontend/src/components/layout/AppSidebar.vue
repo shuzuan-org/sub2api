@@ -62,18 +62,75 @@
           </div>
           <div v-else class="mx-3 my-3 h-px bg-gray-200 dark:bg-dark-700"></div>
 
+          <template v-for="category in personalNavCategories" :key="category.id">
+            <!-- Direct link item -->
+            <router-link
+              v-if="category.path"
+              :to="category.path"
+              class="sidebar-link mb-1"
+              :class="{ 'sidebar-link-active': isActive(category.path) }"
+              :title="sidebarCollapsed ? category.label : undefined"
+              @click="handleMenuItemClick(category.path)"
+            >
+              <component :is="category.icon" class="h-5 w-5 flex-shrink-0" />
+              <transition name="fade">
+                <span v-if="!sidebarCollapsed">{{ category.label }}</span>
+              </transition>
+            </router-link>
+
+            <!-- Expandable category -->
+            <div v-else class="mb-0.5">
+              <button
+                @click="toggleCategory(category.id)"
+                class="sidebar-link mb-0 w-full"
+                :title="sidebarCollapsed ? category.label : undefined"
+              >
+                <component :is="category.icon" class="h-5 w-5 flex-shrink-0" />
+                <transition name="fade">
+                  <span v-if="!sidebarCollapsed" class="flex-1 text-left">{{ category.label }}</span>
+                </transition>
+                <component
+                  v-if="!sidebarCollapsed"
+                  :is="ChevronRightSmallIcon"
+                  class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
+                  :class="{ 'rotate-90': expandedCategories.has(category.id) }"
+                />
+              </button>
+              <div
+                v-if="expandedCategories.has(category.id)"
+                class="ml-3 space-y-0.5 border-l-2 border-gray-200 pl-3 dark:border-dark-700"
+              >
+                <router-link
+                  v-for="child in category.children"
+                  :key="child.path"
+                  :to="child.path"
+                  class="sidebar-link mb-0.5 py-2"
+                  :class="{ 'sidebar-link-active': isActive(child.path) }"
+                  :title="sidebarCollapsed ? child.label : undefined"
+                  :data-tour="child.path === '/keys' ? 'sidebar-my-keys' : undefined"
+                  @click="handleMenuItemClick(child.path)"
+                >
+                  <span v-if="child.iconSvg" class="h-4 w-4 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(child.iconSvg)"></span>
+                  <component v-else-if="child.icon" :is="child.icon" class="h-4 w-4 flex-shrink-0" />
+                  <span v-else class="h-1 w-1 flex-shrink-0 rounded-full bg-gray-400 dark:bg-dark-400"></span>
+                  <transition name="fade">
+                    <span v-if="!sidebarCollapsed" class="text-sm">{{ child.label }}</span>
+                  </transition>
+                </router-link>
+              </div>
+            </div>
+          </template>
+
+          <!-- Custom menu items (flat at end) -->
           <router-link
-            v-for="item in personalNavItems"
-            :key="item.path"
-            :to="item.path"
+            v-for="item in customMenuItemsForUser"
+            :key="'custom-' + item.id"
+            :to="'/custom/' + item.id"
             class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
+            @click="handleMenuItemClick('/custom/' + item.id)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+            <span v-if="item.icon_svg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.icon_svg)"></span>
+            <span v-else class="h-5 w-5 flex-shrink-0"></span>
             <transition name="fade">
               <span v-if="!sidebarCollapsed">{{ item.label }}</span>
             </transition>
@@ -84,22 +141,102 @@
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
         <div class="sidebar-section">
-          <router-link
-            v-for="item in userNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <transition name="fade">
-              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
-            </transition>
-          </router-link>
+          <!-- Simple mode: flat items (original behavior) -->
+          <template v-if="authStore.isSimpleMode">
+            <router-link
+              v-for="item in userNavItems"
+              :key="item.path"
+              :to="item.path"
+              class="sidebar-link mb-1"
+              :class="{ 'sidebar-link-active': isActive(item.path) }"
+              :title="sidebarCollapsed ? item.label : undefined"
+              :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+              @click="handleMenuItemClick(item.path)"
+            >
+              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <transition name="fade">
+                <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+              </transition>
+            </router-link>
+          </template>
+
+          <!-- Normal mode: two-level categories -->
+          <template v-else>
+            <template v-for="category in userNavCategories" :key="category.id">
+              <!-- Direct link item (e.g. Dashboard) -->
+              <router-link
+                v-if="category.path"
+                :to="category.path"
+                class="sidebar-link mb-1"
+                :class="{ 'sidebar-link-active': isActive(category.path) }"
+                :title="sidebarCollapsed ? category.label : undefined"
+                @click="handleMenuItemClick(category.path)"
+              >
+                <component :is="category.icon" class="h-5 w-5 flex-shrink-0" />
+                <transition name="fade">
+                  <span v-if="!sidebarCollapsed">{{ category.label }}</span>
+                </transition>
+              </router-link>
+
+              <!-- Expandable category -->
+              <div v-else class="mb-0.5">
+                <button
+                  @click="toggleCategory(category.id)"
+                  class="sidebar-link mb-0 w-full"
+                  :title="sidebarCollapsed ? category.label : undefined"
+                >
+                  <component :is="category.icon" class="h-5 w-5 flex-shrink-0" />
+                  <transition name="fade">
+                    <span v-if="!sidebarCollapsed" class="flex-1 text-left">{{ category.label }}</span>
+                  </transition>
+                  <component
+                    v-if="!sidebarCollapsed"
+                    :is="ChevronRightSmallIcon"
+                    class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
+                    :class="{ 'rotate-90': expandedCategories.has(category.id) }"
+                  />
+                </button>
+                <!-- Sub-menu items -->
+                <div
+                  v-if="expandedCategories.has(category.id)"
+                  class="ml-3 space-y-0.5 border-l-2 border-gray-200 pl-3 dark:border-dark-700"
+                >
+                  <router-link
+                    v-for="child in category.children"
+                    :key="child.path"
+                    :to="child.path"
+                    class="sidebar-link mb-0.5 py-2"
+                    :class="{ 'sidebar-link-active': isActive(child.path) }"
+                    :title="sidebarCollapsed ? child.label : undefined"
+                    @click="handleMenuItemClick(child.path)"
+                  >
+                    <span v-if="child.iconSvg" class="h-4 w-4 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(child.iconSvg)"></span>
+                    <component v-else-if="child.icon" :is="child.icon" class="h-4 w-4 flex-shrink-0" />
+                    <span v-else class="h-1 w-1 flex-shrink-0 rounded-full bg-gray-400 dark:bg-dark-400"></span>
+                    <transition name="fade">
+                      <span v-if="!sidebarCollapsed" class="text-sm">{{ child.label }}</span>
+                    </transition>
+                  </router-link>
+                </div>
+              </div>
+            </template>
+
+            <!-- Custom menu items (flat at end) -->
+            <router-link
+              v-for="item in customMenuItemsForUser"
+              :key="'custom-' + item.id"
+              :to="'/custom/' + item.id"
+              class="sidebar-link mb-1"
+              @click="handleMenuItemClick('/custom/' + item.id)"
+            >
+              <span v-if="item.icon_svg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.icon_svg)"></span>
+              <span v-else class="h-5 w-5 flex-shrink-0"></span>
+              <transition name="fade">
+                <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+              </transition>
+            </router-link>
+          </template>
         </div>
       </template>
     </nav>
@@ -159,6 +296,15 @@ interface NavItem {
   label: string
   icon: unknown
   iconSvg?: string
+  hideInSimpleMode?: boolean
+}
+
+interface NavCategory {
+  id: string
+  label: string
+  icon: unknown
+  path?: string
+  children?: NavItem[]
   hideInSimpleMode?: boolean
 }
 
@@ -497,44 +643,25 @@ const ChevronDoubleRightIcon = {
     )
 }
 
+const ChevronRightSmallIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '2' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'm8.25 4.5 7.5 7.5-7.5 7.5'
+        })
+      ]
+    )
+}
+
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    ...(appStore.cachedPublicSettings?.sora_client_enabled
-      ? [{ path: '/sora', label: t('nav.sora'), icon: SoraIcon }]
-      : []),
-    ...(appStore.cachedPublicSettings?.purchase_subscription_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true
-          }
-        ]
-      : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/payment', label: '支付宝充值', icon: RechargeSubscriptionIcon, hideInSimpleMode: true },
-    { path: '/orders', label: '充值记录', icon: CreditCardIcon, hideInSimpleMode: true },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    { path: '/invite', label: t('nav.invite'), icon: ShareIcon },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
-  ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
-})
-
-// Personal navigation items (for admin's "My Account" section, without Dashboard)
-const personalNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
@@ -579,6 +706,124 @@ const customMenuItemsForAdmin = computed(() => {
     .filter((item) => item.visibility === 'admin')
     .sort((a, b) => a.sort_order - b.sort_order)
 })
+
+// ===== Two-level category state =====
+const expandedCategories = ref(new Set<string>())
+
+function toggleCategory(id: string) {
+  if (expandedCategories.value.has(id)) {
+    expandedCategories.value.delete(id)
+  } else {
+    expandedCategories.value.add(id)
+  }
+  expandedCategories.value = new Set(expandedCategories.value)
+}
+
+// Two-level category definitions for regular users
+const userNavCategories = computed((): NavCategory[] => {
+  const categories: NavCategory[] = [
+    {
+      id: 'dashboard', label: t('nav.dashboard'), icon: DashboardIcon,
+      path: '/dashboard'
+    },
+    {
+      id: 'apiManagement', label: t('nav.apiManagement'), icon: KeyIcon,
+      children: [
+        { path: '/keys', label: t('nav.apiKeys'), icon: null },
+        { path: '/usage', label: t('nav.usage'), icon: null },
+      ]
+    },
+    {
+      id: 'capabilityManagement', label: t('nav.capabilityManagement'), icon: GlobeIcon,
+      children: [
+        { path: '/plugins', label: t('nav.pluginCenter'), icon: null },
+        ...(appStore.cachedPublicSettings?.sora_client_enabled
+          ? [{ path: '/sora', label: t('nav.sora'), icon: null }]
+          : []),
+      ]
+    },
+    {
+      id: 'rechargeExchange', label: t('nav.rechargeExchange'), icon: CreditCardIcon,
+      hideInSimpleMode: true,
+      children: [
+        { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: null },
+        ...(appStore.cachedPublicSettings?.purchase_subscription_enabled
+          ? [{ path: '/purchase', label: t('nav.buySubscription'), icon: null }]
+          : []),
+        { path: '/redeem', label: t('nav.redeem'), icon: null },
+        { path: '/payment', label: '支付宝充值', icon: null },
+      ]
+    },
+    {
+      id: 'profile', label: t('nav.profile'), icon: UserIcon,
+      children: [
+        { path: '/profile', label: t('nav.profile'), icon: null },
+        { path: '/invite', label: t('nav.invite'), icon: null },
+      ]
+    },
+  ]
+
+  // Custom menu items appended at end as flat items (via parent rendering)
+  return categories
+})
+
+// Two-level category definitions for admin's personal section (same as user, minus dashboard)
+const personalNavCategories = computed((): NavCategory[] => {
+  const categories: NavCategory[] = [
+    {
+      id: 'apiManagement', label: t('nav.apiManagement'), icon: KeyIcon,
+      children: [
+        { path: '/keys', label: t('nav.apiKeys'), icon: null },
+        { path: '/usage', label: t('nav.usage'), icon: null },
+      ]
+    },
+    {
+      id: 'capabilityManagement', label: t('nav.capabilityManagement'), icon: GlobeIcon,
+      children: [
+        { path: '/plugins', label: t('nav.pluginCenter'), icon: null },
+        ...(appStore.cachedPublicSettings?.sora_client_enabled
+          ? [{ path: '/sora', label: t('nav.sora'), icon: null }]
+          : []),
+      ]
+    },
+    {
+      id: 'rechargeExchange', label: t('nav.rechargeExchange'), icon: CreditCardIcon,
+      hideInSimpleMode: true,
+      children: [
+        { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: null },
+        ...(appStore.cachedPublicSettings?.purchase_subscription_enabled
+          ? [{ path: '/purchase', label: t('nav.buySubscription'), icon: null }]
+          : []),
+        { path: '/redeem', label: t('nav.redeem'), icon: null },
+        { path: '/payment', label: '支付宝充值', icon: null },
+      ]
+    },
+    {
+      id: 'profile', label: t('nav.profile'), icon: UserIcon,
+      children: [
+        { path: '/profile', label: t('nav.profile'), icon: null },
+        { path: '/invite', label: t('nav.invite'), icon: null },
+      ]
+    },
+  ]
+  return categories
+})
+
+// Auto-expand category that contains the current route
+watch(
+  () => route.path,
+  (path) => {
+    for (const cat of [...userNavCategories.value, ...personalNavCategories.value]) {
+      if (cat.children?.some(child => path === child.path || path.startsWith(child.path + '/'))) {
+        if (!expandedCategories.value.has(cat.id)) {
+          expandedCategories.value.add(cat.id)
+          expandedCategories.value = new Set(expandedCategories.value)
+        }
+      }
+    }
+  },
+  { immediate: true }
+)
 
 // Admin navigation items
 const adminNavItems = computed((): NavItem[] => {

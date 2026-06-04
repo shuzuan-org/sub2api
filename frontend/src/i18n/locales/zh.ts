@@ -407,7 +407,16 @@ export default {
     mySubscriptions: '我的订阅',
     buySubscription: '充值/订阅',
     docs: '文档',
-    sora: 'Sora 创作'
+    sora: 'Sora 创作',
+    apiManagement: 'API管理',
+    capabilityManagement: '能力管理',
+    rechargeExchange: '充值兑换',
+    pluginCenter: '插件中心'
+  },
+  pluginCenter: {
+    description: '探索和安装各种插件，扩展您的使用体验',
+    comingSoon: '即将推出',
+    stayTuned: '插件中心正在建设中，敬请期待更多功能上线'
   },
 
   // Auth

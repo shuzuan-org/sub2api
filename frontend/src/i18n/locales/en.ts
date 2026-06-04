@@ -407,7 +407,16 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     docs: 'Docs',
-    sora: 'Sora Studio'
+    sora: 'Sora Studio',
+    apiManagement: 'API Management',
+    capabilityManagement: 'Capability',
+    rechargeExchange: 'Recharge & Redeem',
+    pluginCenter: 'Plugin Center'
+  },
+  pluginCenter: {
+    description: 'Explore and install plugins to extend your experience',
+    comingSoon: 'Coming Soon',
+    stayTuned: 'Plugin Center is under construction, stay tuned for more features'
   },
 
   // Auth

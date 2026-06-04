@@ -266,6 +266,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/plugins',
+    name: 'PluginCenter',
+    component: () => import('@/views/user/PluginCenterView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '插件中心',
+      titleKey: 'nav.pluginCenter'
+    }
+  },
+  {
     path: '/custom/:id',
     name: 'CustomPage',
     component: () => import('@/views/user/CustomPageView.vue'),
