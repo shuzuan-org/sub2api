@@ -68,6 +68,19 @@ type LoginRequest struct {
 	TurnstileToken string `json:"turnstile_token"`
 }
 
+// SendPhoneLoginCodeRequest 发送手机号登录验证码请求
+type SendPhoneLoginCodeRequest struct {
+	Phone          string `json:"phone" binding:"required"`
+	TurnstileToken string `json:"turnstile_token"`
+}
+
+// PhoneLoginRequest represents the phone verification-code login request payload.
+type PhoneLoginRequest struct {
+	Phone          string `json:"phone" binding:"required"`
+	VerifyCode     string `json:"verify_code" binding:"required,len=6"`
+	TurnstileToken string `json:"turnstile_token"`
+}
+
 // AuthResponse 认证响应格式（匹配前端期望）
 type AuthResponse struct {
 	AccessToken  string    `json:"access_token"`
@@ -608,4 +621,73 @@ func (h *AuthHandler) RevokeAllSessions(c *gin.Context) {
 	response.Success(c, RevokeAllSessionsResponse{
 		Message: "All sessions have been revoked. Please log in again.",
 	})
+}
+
+// SendPhoneLoginCode 发送手机号登录验证码
+// POST /api/v1/auth/send-phone-login-code
+func (h *AuthHandler) SendPhoneLoginCode(c *gin.Context) {
+	var req SendPhoneLoginCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	result, err := h.authService.SendPhoneLoginCode(c.Request.Context(), req.Phone)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, SendVerifyCodeResponse{
+		Message:   "Verification code sent successfully",
+		Countdown: result.Countdown,
+	})
+}
+
+// LoginWithPhone handles phone verification-code login.
+// POST /api/v1/auth/login/phone
+func (h *AuthHandler) LoginWithPhone(c *gin.Context) {
+	var req PhoneLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	token, user, err := h.authService.LoginWithPhoneCode(c.Request.Context(), req.Phone, req.VerifyCode)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	_ = token
+
+	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request.Context()) && user.TotpEnabled {
+		tempToken, err := h.totpService.CreateLoginSession(c.Request.Context(), user.ID, user.Email)
+		if err != nil {
+			response.InternalError(c, "Failed to create 2FA session")
+			return
+		}
+		response.Success(c, TotpLoginResponse{
+			Requires2FA:     true,
+			TempToken:       tempToken,
+			UserEmailMasked: service.MaskEmail(user.Email),
+		})
+		return
+	}
+
+	if h.settingSvc.IsBackendModeEnabled(c.Request.Context()) && !user.IsAdmin() {
+		response.Forbidden(c, "Backend mode is active. Only admin login is allowed.")
+		return
+	}
+
+	h.respondWithTokenPair(c, user)
 }

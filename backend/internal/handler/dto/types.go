@@ -14,6 +14,11 @@ type User struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 
+	// 手机号绑定
+	PhoneNumber        *string    `json:"phone_number,omitempty"`
+	PhoneBoundAt       *time.Time `json:"phone_bound_at,omitempty"`
+	PhoneBonusGrantedAt *time.Time `json:"phone_bonus_granted_at,omitempty"`
+
 	APIKeys       []APIKey           `json:"api_keys,omitempty"`
 	Subscriptions []UserSubscription `json:"subscriptions,omitempty"`
 }

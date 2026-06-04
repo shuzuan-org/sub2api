@@ -34,6 +34,9 @@ export interface User {
   status: 'active' | 'disabled' // Account status
   allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
   subscriptions?: UserSubscription[] // User's active subscriptions
+  phone_number?: string // E.164 format (e.g. +8613800138000)
+  phone_bound_at?: string
+  phone_bonus_granted_at?: string
   created_at: string
   updated_at: string
 }
@@ -53,6 +56,17 @@ export interface AdminUser extends User {
 export interface LoginRequest {
   email: string
   password: string
+  turnstile_token?: string
+}
+
+export interface SendPhoneLoginCodeRequest {
+  phone: string
+  turnstile_token?: string
+}
+
+export interface PhoneLoginRequest {
+  phone: string
+  verify_code: string
   turnstile_token?: string
 }
 
@@ -115,6 +129,7 @@ export interface PublicSettings {
   linuxdo_oauth_enabled: boolean
   sora_client_enabled: boolean
   backend_mode_enabled: boolean
+  phone_login_enabled: boolean
   version: string
 }
 

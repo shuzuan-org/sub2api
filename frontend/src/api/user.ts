@@ -1,6 +1,6 @@
 /**
  * User API endpoints
- * Handles user profile management and password changes
+ * Handles user profile management, password changes, and phone binding
  */
 
 import { apiClient } from './client'
@@ -45,10 +45,38 @@ export async function changePassword(
   return data
 }
 
+/**
+ * Send phone verification code
+ * @param phoneNumber - Phone number in E.164 or CN format
+ * @returns Message and countdown seconds
+ */
+export async function sendPhoneCode(phoneNumber: string): Promise<{ message: string; countdown: number }> {
+  const { data } = await apiClient.post<{ message: string; countdown: number }>('/user/phone/send-code', {
+    phone_number: phoneNumber
+  })
+  return data
+}
+
+/**
+ * Bind phone number with SMS verification code
+ * @param phoneNumber - Phone number in E.164 or CN format
+ * @param verifyCode - 6-digit SMS verification code
+ * @returns Updated user profile
+ */
+export async function bindPhone(phoneNumber: string, verifyCode: string): Promise<User> {
+  const { data } = await apiClient.post<User>('/user/phone/bind', {
+    phone_number: phoneNumber,
+    verify_code: verifyCode
+  })
+  return data
+}
+
 export const userAPI = {
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  sendPhoneCode,
+  bindPhone
 }
 
 export default userAPI

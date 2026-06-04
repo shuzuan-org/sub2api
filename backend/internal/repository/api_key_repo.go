@@ -616,6 +616,9 @@ func userEntityToService(u *dbent.User) *service.User {
 		TotpEnabledAt:         u.TotpEnabledAt,
 		ReferralCode:          u.ReferralCode,
 		ReferredBy:            u.ReferredBy,
+		PhoneNumber:           u.PhoneNumber,
+		PhoneBoundAt:          u.PhoneBoundAt,
+		PhoneBonusGrantedAt:   u.PhoneBonusGrantedAt,
 		CreatedAt:             u.CreatedAt,
 		UpdatedAt:             u.UpdatedAt,
 	}

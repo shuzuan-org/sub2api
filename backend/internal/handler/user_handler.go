@@ -11,13 +11,15 @@ import (
 
 // UserHandler handles user-related requests
 type UserHandler struct {
-	userService *service.UserService
+	userService  *service.UserService
+	phoneService *service.PhoneVerificationService
 }
 
 // NewUserHandler creates a new UserHandler
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService *service.UserService, phoneService *service.PhoneVerificationService) *UserHandler {
 	return &UserHandler{
-		userService: userService,
+		userService:  userService,
+		phoneService: phoneService,
 	}
 }
 
@@ -97,6 +99,111 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		Username: req.Username,
 	}
 	updatedUser, err := h.userService.UpdateProfile(c.Request.Context(), subject.UserID, svcReq)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.UserFromService(updatedUser))
+}
+
+// SendPhoneCodeRequest 发送手机验证码请求
+type SendPhoneCodeRequest struct {
+	PhoneNumber string `json:"phone_number" binding:"required"`
+}
+
+// SendPhoneCode handles sending SMS verification code
+// POST /api/v1/user/phone/send-code
+func (h *UserHandler) SendPhoneCode(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req SendPhoneCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 归一化手机号
+	phone, err := service.NormalizePhoneNumber(req.PhoneNumber)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 检查当前用户是否已绑定
+	user, err := h.userService.GetByID(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if user.PhoneNumber != nil && *user.PhoneNumber != "" {
+		response.ErrorFrom(c, service.ErrPhoneAlreadyBound)
+		return
+	}
+
+	// 检查手机号是否已被其他用户绑定
+	exists, err := h.userService.ExistsByPhoneNumber(c.Request.Context(), phone)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if exists {
+		response.ErrorFrom(c, service.ErrPhoneNumberAlreadyBound)
+		return
+	}
+
+	countdown, err := h.phoneService.SendVerifyCode(c.Request.Context(), phone)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"message":   "Verification code sent",
+		"countdown": countdown,
+	})
+}
+
+// BindPhoneRequest 绑定手机号请求
+type BindPhoneRequest struct {
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	VerifyCode  string `json:"verify_code" binding:"required,len=6"`
+}
+
+// BindPhone handles phone number binding with SMS verification
+// POST /api/v1/user/phone/bind
+func (h *UserHandler) BindPhone(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req BindPhoneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 归一化手机号
+	phone, err := service.NormalizePhoneNumber(req.PhoneNumber)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 验证短信验证码
+	if err := h.phoneService.VerifyCode(c.Request.Context(), phone, req.VerifyCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 绑定手机号并赠送余额
+	updatedUser, err := h.userService.BindPhoneAndGrantBonus(c.Request.Context(), subject.UserID, phone)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

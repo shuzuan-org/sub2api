@@ -41,6 +41,7 @@ var (
 	ErrInvitationCodeRequired  = infraerrors.BadRequest("INVITATION_CODE_REQUIRED", "invitation code is required")
 	ErrInvitationCodeInvalid   = infraerrors.BadRequest("INVITATION_CODE_INVALID", "invalid or used invitation code")
 	ErrOAuthInvitationRequired = infraerrors.Forbidden("OAUTH_INVITATION_REQUIRED", "invitation code required to complete oauth registration")
+	ErrPhoneNotBound           = infraerrors.BadRequest("PHONE_NOT_BOUND", "phone is not bound to an account")
 )
 
 // maxTokenLength 限制 token 大小，避免超长 header 触发解析时的异常内存分配。
@@ -69,8 +70,9 @@ type AuthService struct {
 	emailService       *EmailService
 	turnstileService   *TurnstileService
 	emailQueueService  *EmailQueueService
-	promoService       *PromoService
-	defaultSubAssigner DefaultSubscriptionAssigner
+	promoService         *PromoService
+	phoneVerifyService   *PhoneVerificationService
+	defaultSubAssigner   DefaultSubscriptionAssigner
 	inviteService      *InviteService
 }
 
@@ -90,6 +92,7 @@ func NewAuthService(
 	turnstileService *TurnstileService,
 	emailQueueService *EmailQueueService,
 	promoService *PromoService,
+	phoneVerifyService *PhoneVerificationService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
 	inviteService *InviteService,
 ) *AuthService {
@@ -104,6 +107,7 @@ func NewAuthService(
 		turnstileService:   turnstileService,
 		emailQueueService:  emailQueueService,
 		promoService:       promoService,
+		phoneVerifyService: phoneVerifyService,
 		defaultSubAssigner: defaultSubAssigner,
 		inviteService:      inviteService,
 	}
@@ -1295,4 +1299,66 @@ func (s *AuthService) RevokeAllUserSessions(ctx context.Context, userID int64) e
 func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
+}
+
+const phoneVerifyCodeCooldownSeconds = 60
+
+// SendPhoneLoginCode sends a phone verification code for passwordless login.
+func (s *AuthService) SendPhoneLoginCode(ctx context.Context, phone string) (*SendVerifyCodeResult, error) {
+	normalized, err := NormalizePhoneNumber(phone)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.userRepo.GetByPhoneNumber(ctx, normalized)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return nil, ErrPhoneNotBound
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Database error checking phone exists: %v", err)
+		return nil, ErrServiceUnavailable
+	}
+	if !user.IsActive() {
+		return nil, ErrUserNotActive
+	}
+	if s.phoneVerifyService == nil {
+		return nil, ErrServiceUnavailable
+	}
+	_, err = s.phoneVerifyService.SendVerifyCode(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	return &SendVerifyCodeResult{Countdown: phoneVerifyCodeCooldownSeconds}, nil
+}
+
+// LoginWithPhoneCode logs in a user with phone + SMS verification code.
+func (s *AuthService) LoginWithPhoneCode(ctx context.Context, phone, code string) (string, *User, error) {
+	normalized, err := NormalizePhoneNumber(phone)
+	if err != nil {
+		return "", nil, err
+	}
+	if s.phoneVerifyService == nil {
+		return "", nil, ErrServiceUnavailable
+	}
+	if err := s.phoneVerifyService.VerifyCode(ctx, normalized, code); err != nil {
+		return "", nil, err
+	}
+
+	user, err := s.userRepo.GetByPhoneNumber(ctx, normalized)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return "", nil, ErrInvalidCredentials
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Database error during phone login: %v", err)
+		return "", nil, ErrServiceUnavailable
+	}
+	if !user.IsActive() {
+		return "", nil, ErrUserNotActive
+	}
+
+	token, err := s.GenerateToken(user)
+	if err != nil {
+		return "", nil, fmt.Errorf("generate token: %w", err)
+	}
+	return token, user, nil
 }

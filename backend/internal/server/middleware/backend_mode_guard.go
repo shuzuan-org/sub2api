@@ -38,7 +38,7 @@ func BackendModeAuthGuard(settingService *service.SettingService) gin.HandlerFun
 		}
 		path := c.Request.URL.Path
 		// Allow login, 2FA, logout, refresh, public settings
-		allowedSuffixes := []string{"/auth/login", "/auth/login/2fa", "/auth/logout", "/auth/refresh"}
+		allowedSuffixes := []string{"/auth/login", "/auth/login/phone", "/auth/login/2fa", "/auth/logout", "/auth/refresh"}
 		for _, suffix := range allowedSuffixes {
 			if strings.HasSuffix(path, suffix) {
 				c.Next()

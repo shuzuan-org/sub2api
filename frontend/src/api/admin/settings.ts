@@ -91,6 +91,15 @@ export interface SystemSettings {
   // Gateway forwarding behavior
   enable_fingerprint_unification: boolean
   enable_metadata_passthrough: boolean
+
+  // 腾讯云短信服务配置
+  sms_tencent_enabled: boolean
+  sms_tencent_secret_id: string
+  sms_tencent_secret_key_configured: boolean
+  sms_tencent_region: string
+  sms_tencent_sdk_app_id: string
+  sms_tencent_sign_name: string
+  sms_tencent_template_id: string
 }
 
 export interface UpdateSettingsRequest {
@@ -149,6 +158,15 @@ export interface UpdateSettingsRequest {
   allow_ungrouped_key_scheduling?: boolean
   enable_fingerprint_unification?: boolean
   enable_metadata_passthrough?: boolean
+
+  // 腾讯云短信服务配置
+  sms_tencent_enabled?: boolean
+  sms_tencent_secret_id?: string
+  sms_tencent_secret_key?: string
+  sms_tencent_region?: string
+  sms_tencent_sdk_app_id?: string
+  sms_tencent_sign_name?: string
+  sms_tencent_template_id?: string
 }
 
 /**

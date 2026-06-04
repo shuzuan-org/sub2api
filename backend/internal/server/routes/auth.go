@@ -34,12 +34,18 @@ func RegisterAuthRoutes(
 		auth.POST("/login", rateLimiter.LimitWithOptions("auth-login", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.Login)
+		auth.POST("/login/phone", rateLimiter.LimitWithOptions("auth-login-phone", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.LoginWithPhone)
 		auth.POST("/login/2fa", rateLimiter.LimitWithOptions("auth-login-2fa", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.Login2FA)
 		auth.POST("/send-verify-code", rateLimiter.LimitWithOptions("auth-send-verify-code", 5, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.SendVerifyCode)
+		auth.POST("/send-phone-login-code", rateLimiter.LimitWithOptions("auth-send-phone-login-code", 5, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.SendPhoneLoginCode)
 		// Token刷新接口添加速率限制：每分钟最多 30 次（Redis 故障时 fail-close）
 		auth.POST("/refresh", rateLimiter.LimitWithOptions("refresh-token", 30, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,

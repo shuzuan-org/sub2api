@@ -47,6 +47,12 @@ const (
 	FieldSoraStorageQuotaBytes = "sora_storage_quota_bytes"
 	// FieldSoraStorageUsedBytes holds the string denoting the sora_storage_used_bytes field in the database.
 	FieldSoraStorageUsedBytes = "sora_storage_used_bytes"
+	// FieldPhoneNumber holds the string denoting the phone_number field in the database.
+	FieldPhoneNumber = "phone_number"
+	// FieldPhoneBoundAt holds the string denoting the phone_bound_at field in the database.
+	FieldPhoneBoundAt = "phone_bound_at"
+	// FieldPhoneBonusGrantedAt holds the string denoting the phone_bonus_granted_at field in the database.
+	FieldPhoneBonusGrantedAt = "phone_bonus_granted_at"
 	// FieldReferralCode holds the string denoting the referral_code field in the database.
 	FieldReferralCode = "referral_code"
 	// FieldReferredBy holds the string denoting the referred_by field in the database.
@@ -162,6 +168,9 @@ var Columns = []string{
 	FieldTotpEnabledAt,
 	FieldSoraStorageQuotaBytes,
 	FieldSoraStorageUsedBytes,
+	FieldPhoneNumber,
+	FieldPhoneBoundAt,
+	FieldPhoneBonusGrantedAt,
 	FieldReferralCode,
 	FieldReferredBy,
 }
@@ -224,6 +233,8 @@ var (
 	DefaultSoraStorageQuotaBytes int64
 	// DefaultSoraStorageUsedBytes holds the default value on creation for the "sora_storage_used_bytes" field.
 	DefaultSoraStorageUsedBytes int64
+	// PhoneNumberValidator is a validator for the "phone_number" field. It is called by the builders before save.
+	PhoneNumberValidator func(string) error
 	// ReferralCodeValidator is a validator for the "referral_code" field. It is called by the builders before save.
 	ReferralCodeValidator func(string) error
 )
@@ -314,6 +325,21 @@ func BySoraStorageQuotaBytes(opts ...sql.OrderTermOption) OrderOption {
 // BySoraStorageUsedBytes orders the results by the sora_storage_used_bytes field.
 func BySoraStorageUsedBytes(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSoraStorageUsedBytes, opts...).ToFunc()
+}
+
+// ByPhoneNumber orders the results by the phone_number field.
+func ByPhoneNumber(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhoneNumber, opts...).ToFunc()
+}
+
+// ByPhoneBoundAt orders the results by the phone_bound_at field.
+func ByPhoneBoundAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhoneBoundAt, opts...).ToFunc()
+}
+
+// ByPhoneBonusGrantedAt orders the results by the phone_bonus_granted_at field.
+func ByPhoneBonusGrantedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhoneBonusGrantedAt, opts...).ToFunc()
 }
 
 // ByReferralCode orders the results by the referral_code field.

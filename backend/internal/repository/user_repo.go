@@ -63,6 +63,9 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
 		SetSoraStorageQuotaBytes(userIn.SoraStorageQuotaBytes).
+		SetNillablePhoneNumber(userIn.PhoneNumber).
+		SetNillablePhoneBoundAt(userIn.PhoneBoundAt).
+		SetNillablePhoneBonusGrantedAt(userIn.PhoneBonusGrantedAt).
 		Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
@@ -147,6 +150,9 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetStatus(userIn.Status).
 		SetSoraStorageQuotaBytes(userIn.SoraStorageQuotaBytes).
 		SetSoraStorageUsedBytes(userIn.SoraStorageUsedBytes).
+		SetNillablePhoneNumber(userIn.PhoneNumber).
+		SetNillablePhoneBoundAt(userIn.PhoneBoundAt).
+		SetNillablePhoneBonusGrantedAt(userIn.PhoneBonusGrantedAt).
 		Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
@@ -678,4 +684,68 @@ func (r *userRepository) SetReferredBy(ctx context.Context, id int64, referrerID
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	return nil
+}
+
+// GetByPhoneNumber 按手机号查用户（仅未删除账号）。
+func (r *userRepository) GetByPhoneNumber(ctx context.Context, phone string) (*service.User, error) {
+	m, err := r.client.User.Query().
+		Where(dbuser.PhoneNumberEQ(phone), dbuser.DeletedAtIsNil()).
+		Only(ctx)
+	if err != nil {
+		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	return userEntityToService(m), nil
+}
+
+// ExistsByPhoneNumber 检查未删除账号中是否存在该手机号。
+func (r *userRepository) ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error) {
+	return r.client.User.Query().
+		Where(dbuser.PhoneNumberEQ(phone), dbuser.DeletedAtIsNil()).
+		Exist(ctx)
+}
+
+// BindPhoneAndGrantBonus 在事务内绑定手机号并赠送余额。
+// 依赖调用方使用分布式锁保护并发。
+// 条件更新：WHERE id = userID AND phone_number IS NULL 保证原子性。
+// 返回更新后的用户信息；ErrPhoneAlreadyBound 表示用户已有手机号；
+// ErrPhoneNumberAlreadyBound（唯一冲突）表示手机号已被其他账号绑定。
+func (r *userRepository) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*service.User, error) {
+	tx, err := r.client.Tx(ctx)
+	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
+		return nil, err
+	}
+
+	var txClient *dbent.Client
+	if err == nil {
+		defer func() { _ = tx.Rollback() }()
+		txClient = tx.Client()
+	} else {
+		txClient = r.client
+	}
+
+	now := time.Now()
+	n, err := txClient.User.Update().
+		Where(dbuser.IDEQ(userID), dbuser.PhoneNumberIsNil()).
+		SetPhoneNumber(phone).
+		SetPhoneBoundAt(now).
+		SetPhoneBonusGrantedAt(now).
+		AddBalance(bonusAmount).
+		Save(ctx)
+	if err != nil {
+		if isUniqueConstraintViolation(err) {
+			return nil, service.ErrPhoneNumberAlreadyBound
+		}
+		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	if n == 0 {
+		return nil, service.ErrPhoneAlreadyBound
+	}
+
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	}
+
+	return r.GetByID(ctx, userID)
 }

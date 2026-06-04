@@ -249,6 +249,18 @@ const (
 	SettingKeyEnableFingerprintUnification = "enable_fingerprint_unification"
 	// SettingKeyEnableMetadataPassthrough 是否透传客户端原始 metadata.user_id（默认 false）
 	SettingKeyEnableMetadataPassthrough = "enable_metadata_passthrough"
+
+	// 腾讯云短信服务设置
+	SettingKeySMSTencentEnabled       = "sms_tencent_enabled"        // 是否启用腾讯云短信
+	SettingKeySMSTencentSecretID      = "sms_tencent_secret_id"      // 腾讯云 SecretId
+	SettingKeySMSTencentSecretKey     = "sms_tencent_secret_key"     // 腾讯云 SecretKey
+	SettingKeySMSTencentRegion        = "sms_tencent_region"         // 腾讯云地域（默认 ap-guangzhou）
+	SettingKeySMSTencentSdkAppID      = "sms_tencent_sdk_app_id"     // 腾讯云短信应用 ID
+	SettingKeySMSTencentSignName      = "sms_tencent_sign_name"      // 腾讯云短信签名
+	SettingKeySMSTencentTemplateID    = "sms_tencent_template_id"    // 腾讯云短信模板 ID
+
+	// 手机号登录
+	SettingKeyPhoneLoginEnabled = "phone_login_enabled" // 是否启用手机号验证码登录
 )
 
 // AdminAPIKeyPrefix is the prefix for admin API keys (distinct from user "sk-" keys).

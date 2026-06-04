@@ -7,6 +7,7 @@
         <StatCard :title="t('profile.memberSince')" :value="formatDate(user?.created_at || '', { year: 'numeric', month: 'long' })" :icon="CalendarIcon" icon-variant="primary" />
       </div>
       <ProfileInfoCard :user="user" />
+      <ProfilePhoneBindCard :user="user" />
       <div v-if="contactInfo" class="card border-primary-200 bg-primary-50 dark:bg-primary-900/20 p-6">
         <div class="flex items-center gap-4">
           <div class="p-3 bg-primary-100 rounded-xl text-primary-600"><Icon name="chat" size="lg" /></div>
@@ -29,6 +30,7 @@ import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
+import ProfilePhoneBindCard from '@/components/user/profile/ProfilePhoneBindCard.vue'
 import { Icon } from '@/components/icons'
 
 const { t } = useI18n(); const authStore = useAuthStore(); const user = computed(() => authStore.user)

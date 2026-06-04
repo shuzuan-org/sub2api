@@ -238,6 +238,48 @@ func (_c *UserCreate) SetNillableSoraStorageUsedBytes(v *int64) *UserCreate {
 	return _c
 }
 
+// SetPhoneNumber sets the "phone_number" field.
+func (_c *UserCreate) SetPhoneNumber(v string) *UserCreate {
+	_c.mutation.SetPhoneNumber(v)
+	return _c
+}
+
+// SetNillablePhoneNumber sets the "phone_number" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePhoneNumber(v *string) *UserCreate {
+	if v != nil {
+		_c.SetPhoneNumber(*v)
+	}
+	return _c
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (_c *UserCreate) SetPhoneBoundAt(v time.Time) *UserCreate {
+	_c.mutation.SetPhoneBoundAt(v)
+	return _c
+}
+
+// SetNillablePhoneBoundAt sets the "phone_bound_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePhoneBoundAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetPhoneBoundAt(*v)
+	}
+	return _c
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (_c *UserCreate) SetPhoneBonusGrantedAt(v time.Time) *UserCreate {
+	_c.mutation.SetPhoneBonusGrantedAt(v)
+	return _c
+}
+
+// SetNillablePhoneBonusGrantedAt sets the "phone_bonus_granted_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePhoneBonusGrantedAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetPhoneBonusGrantedAt(*v)
+	}
+	return _c
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_c *UserCreate) SetReferralCode(v string) *UserCreate {
 	_c.mutation.SetReferralCode(v)
@@ -557,6 +599,11 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.SoraStorageUsedBytes(); !ok {
 		return &ValidationError{Name: "sora_storage_used_bytes", err: errors.New(`ent: missing required field "User.sora_storage_used_bytes"`)}
 	}
+	if v, ok := _c.mutation.PhoneNumber(); ok {
+		if err := user.PhoneNumberValidator(v); err != nil {
+			return &ValidationError{Name: "phone_number", err: fmt.Errorf(`ent: validator failed for field "User.phone_number": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.ReferralCode(); ok {
 		if err := user.ReferralCodeValidator(v); err != nil {
 			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
@@ -652,6 +699,18 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SoraStorageUsedBytes(); ok {
 		_spec.SetField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
 		_node.SoraStorageUsedBytes = value
+	}
+	if value, ok := _c.mutation.PhoneNumber(); ok {
+		_spec.SetField(user.FieldPhoneNumber, field.TypeString, value)
+		_node.PhoneNumber = &value
+	}
+	if value, ok := _c.mutation.PhoneBoundAt(); ok {
+		_spec.SetField(user.FieldPhoneBoundAt, field.TypeTime, value)
+		_node.PhoneBoundAt = &value
+	}
+	if value, ok := _c.mutation.PhoneBonusGrantedAt(); ok {
+		_spec.SetField(user.FieldPhoneBonusGrantedAt, field.TypeTime, value)
+		_node.PhoneBonusGrantedAt = &value
 	}
 	if value, ok := _c.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
@@ -1083,6 +1142,60 @@ func (u *UserUpsert) AddSoraStorageUsedBytes(v int64) *UserUpsert {
 	return u
 }
 
+// SetPhoneNumber sets the "phone_number" field.
+func (u *UserUpsert) SetPhoneNumber(v string) *UserUpsert {
+	u.Set(user.FieldPhoneNumber, v)
+	return u
+}
+
+// UpdatePhoneNumber sets the "phone_number" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePhoneNumber() *UserUpsert {
+	u.SetExcluded(user.FieldPhoneNumber)
+	return u
+}
+
+// ClearPhoneNumber clears the value of the "phone_number" field.
+func (u *UserUpsert) ClearPhoneNumber() *UserUpsert {
+	u.SetNull(user.FieldPhoneNumber)
+	return u
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (u *UserUpsert) SetPhoneBoundAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldPhoneBoundAt, v)
+	return u
+}
+
+// UpdatePhoneBoundAt sets the "phone_bound_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePhoneBoundAt() *UserUpsert {
+	u.SetExcluded(user.FieldPhoneBoundAt)
+	return u
+}
+
+// ClearPhoneBoundAt clears the value of the "phone_bound_at" field.
+func (u *UserUpsert) ClearPhoneBoundAt() *UserUpsert {
+	u.SetNull(user.FieldPhoneBoundAt)
+	return u
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (u *UserUpsert) SetPhoneBonusGrantedAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldPhoneBonusGrantedAt, v)
+	return u
+}
+
+// UpdatePhoneBonusGrantedAt sets the "phone_bonus_granted_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePhoneBonusGrantedAt() *UserUpsert {
+	u.SetExcluded(user.FieldPhoneBonusGrantedAt)
+	return u
+}
+
+// ClearPhoneBonusGrantedAt clears the value of the "phone_bonus_granted_at" field.
+func (u *UserUpsert) ClearPhoneBonusGrantedAt() *UserUpsert {
+	u.SetNull(user.FieldPhoneBonusGrantedAt)
+	return u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (u *UserUpsert) SetReferralCode(v string) *UserUpsert {
 	u.Set(user.FieldReferralCode, v)
@@ -1426,6 +1539,69 @@ func (u *UserUpsertOne) AddSoraStorageUsedBytes(v int64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateSoraStorageUsedBytes() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSoraStorageUsedBytes()
+	})
+}
+
+// SetPhoneNumber sets the "phone_number" field.
+func (u *UserUpsertOne) SetPhoneNumber(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneNumber(v)
+	})
+}
+
+// UpdatePhoneNumber sets the "phone_number" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePhoneNumber() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneNumber()
+	})
+}
+
+// ClearPhoneNumber clears the value of the "phone_number" field.
+func (u *UserUpsertOne) ClearPhoneNumber() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPhoneNumber()
+	})
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (u *UserUpsertOne) SetPhoneBoundAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneBoundAt(v)
+	})
+}
+
+// UpdatePhoneBoundAt sets the "phone_bound_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePhoneBoundAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneBoundAt()
+	})
+}
+
+// ClearPhoneBoundAt clears the value of the "phone_bound_at" field.
+func (u *UserUpsertOne) ClearPhoneBoundAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPhoneBoundAt()
+	})
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (u *UserUpsertOne) SetPhoneBonusGrantedAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneBonusGrantedAt(v)
+	})
+}
+
+// UpdatePhoneBonusGrantedAt sets the "phone_bonus_granted_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePhoneBonusGrantedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneBonusGrantedAt()
+	})
+}
+
+// ClearPhoneBonusGrantedAt clears the value of the "phone_bonus_granted_at" field.
+func (u *UserUpsertOne) ClearPhoneBonusGrantedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPhoneBonusGrantedAt()
 	})
 }
 
@@ -1945,6 +2121,69 @@ func (u *UserUpsertBulk) AddSoraStorageUsedBytes(v int64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateSoraStorageUsedBytes() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSoraStorageUsedBytes()
+	})
+}
+
+// SetPhoneNumber sets the "phone_number" field.
+func (u *UserUpsertBulk) SetPhoneNumber(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneNumber(v)
+	})
+}
+
+// UpdatePhoneNumber sets the "phone_number" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePhoneNumber() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneNumber()
+	})
+}
+
+// ClearPhoneNumber clears the value of the "phone_number" field.
+func (u *UserUpsertBulk) ClearPhoneNumber() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPhoneNumber()
+	})
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (u *UserUpsertBulk) SetPhoneBoundAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneBoundAt(v)
+	})
+}
+
+// UpdatePhoneBoundAt sets the "phone_bound_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePhoneBoundAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneBoundAt()
+	})
+}
+
+// ClearPhoneBoundAt clears the value of the "phone_bound_at" field.
+func (u *UserUpsertBulk) ClearPhoneBoundAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPhoneBoundAt()
+	})
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (u *UserUpsertBulk) SetPhoneBonusGrantedAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneBonusGrantedAt(v)
+	})
+}
+
+// UpdatePhoneBonusGrantedAt sets the "phone_bonus_granted_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePhoneBonusGrantedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneBonusGrantedAt()
+	})
+}
+
+// ClearPhoneBonusGrantedAt clears the value of the "phone_bonus_granted_at" field.
+func (u *UserUpsertBulk) ClearPhoneBonusGrantedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearPhoneBonusGrantedAt()
 	})
 }
 

@@ -49,6 +49,12 @@ type User struct {
 	SoraStorageQuotaBytes int64 `json:"sora_storage_quota_bytes,omitempty"`
 	// SoraStorageUsedBytes holds the value of the "sora_storage_used_bytes" field.
 	SoraStorageUsedBytes int64 `json:"sora_storage_used_bytes,omitempty"`
+	// PhoneNumber holds the value of the "phone_number" field.
+	PhoneNumber *string `json:"phone_number,omitempty"`
+	// PhoneBoundAt holds the value of the "phone_bound_at" field.
+	PhoneBoundAt *time.Time `json:"phone_bound_at,omitempty"`
+	// PhoneBonusGrantedAt holds the value of the "phone_bonus_granted_at" field.
+	PhoneBonusGrantedAt *time.Time `json:"phone_bonus_granted_at,omitempty"`
 	// ReferralCode holds the value of the "referral_code" field.
 	ReferralCode *string `json:"referral_code,omitempty"`
 	// ReferredBy holds the value of the "referred_by" field.
@@ -187,9 +193,9 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldSoraStorageQuotaBytes, user.FieldSoraStorageUsedBytes, user.FieldReferredBy:
 			values[i] = new(sql.NullInt64)
-		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldReferralCode:
+		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldPhoneNumber, user.FieldReferralCode:
 			values[i] = new(sql.NullString)
-		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt:
+		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt, user.FieldPhoneBoundAt, user.FieldPhoneBonusGrantedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -310,6 +316,27 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field sora_storage_used_bytes", values[i])
 			} else if value.Valid {
 				_m.SoraStorageUsedBytes = value.Int64
+			}
+		case user.FieldPhoneNumber:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field phone_number", values[i])
+			} else if value.Valid {
+				_m.PhoneNumber = new(string)
+				*_m.PhoneNumber = value.String
+			}
+		case user.FieldPhoneBoundAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field phone_bound_at", values[i])
+			} else if value.Valid {
+				_m.PhoneBoundAt = new(time.Time)
+				*_m.PhoneBoundAt = value.Time
+			}
+		case user.FieldPhoneBonusGrantedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field phone_bonus_granted_at", values[i])
+			} else if value.Valid {
+				_m.PhoneBonusGrantedAt = new(time.Time)
+				*_m.PhoneBonusGrantedAt = value.Time
 			}
 		case user.FieldReferralCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -464,6 +491,21 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sora_storage_used_bytes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SoraStorageUsedBytes))
+	builder.WriteString(", ")
+	if v := _m.PhoneNumber; v != nil {
+		builder.WriteString("phone_number=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.PhoneBoundAt; v != nil {
+		builder.WriteString("phone_bound_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.PhoneBonusGrantedAt; v != nil {
+		builder.WriteString("phone_bonus_granted_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	if v := _m.ReferralCode; v != nil {
 		builder.WriteString("referral_code=")

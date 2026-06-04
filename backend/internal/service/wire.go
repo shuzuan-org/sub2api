@@ -506,4 +506,7 @@ var ProviderSet = wire.NewSet(
 	ProvideScheduledTestRunnerService,
 	NewGroupCapacityService,
 	NewSubscriptionPlanService,
+	NewPhoneVerificationService,
+	NewTencentSMSSender,
+	wire.Bind(new(SMSSender), new(*TencentSMSSender)),
 )

@@ -38,6 +38,11 @@ type User struct {
 	ReferralCode *string // 用户专属邀请码（懒创建，6 位大写字母+数字）
 	ReferredBy   *int64  // 邀请人 user_id
 
+	// 手机号绑定
+	PhoneNumber        *string    // 绑定手机号（E.164 格式，如 +8613800138000）
+	PhoneBoundAt       *time.Time // 绑定时间
+	PhoneBonusGrantedAt *time.Time // 绑定赠送 100U 发放时间
+
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
 }

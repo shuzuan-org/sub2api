@@ -11,6 +11,10 @@
         <input v-model="form.email" type="email" class="input" />
       </div>
       <div>
+        <label class="input-label">{{ t('admin.users.phone') }}</label>
+        <input v-model="form.phone" type="tel" class="input" placeholder="+8613800138000" />
+      </div>
+      <div>
         <label class="input-label">{{ t('admin.users.password') }}</label>
         <div class="flex gap-2">
           <div class="relative flex-1">
@@ -74,11 +78,11 @@ const emit = defineEmits(['close', 'success'])
 const { t } = useI18n(); const appStore = useAppStore(); const { copyToClipboard } = useClipboard()
 
 const submitting = ref(false); const passwordCopied = ref(false)
-const form = reactive({ email: '', password: '', username: '', notes: '', concurrency: 1, sora_storage_quota_gb: 0, customAttributes: {} as UserAttributeValuesMap })
+const form = reactive({ email: '', phone: '', password: '', username: '', notes: '', concurrency: 1, sora_storage_quota_gb: 0, customAttributes: {} as UserAttributeValuesMap })
 
 watch(() => props.user, (u) => {
   if (u) {
-    Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', concurrency: u.concurrency, sora_storage_quota_gb: Number(((u.sora_storage_quota_bytes || 0) / (1024 * 1024 * 1024)).toFixed(2)), customAttributes: {} })
+    Object.assign(form, { email: u.email, phone: u.phone_number || '', password: '', username: u.username || '', notes: u.notes || '', concurrency: u.concurrency, sora_storage_quota_gb: Number(((u.sora_storage_quota_bytes || 0) / (1024 * 1024 * 1024)).toFixed(2)), customAttributes: {} })
     passwordCopied.value = false
   }
 }, { immediate: true })
@@ -105,7 +109,7 @@ const handleUpdateUser = async () => {
   }
   submitting.value = true
   try {
-    const data: any = { email: form.email, username: form.username, notes: form.notes, concurrency: form.concurrency, sora_storage_quota_bytes: Math.round((form.sora_storage_quota_gb || 0) * 1024 * 1024 * 1024) }
+    const data: any = { email: form.email, phone: form.phone, username: form.username, notes: form.notes, concurrency: form.concurrency, sora_storage_quota_bytes: Math.round((form.sora_storage_quota_gb || 0) * 1024 * 1024 * 1024) }
     if (form.password.trim()) data.password = form.password.trim()
     await adminAPI.users.update(props.user.id, data)
     if (Object.keys(form.customAttributes).length > 0) await adminAPI.userAttributes.updateUserAttributeValues(props.user.id, form.customAttributes)

@@ -973,6 +973,9 @@ var (
 		{Name: "totp_enabled_at", Type: field.TypeTime, Nullable: true},
 		{Name: "sora_storage_quota_bytes", Type: field.TypeInt64, Default: 0},
 		{Name: "sora_storage_used_bytes", Type: field.TypeInt64, Default: 0},
+		{Name: "phone_number", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "phone_bound_at", Type: field.TypeTime, Nullable: true},
+		{Name: "phone_bonus_granted_at", Type: field.TypeTime, Nullable: true},
 		{Name: "referral_code", Type: field.TypeString, Unique: true, Nullable: true, Size: 6},
 		{Name: "referred_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -995,7 +998,12 @@ var (
 			{
 				Name:    "user_referred_by",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[18]},
+				Columns: []*schema.Column{UsersColumns[21]},
+			},
+			{
+				Name:    "user_phone_number",
+				Unique:  true,
+				Columns: []*schema.Column{UsersColumns[17]},
 			},
 		},
 	}

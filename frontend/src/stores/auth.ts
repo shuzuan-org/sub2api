@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
-import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
+import type { User, LoginRequest, PhoneLoginRequest, RegisterRequest, AuthResponse } from '@/types'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -184,6 +184,32 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
       const response = await authAPI.login(credentials)
+
+      // If 2FA is required, return the response without setting auth state
+      if (isTotp2FARequired(response)) {
+        return response
+      }
+
+      // Set auth state from the response
+      setAuthFromResponse(response)
+
+      return response
+    } catch (error) {
+      // Clear any partial state on error
+      clearAuth()
+      throw error
+    }
+  }
+
+  /**
+   * User login with phone + verification code
+   * @param credentials - Phone login credentials (phone and verification code)
+   * @returns Promise resolving to the login response (may require 2FA)
+   * @throws Error if login fails
+   */
+  async function loginWithPhoneCode(credentials: PhoneLoginRequest): Promise<LoginResponse> {
+    try {
+      const response = await authAPI.loginWithPhoneCode(credentials)
 
       // If 2FA is required, return the response without setting auth state
       if (isTotp2FARequired(response)) {
@@ -398,6 +424,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Actions
     login,
+    loginWithPhoneCode,
     login2FA,
     register,
     setToken,

@@ -135,6 +135,21 @@ func SoraStorageUsedBytes(v int64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSoraStorageUsedBytes, v))
 }
 
+// PhoneNumber applies equality check predicate on the "phone_number" field. It's identical to PhoneNumberEQ.
+func PhoneNumber(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneNumber, v))
+}
+
+// PhoneBoundAt applies equality check predicate on the "phone_bound_at" field. It's identical to PhoneBoundAtEQ.
+func PhoneBoundAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneBoundAt, v))
+}
+
+// PhoneBonusGrantedAt applies equality check predicate on the "phone_bonus_granted_at" field. It's identical to PhoneBonusGrantedAtEQ.
+func PhoneBonusGrantedAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneBonusGrantedAt, v))
+}
+
 // ReferralCode applies equality check predicate on the "referral_code" field. It's identical to ReferralCodeEQ.
 func ReferralCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldReferralCode, v))
@@ -958,6 +973,181 @@ func SoraStorageUsedBytesLT(v int64) predicate.User {
 // SoraStorageUsedBytesLTE applies the LTE predicate on the "sora_storage_used_bytes" field.
 func SoraStorageUsedBytesLTE(v int64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldSoraStorageUsedBytes, v))
+}
+
+// PhoneNumberEQ applies the EQ predicate on the "phone_number" field.
+func PhoneNumberEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneNumber, v))
+}
+
+// PhoneNumberNEQ applies the NEQ predicate on the "phone_number" field.
+func PhoneNumberNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhoneNumber, v))
+}
+
+// PhoneNumberIn applies the In predicate on the "phone_number" field.
+func PhoneNumberIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPhoneNumber, vs...))
+}
+
+// PhoneNumberNotIn applies the NotIn predicate on the "phone_number" field.
+func PhoneNumberNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPhoneNumber, vs...))
+}
+
+// PhoneNumberGT applies the GT predicate on the "phone_number" field.
+func PhoneNumberGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPhoneNumber, v))
+}
+
+// PhoneNumberGTE applies the GTE predicate on the "phone_number" field.
+func PhoneNumberGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPhoneNumber, v))
+}
+
+// PhoneNumberLT applies the LT predicate on the "phone_number" field.
+func PhoneNumberLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPhoneNumber, v))
+}
+
+// PhoneNumberLTE applies the LTE predicate on the "phone_number" field.
+func PhoneNumberLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPhoneNumber, v))
+}
+
+// PhoneNumberContains applies the Contains predicate on the "phone_number" field.
+func PhoneNumberContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldPhoneNumber, v))
+}
+
+// PhoneNumberHasPrefix applies the HasPrefix predicate on the "phone_number" field.
+func PhoneNumberHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldPhoneNumber, v))
+}
+
+// PhoneNumberHasSuffix applies the HasSuffix predicate on the "phone_number" field.
+func PhoneNumberHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldPhoneNumber, v))
+}
+
+// PhoneNumberIsNil applies the IsNil predicate on the "phone_number" field.
+func PhoneNumberIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPhoneNumber))
+}
+
+// PhoneNumberNotNil applies the NotNil predicate on the "phone_number" field.
+func PhoneNumberNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPhoneNumber))
+}
+
+// PhoneNumberEqualFold applies the EqualFold predicate on the "phone_number" field.
+func PhoneNumberEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldPhoneNumber, v))
+}
+
+// PhoneNumberContainsFold applies the ContainsFold predicate on the "phone_number" field.
+func PhoneNumberContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldPhoneNumber, v))
+}
+
+// PhoneBoundAtEQ applies the EQ predicate on the "phone_bound_at" field.
+func PhoneBoundAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneBoundAt, v))
+}
+
+// PhoneBoundAtNEQ applies the NEQ predicate on the "phone_bound_at" field.
+func PhoneBoundAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhoneBoundAt, v))
+}
+
+// PhoneBoundAtIn applies the In predicate on the "phone_bound_at" field.
+func PhoneBoundAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPhoneBoundAt, vs...))
+}
+
+// PhoneBoundAtNotIn applies the NotIn predicate on the "phone_bound_at" field.
+func PhoneBoundAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPhoneBoundAt, vs...))
+}
+
+// PhoneBoundAtGT applies the GT predicate on the "phone_bound_at" field.
+func PhoneBoundAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPhoneBoundAt, v))
+}
+
+// PhoneBoundAtGTE applies the GTE predicate on the "phone_bound_at" field.
+func PhoneBoundAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPhoneBoundAt, v))
+}
+
+// PhoneBoundAtLT applies the LT predicate on the "phone_bound_at" field.
+func PhoneBoundAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPhoneBoundAt, v))
+}
+
+// PhoneBoundAtLTE applies the LTE predicate on the "phone_bound_at" field.
+func PhoneBoundAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPhoneBoundAt, v))
+}
+
+// PhoneBoundAtIsNil applies the IsNil predicate on the "phone_bound_at" field.
+func PhoneBoundAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPhoneBoundAt))
+}
+
+// PhoneBoundAtNotNil applies the NotNil predicate on the "phone_bound_at" field.
+func PhoneBoundAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPhoneBoundAt))
+}
+
+// PhoneBonusGrantedAtEQ applies the EQ predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneBonusGrantedAt, v))
+}
+
+// PhoneBonusGrantedAtNEQ applies the NEQ predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhoneBonusGrantedAt, v))
+}
+
+// PhoneBonusGrantedAtIn applies the In predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPhoneBonusGrantedAt, vs...))
+}
+
+// PhoneBonusGrantedAtNotIn applies the NotIn predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPhoneBonusGrantedAt, vs...))
+}
+
+// PhoneBonusGrantedAtGT applies the GT predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPhoneBonusGrantedAt, v))
+}
+
+// PhoneBonusGrantedAtGTE applies the GTE predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPhoneBonusGrantedAt, v))
+}
+
+// PhoneBonusGrantedAtLT applies the LT predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPhoneBonusGrantedAt, v))
+}
+
+// PhoneBonusGrantedAtLTE applies the LTE predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPhoneBonusGrantedAt, v))
+}
+
+// PhoneBonusGrantedAtIsNil applies the IsNil predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPhoneBonusGrantedAt))
+}
+
+// PhoneBonusGrantedAtNotNil applies the NotNil predicate on the "phone_bonus_granted_at" field.
+func PhoneBonusGrantedAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPhoneBonusGrantedAt))
 }
 
 // ReferralCodeEQ applies the EQ predicate on the "referral_code" field.

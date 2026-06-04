@@ -79,6 +79,18 @@ func (User) Fields() []ent.Field {
 		field.Int64("sora_storage_used_bytes").
 			Default(0),
 
+		// 手机号绑定（E.164 格式，如 +8613800138000）
+		field.String("phone_number").
+			MaxLen(32).
+			Optional().
+			Nillable(),
+		field.Time("phone_bound_at").
+			Optional().
+			Nillable(),
+		field.Time("phone_bonus_granted_at").
+			Optional().
+			Nillable(),
+
 		// 邀请好友：专属邀请码（懒创建，6 位大写字母+数字）与邀请人
 		field.String("referral_code").
 			MaxLen(6).
@@ -112,5 +124,6 @@ func (User) Indexes() []ent.Index {
 		index.Fields("status"),
 		index.Fields("deleted_at"),
 		index.Fields("referred_by"),
+		index.Fields("phone_number").Unique(),
 	}
 }

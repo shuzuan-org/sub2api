@@ -24900,6 +24900,9 @@ type UserMutation struct {
 	addsora_storage_quota_bytes   *int64
 	sora_storage_used_bytes       *int64
 	addsora_storage_used_bytes    *int64
+	phone_number                  *string
+	phone_bound_at                *time.Time
+	phone_bonus_granted_at        *time.Time
 	referral_code                 *string
 	referred_by                   *int64
 	addreferred_by                *int64
@@ -25729,6 +25732,153 @@ func (m *UserMutation) ResetSoraStorageUsedBytes() {
 	m.addsora_storage_used_bytes = nil
 }
 
+// SetPhoneNumber sets the "phone_number" field.
+func (m *UserMutation) SetPhoneNumber(s string) {
+	m.phone_number = &s
+}
+
+// PhoneNumber returns the value of the "phone_number" field in the mutation.
+func (m *UserMutation) PhoneNumber() (r string, exists bool) {
+	v := m.phone_number
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhoneNumber returns the old "phone_number" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPhoneNumber(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhoneNumber is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhoneNumber requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhoneNumber: %w", err)
+	}
+	return oldValue.PhoneNumber, nil
+}
+
+// ClearPhoneNumber clears the value of the "phone_number" field.
+func (m *UserMutation) ClearPhoneNumber() {
+	m.phone_number = nil
+	m.clearedFields[user.FieldPhoneNumber] = struct{}{}
+}
+
+// PhoneNumberCleared returns if the "phone_number" field was cleared in this mutation.
+func (m *UserMutation) PhoneNumberCleared() bool {
+	_, ok := m.clearedFields[user.FieldPhoneNumber]
+	return ok
+}
+
+// ResetPhoneNumber resets all changes to the "phone_number" field.
+func (m *UserMutation) ResetPhoneNumber() {
+	m.phone_number = nil
+	delete(m.clearedFields, user.FieldPhoneNumber)
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (m *UserMutation) SetPhoneBoundAt(t time.Time) {
+	m.phone_bound_at = &t
+}
+
+// PhoneBoundAt returns the value of the "phone_bound_at" field in the mutation.
+func (m *UserMutation) PhoneBoundAt() (r time.Time, exists bool) {
+	v := m.phone_bound_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhoneBoundAt returns the old "phone_bound_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPhoneBoundAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhoneBoundAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhoneBoundAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhoneBoundAt: %w", err)
+	}
+	return oldValue.PhoneBoundAt, nil
+}
+
+// ClearPhoneBoundAt clears the value of the "phone_bound_at" field.
+func (m *UserMutation) ClearPhoneBoundAt() {
+	m.phone_bound_at = nil
+	m.clearedFields[user.FieldPhoneBoundAt] = struct{}{}
+}
+
+// PhoneBoundAtCleared returns if the "phone_bound_at" field was cleared in this mutation.
+func (m *UserMutation) PhoneBoundAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldPhoneBoundAt]
+	return ok
+}
+
+// ResetPhoneBoundAt resets all changes to the "phone_bound_at" field.
+func (m *UserMutation) ResetPhoneBoundAt() {
+	m.phone_bound_at = nil
+	delete(m.clearedFields, user.FieldPhoneBoundAt)
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (m *UserMutation) SetPhoneBonusGrantedAt(t time.Time) {
+	m.phone_bonus_granted_at = &t
+}
+
+// PhoneBonusGrantedAt returns the value of the "phone_bonus_granted_at" field in the mutation.
+func (m *UserMutation) PhoneBonusGrantedAt() (r time.Time, exists bool) {
+	v := m.phone_bonus_granted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhoneBonusGrantedAt returns the old "phone_bonus_granted_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPhoneBonusGrantedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhoneBonusGrantedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhoneBonusGrantedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhoneBonusGrantedAt: %w", err)
+	}
+	return oldValue.PhoneBonusGrantedAt, nil
+}
+
+// ClearPhoneBonusGrantedAt clears the value of the "phone_bonus_granted_at" field.
+func (m *UserMutation) ClearPhoneBonusGrantedAt() {
+	m.phone_bonus_granted_at = nil
+	m.clearedFields[user.FieldPhoneBonusGrantedAt] = struct{}{}
+}
+
+// PhoneBonusGrantedAtCleared returns if the "phone_bonus_granted_at" field was cleared in this mutation.
+func (m *UserMutation) PhoneBonusGrantedAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldPhoneBonusGrantedAt]
+	return ok
+}
+
+// ResetPhoneBonusGrantedAt resets all changes to the "phone_bonus_granted_at" field.
+func (m *UserMutation) ResetPhoneBonusGrantedAt() {
+	m.phone_bonus_granted_at = nil
+	delete(m.clearedFields, user.FieldPhoneBonusGrantedAt)
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (m *UserMutation) SetReferralCode(s string) {
 	m.referral_code = &s
@@ -26368,7 +26518,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 18)
+	fields := make([]string, 0, 21)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -26417,6 +26567,15 @@ func (m *UserMutation) Fields() []string {
 	if m.sora_storage_used_bytes != nil {
 		fields = append(fields, user.FieldSoraStorageUsedBytes)
 	}
+	if m.phone_number != nil {
+		fields = append(fields, user.FieldPhoneNumber)
+	}
+	if m.phone_bound_at != nil {
+		fields = append(fields, user.FieldPhoneBoundAt)
+	}
+	if m.phone_bonus_granted_at != nil {
+		fields = append(fields, user.FieldPhoneBonusGrantedAt)
+	}
 	if m.referral_code != nil {
 		fields = append(fields, user.FieldReferralCode)
 	}
@@ -26463,6 +26622,12 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.SoraStorageQuotaBytes()
 	case user.FieldSoraStorageUsedBytes:
 		return m.SoraStorageUsedBytes()
+	case user.FieldPhoneNumber:
+		return m.PhoneNumber()
+	case user.FieldPhoneBoundAt:
+		return m.PhoneBoundAt()
+	case user.FieldPhoneBonusGrantedAt:
+		return m.PhoneBonusGrantedAt()
 	case user.FieldReferralCode:
 		return m.ReferralCode()
 	case user.FieldReferredBy:
@@ -26508,6 +26673,12 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldSoraStorageQuotaBytes(ctx)
 	case user.FieldSoraStorageUsedBytes:
 		return m.OldSoraStorageUsedBytes(ctx)
+	case user.FieldPhoneNumber:
+		return m.OldPhoneNumber(ctx)
+	case user.FieldPhoneBoundAt:
+		return m.OldPhoneBoundAt(ctx)
+	case user.FieldPhoneBonusGrantedAt:
+		return m.OldPhoneBonusGrantedAt(ctx)
 	case user.FieldReferralCode:
 		return m.OldReferralCode(ctx)
 	case user.FieldReferredBy:
@@ -26633,6 +26804,27 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSoraStorageUsedBytes(v)
 		return nil
+	case user.FieldPhoneNumber:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhoneNumber(v)
+		return nil
+	case user.FieldPhoneBoundAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhoneBoundAt(v)
+		return nil
+	case user.FieldPhoneBonusGrantedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhoneBonusGrantedAt(v)
+		return nil
 	case user.FieldReferralCode:
 		v, ok := value.(string)
 		if !ok {
@@ -26749,6 +26941,15 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldTotpEnabledAt) {
 		fields = append(fields, user.FieldTotpEnabledAt)
 	}
+	if m.FieldCleared(user.FieldPhoneNumber) {
+		fields = append(fields, user.FieldPhoneNumber)
+	}
+	if m.FieldCleared(user.FieldPhoneBoundAt) {
+		fields = append(fields, user.FieldPhoneBoundAt)
+	}
+	if m.FieldCleared(user.FieldPhoneBonusGrantedAt) {
+		fields = append(fields, user.FieldPhoneBonusGrantedAt)
+	}
 	if m.FieldCleared(user.FieldReferralCode) {
 		fields = append(fields, user.FieldReferralCode)
 	}
@@ -26777,6 +26978,15 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldTotpEnabledAt:
 		m.ClearTotpEnabledAt()
+		return nil
+	case user.FieldPhoneNumber:
+		m.ClearPhoneNumber()
+		return nil
+	case user.FieldPhoneBoundAt:
+		m.ClearPhoneBoundAt()
+		return nil
+	case user.FieldPhoneBonusGrantedAt:
+		m.ClearPhoneBonusGrantedAt()
 		return nil
 	case user.FieldReferralCode:
 		m.ClearReferralCode()
@@ -26839,6 +27049,15 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldSoraStorageUsedBytes:
 		m.ResetSoraStorageUsedBytes()
+		return nil
+	case user.FieldPhoneNumber:
+		m.ResetPhoneNumber()
+		return nil
+	case user.FieldPhoneBoundAt:
+		m.ResetPhoneBoundAt()
+		return nil
+	case user.FieldPhoneBonusGrantedAt:
+		m.ResetPhoneBonusGrantedAt()
 		return nil
 	case user.FieldReferralCode:
 		m.ResetReferralCode()

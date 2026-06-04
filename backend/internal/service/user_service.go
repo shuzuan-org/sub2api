@@ -16,6 +16,11 @@ var (
 	ErrInsufficientPerms = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
 	// ErrReferralCodeConflict 表示设置邀请码时发生唯一冲突或目标用户已有邀请码（需重试或视为已存在）。
 	ErrReferralCodeConflict = infraerrors.Conflict("REFERRAL_CODE_CONFLICT", "referral code conflict")
+
+	// 手机号绑定错误
+	ErrPhoneAlreadyBound       = infraerrors.BadRequest("PHONE_ALREADY_BOUND", "phone number already bound to current account")
+	ErrPhoneNumberAlreadyBound = infraerrors.Conflict("PHONE_NUMBER_ALREADY_BOUND", "phone number already bound to another account")
+	ErrInvalidPhoneNumber      = infraerrors.BadRequest("INVALID_PHONE_NUMBER", "invalid phone number format")
 )
 
 // UserListFilters contains all filter options for listing users
@@ -67,7 +72,13 @@ type UserRepository interface {
 	SetReferralCode(ctx context.Context, id int64, code string) error
 	// SetReferredBy 设置用户的邀请人。
 	SetReferredBy(ctx context.Context, id int64, referrerID int64) error
-}
+
+		// 手机号绑定
+		GetByPhoneNumber(ctx context.Context, phone string) (*User, error)
+		ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error)
+		// BindPhoneAndGrantBonus 绑定手机号并赠送余额（事务内原子执行）。
+		BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*User, error)
+	}
 
 // UpdateProfileRequest 更新用户资料请求
 type UpdateProfileRequest struct {
@@ -260,4 +271,36 @@ func (s *UserService) Delete(ctx context.Context, userID int64) error {
 		return fmt.Errorf("delete user: %w", err)
 	}
 	return nil
+}
+
+const phoneBindBonusAmount = 100.0 // 绑定手机号赠送 100U
+
+// BindPhoneAndGrantBonus 绑定手机号并赠送余额。
+// 使用 Redis 分布式锁 + 数据库事务保证并发安全。
+func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string) (*User, error) {
+	// 已通过验证码校验，此处直接绑定
+	user, err := s.userRepo.BindPhoneAndGrantBonus(ctx, userID, phone, phoneBindBonusAmount)
+	if err != nil {
+		return nil, err
+	}
+
+	// 失效缓存
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	if s.billingCache != nil {
+		go func() {
+			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.billingCache.InvalidateUserBalance(cacheCtx, userID); err != nil {
+				log.Printf("invalidate user balance cache failed: user_id=%d err=%v", userID, err)
+			}
+		}()
+	}
+
+	return user, nil
+}
+// ExistsByPhoneNumber checks if a phone number is already bound to any account.
+func (s *UserService) ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error) {
+	return s.userRepo.ExistsByPhoneNumber(ctx, phone)
 }

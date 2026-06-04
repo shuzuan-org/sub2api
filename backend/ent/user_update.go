@@ -284,6 +284,66 @@ func (_u *UserUpdate) AddSoraStorageUsedBytes(v int64) *UserUpdate {
 	return _u
 }
 
+// SetPhoneNumber sets the "phone_number" field.
+func (_u *UserUpdate) SetPhoneNumber(v string) *UserUpdate {
+	_u.mutation.SetPhoneNumber(v)
+	return _u
+}
+
+// SetNillablePhoneNumber sets the "phone_number" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhoneNumber(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetPhoneNumber(*v)
+	}
+	return _u
+}
+
+// ClearPhoneNumber clears the value of the "phone_number" field.
+func (_u *UserUpdate) ClearPhoneNumber() *UserUpdate {
+	_u.mutation.ClearPhoneNumber()
+	return _u
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (_u *UserUpdate) SetPhoneBoundAt(v time.Time) *UserUpdate {
+	_u.mutation.SetPhoneBoundAt(v)
+	return _u
+}
+
+// SetNillablePhoneBoundAt sets the "phone_bound_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhoneBoundAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetPhoneBoundAt(*v)
+	}
+	return _u
+}
+
+// ClearPhoneBoundAt clears the value of the "phone_bound_at" field.
+func (_u *UserUpdate) ClearPhoneBoundAt() *UserUpdate {
+	_u.mutation.ClearPhoneBoundAt()
+	return _u
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (_u *UserUpdate) SetPhoneBonusGrantedAt(v time.Time) *UserUpdate {
+	_u.mutation.SetPhoneBonusGrantedAt(v)
+	return _u
+}
+
+// SetNillablePhoneBonusGrantedAt sets the "phone_bonus_granted_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhoneBonusGrantedAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetPhoneBonusGrantedAt(*v)
+	}
+	return _u
+}
+
+// ClearPhoneBonusGrantedAt clears the value of the "phone_bonus_granted_at" field.
+func (_u *UserUpdate) ClearPhoneBonusGrantedAt() *UserUpdate {
+	_u.mutation.ClearPhoneBonusGrantedAt()
+	return _u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_u *UserUpdate) SetReferralCode(v string) *UserUpdate {
 	_u.mutation.SetReferralCode(v)
@@ -729,6 +789,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PhoneNumber(); ok {
+		if err := user.PhoneNumberValidator(v); err != nil {
+			return &ValidationError{Name: "phone_number", err: fmt.Errorf(`ent: validator failed for field "User.phone_number": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ReferralCode(); ok {
 		if err := user.ReferralCodeValidator(v); err != nil {
 			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
@@ -814,6 +879,24 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
 		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.PhoneNumber(); ok {
+		_spec.SetField(user.FieldPhoneNumber, field.TypeString, value)
+	}
+	if _u.mutation.PhoneNumberCleared() {
+		_spec.ClearField(user.FieldPhoneNumber, field.TypeString)
+	}
+	if value, ok := _u.mutation.PhoneBoundAt(); ok {
+		_spec.SetField(user.FieldPhoneBoundAt, field.TypeTime, value)
+	}
+	if _u.mutation.PhoneBoundAtCleared() {
+		_spec.ClearField(user.FieldPhoneBoundAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.PhoneBonusGrantedAt(); ok {
+		_spec.SetField(user.FieldPhoneBonusGrantedAt, field.TypeTime, value)
+	}
+	if _u.mutation.PhoneBonusGrantedAtCleared() {
+		_spec.ClearField(user.FieldPhoneBonusGrantedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
@@ -1515,6 +1598,66 @@ func (_u *UserUpdateOne) AddSoraStorageUsedBytes(v int64) *UserUpdateOne {
 	return _u
 }
 
+// SetPhoneNumber sets the "phone_number" field.
+func (_u *UserUpdateOne) SetPhoneNumber(v string) *UserUpdateOne {
+	_u.mutation.SetPhoneNumber(v)
+	return _u
+}
+
+// SetNillablePhoneNumber sets the "phone_number" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhoneNumber(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhoneNumber(*v)
+	}
+	return _u
+}
+
+// ClearPhoneNumber clears the value of the "phone_number" field.
+func (_u *UserUpdateOne) ClearPhoneNumber() *UserUpdateOne {
+	_u.mutation.ClearPhoneNumber()
+	return _u
+}
+
+// SetPhoneBoundAt sets the "phone_bound_at" field.
+func (_u *UserUpdateOne) SetPhoneBoundAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetPhoneBoundAt(v)
+	return _u
+}
+
+// SetNillablePhoneBoundAt sets the "phone_bound_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhoneBoundAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhoneBoundAt(*v)
+	}
+	return _u
+}
+
+// ClearPhoneBoundAt clears the value of the "phone_bound_at" field.
+func (_u *UserUpdateOne) ClearPhoneBoundAt() *UserUpdateOne {
+	_u.mutation.ClearPhoneBoundAt()
+	return _u
+}
+
+// SetPhoneBonusGrantedAt sets the "phone_bonus_granted_at" field.
+func (_u *UserUpdateOne) SetPhoneBonusGrantedAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetPhoneBonusGrantedAt(v)
+	return _u
+}
+
+// SetNillablePhoneBonusGrantedAt sets the "phone_bonus_granted_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhoneBonusGrantedAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhoneBonusGrantedAt(*v)
+	}
+	return _u
+}
+
+// ClearPhoneBonusGrantedAt clears the value of the "phone_bonus_granted_at" field.
+func (_u *UserUpdateOne) ClearPhoneBonusGrantedAt() *UserUpdateOne {
+	_u.mutation.ClearPhoneBonusGrantedAt()
+	return _u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_u *UserUpdateOne) SetReferralCode(v string) *UserUpdateOne {
 	_u.mutation.SetReferralCode(v)
@@ -1973,6 +2116,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PhoneNumber(); ok {
+		if err := user.PhoneNumberValidator(v); err != nil {
+			return &ValidationError{Name: "phone_number", err: fmt.Errorf(`ent: validator failed for field "User.phone_number": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ReferralCode(); ok {
 		if err := user.ReferralCodeValidator(v); err != nil {
 			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
@@ -2075,6 +2223,24 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
 		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.PhoneNumber(); ok {
+		_spec.SetField(user.FieldPhoneNumber, field.TypeString, value)
+	}
+	if _u.mutation.PhoneNumberCleared() {
+		_spec.ClearField(user.FieldPhoneNumber, field.TypeString)
+	}
+	if value, ok := _u.mutation.PhoneBoundAt(); ok {
+		_spec.SetField(user.FieldPhoneBoundAt, field.TypeTime, value)
+	}
+	if _u.mutation.PhoneBoundAtCleared() {
+		_spec.ClearField(user.FieldPhoneBoundAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.PhoneBonusGrantedAt(); ok {
+		_spec.SetField(user.FieldPhoneBonusGrantedAt, field.TypeTime, value)
+	}
+	if _u.mutation.PhoneBonusGrantedAtCleared() {
+		_spec.ClearField(user.FieldPhoneBonusGrantedAt, field.TypeTime)
 	}
 	if value, ok := _u.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)

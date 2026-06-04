@@ -36,6 +36,13 @@ func RegisterUserRoutes(
 				totp.POST("/enable", h.Totp.Enable)
 				totp.POST("/disable", h.Totp.Disable)
 			}
+
+			// 手机号绑定
+			phone := user.Group("/phone")
+			{
+				phone.POST("/send-code", h.User.SendPhoneCode)
+				phone.POST("/bind", h.User.BindPhone)
+			}
 		}
 
 		// API Key管理

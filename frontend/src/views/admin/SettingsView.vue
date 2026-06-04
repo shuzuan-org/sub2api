@@ -2075,6 +2075,7 @@ type SettingsForm = SystemSettings & {
   smtp_password: string
   turnstile_secret_key: string
   linuxdo_connect_client_secret: string
+  sms_tencent_secret_key: string
 }
 
 const form = reactive<SettingsForm>({
@@ -2144,7 +2145,15 @@ const form = reactive<SettingsForm>({
   allow_ungrouped_key_scheduling: false,
   // Gateway forwarding behavior
   enable_fingerprint_unification: true,
-  enable_metadata_passthrough: false
+  enable_metadata_passthrough: false,
+  sms_tencent_enabled: false,
+  sms_tencent_secret_id: '',
+  sms_tencent_secret_key: '',
+  sms_tencent_secret_key_configured: false,
+  sms_tencent_region: 'ap-guangzhou',
+  sms_tencent_sdk_app_id: '',
+  sms_tencent_sign_name: '',
+  sms_tencent_template_id: ''
 })
 
 const defaultSubscriptionPlanOptions = computed<DefaultSubscriptionPlanOption[]>(() =>
@@ -2449,7 +2458,14 @@ async function saveSettings() {
       max_claude_code_version: form.max_claude_code_version,
       allow_ungrouped_key_scheduling: form.allow_ungrouped_key_scheduling,
       enable_fingerprint_unification: form.enable_fingerprint_unification,
-      enable_metadata_passthrough: form.enable_metadata_passthrough
+      enable_metadata_passthrough: form.enable_metadata_passthrough,
+      sms_tencent_enabled: form.sms_tencent_enabled,
+      sms_tencent_secret_id: form.sms_tencent_secret_id,
+      sms_tencent_secret_key: form.sms_tencent_secret_key || undefined,
+      sms_tencent_region: form.sms_tencent_region,
+      sms_tencent_sdk_app_id: form.sms_tencent_sdk_app_id,
+      sms_tencent_sign_name: form.sms_tencent_sign_name,
+      sms_tencent_template_id: form.sms_tencent_template_id
     }
     const updated = await adminAPI.settings.updateSettings(payload)
     Object.assign(form, updated)

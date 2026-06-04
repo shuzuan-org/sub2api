@@ -167,6 +167,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyCustomEndpoints,
 		SettingKeyLinuxDoConnectEnabled,
 		SettingKeyBackendModeEnabled,
+		SettingKeyPhoneLoginEnabled,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -213,6 +214,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
 		LinuxDoOAuthEnabled:              linuxDoEnabled,
 		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
+		PhoneLoginEnabled:                 settings[SettingKeyPhoneLoginEnabled] == "true",
 	}, nil
 }
 
@@ -527,6 +529,17 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	// Gateway forwarding behavior
 	updates[SettingKeyEnableFingerprintUnification] = strconv.FormatBool(settings.EnableFingerprintUnification)
 	updates[SettingKeyEnableMetadataPassthrough] = strconv.FormatBool(settings.EnableMetadataPassthrough)
+
+	// 腾讯云短信设置（只有非空才更新密钥）
+	updates[SettingKeySMSTencentEnabled] = strconv.FormatBool(settings.SMSTencentEnabled)
+	updates[SettingKeySMSTencentSecretID] = settings.SMSTencentSecretID
+	if settings.SMSTencentSecretKey != "" {
+		updates[SettingKeySMSTencentSecretKey] = settings.SMSTencentSecretKey
+	}
+	updates[SettingKeySMSTencentRegion] = settings.SMSTencentRegion
+	updates[SettingKeySMSTencentSdkAppID] = settings.SMSTencentSdkAppID
+	updates[SettingKeySMSTencentSignName] = settings.SMSTencentSignName
+	updates[SettingKeySMSTencentTemplateID] = settings.SMSTencentTemplateID
 
 	err = s.settingRepo.SetMultiple(ctx, updates)
 	if err == nil {
@@ -1014,6 +1027,16 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.EnableFingerprintUnification = true // default: enabled (current behavior)
 	}
 	result.EnableMetadataPassthrough = settings[SettingKeyEnableMetadataPassthrough] == "true"
+
+	// 腾讯云短信设置
+	result.SMSTencentEnabled = settings[SettingKeySMSTencentEnabled] == "true"
+	result.SMSTencentSecretID = settings[SettingKeySMSTencentSecretID]
+	result.SMSTencentSecretKey = settings[SettingKeySMSTencentSecretKey]
+	result.SMSTencentSecretKeyConfigured = settings[SettingKeySMSTencentSecretKey] != ""
+	result.SMSTencentRegion = s.getStringOrDefault(settings, SettingKeySMSTencentRegion, "ap-guangzhou")
+	result.SMSTencentSdkAppID = settings[SettingKeySMSTencentSdkAppID]
+	result.SMSTencentSignName = settings[SettingKeySMSTencentSignName]
+	result.SMSTencentTemplateID = settings[SettingKeySMSTencentTemplateID]
 
 	return result
 }
