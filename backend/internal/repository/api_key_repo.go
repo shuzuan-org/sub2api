@@ -609,6 +609,8 @@ func userEntityToService(u *dbent.User) *service.User {
 		Balance:               u.Balance,
 		Concurrency:           u.Concurrency,
 		Status:                u.Status,
+		Phone:                 u.Phone,
+		PhoneVerified:          u.PhoneVerified,
 		SoraStorageQuotaBytes: u.SoraStorageQuotaBytes,
 		SoraStorageUsedBytes:  u.SoraStorageUsedBytes,
 		TotpSecretEncrypted:   u.TotpSecretEncrypted,

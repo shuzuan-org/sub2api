@@ -24,6 +24,16 @@ type SystemSettings struct {
 	TurnstileSecretKey           string
 	TurnstileSecretKeyConfigured bool
 
+	// 手机号登录与短信配置
+	PhoneLoginEnabled              bool
+	TencentSmsSecretID             string
+	TencentSmsSecretKey            string
+	TencentSmsSecretKeyConfigured  bool
+	TencentSmsSdkAppID             string
+	TencentSmsSignName             string
+	TencentSmsTemplateID           string
+	TencentSmsRegion               string
+
 	// LinuxDo Connect OAuth 登录
 	LinuxDoConnectEnabled                bool
 	LinuxDoConnectClientID               string
@@ -111,6 +121,7 @@ type PublicSettings struct {
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
 
+	PhoneLoginEnabled   bool
 	LinuxDoOAuthEnabled bool
 	BackendModeEnabled  bool
 	Version             string

@@ -284,6 +284,34 @@ func (_u *UserUpdate) AddSoraStorageUsedBytes(v int64) *UserUpdate {
 	return _u
 }
 
+// SetPhone sets the "phone" field.
+func (_u *UserUpdate) SetPhone(v string) *UserUpdate {
+	_u.mutation.SetPhone(v)
+	return _u
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhone(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetPhone(*v)
+	}
+	return _u
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (_u *UserUpdate) SetPhoneVerified(v bool) *UserUpdate {
+	_u.mutation.SetPhoneVerified(v)
+	return _u
+}
+
+// SetNillablePhoneVerified sets the "phone_verified" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhoneVerified(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetPhoneVerified(*v)
+	}
+	return _u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_u *UserUpdate) SetReferralCode(v string) *UserUpdate {
 	_u.mutation.SetReferralCode(v)
@@ -729,6 +757,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ReferralCode(); ok {
 		if err := user.ReferralCodeValidator(v); err != nil {
 			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
@@ -814,6 +847,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
 		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PhoneVerified(); ok {
+		_spec.SetField(user.FieldPhoneVerified, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
@@ -1515,6 +1554,34 @@ func (_u *UserUpdateOne) AddSoraStorageUsedBytes(v int64) *UserUpdateOne {
 	return _u
 }
 
+// SetPhone sets the "phone" field.
+func (_u *UserUpdateOne) SetPhone(v string) *UserUpdateOne {
+	_u.mutation.SetPhone(v)
+	return _u
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhone(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhone(*v)
+	}
+	return _u
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (_u *UserUpdateOne) SetPhoneVerified(v bool) *UserUpdateOne {
+	_u.mutation.SetPhoneVerified(v)
+	return _u
+}
+
+// SetNillablePhoneVerified sets the "phone_verified" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhoneVerified(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhoneVerified(*v)
+	}
+	return _u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_u *UserUpdateOne) SetReferralCode(v string) *UserUpdateOne {
 	_u.mutation.SetReferralCode(v)
@@ -1973,6 +2040,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ReferralCode(); ok {
 		if err := user.ReferralCodeValidator(v); err != nil {
 			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
@@ -2075,6 +2147,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
 		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PhoneVerified(); ok {
+		_spec.SetField(user.FieldPhoneVerified, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)

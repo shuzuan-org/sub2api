@@ -10,9 +10,11 @@ type User struct {
 	Balance       float64   `json:"balance"`
 	Concurrency   int       `json:"concurrency"`
 	Status        string    `json:"status"`
-	AllowedGroups []int64   `json:"allowed_groups"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	Phone            string    `json:"phone"`
+	PhoneVerified    bool      `json:"phone_verified"`
+	AllowedGroups    []int64   `json:"allowed_groups"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 
 	APIKeys       []APIKey           `json:"api_keys,omitempty"`
 	Subscriptions []UserSubscription `json:"subscriptions,omitempty"`

@@ -72,6 +72,7 @@ type AuthService struct {
 	promoService       *PromoService
 	defaultSubAssigner DefaultSubscriptionAssigner
 	inviteService      *InviteService
+	smsService         *SmsService // 可选：手机验证码服务，通过 SetSmsService 注入
 }
 
 type DefaultSubscriptionAssigner interface {
@@ -107,6 +108,11 @@ func NewAuthService(
 		defaultSubAssigner: defaultSubAssigner,
 		inviteService:      inviteService,
 	}
+}
+
+// SetSmsService 注入手机短信服务（可选，用于手机号登录）。
+func (s *AuthService) SetSmsService(sms *SmsService) {
+	s.smsService = sms
 }
 
 // Register 用户注册，返回token和用户
@@ -449,6 +455,88 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 	}
 
 	return token, user, nil
+}
+
+// SendPhoneLoginCode 发送手机号登录验证码。
+// 为了防止手机号枚举，无论手机号是否绑定用户，始终返回成功（但不实际发送短信）。
+func (s *AuthService) SendPhoneLoginCode(ctx context.Context, phone string) (*SendVerifyCodeResult, error) {
+	phone = strings.TrimSpace(phone)
+	if phone == "" {
+		return nil, ErrPhoneNotBound
+	}
+
+	// Check if phone login is enabled
+	if s.settingService != nil && !s.settingService.IsPhoneLoginEnabled(ctx) {
+		return nil, ErrPhoneLoginDisabled
+	}
+
+	// Check if SMS is configured
+	if s.smsService == nil {
+		return nil, ErrSmsNotConfigured
+	}
+
+	// 检查手机号是否绑定到任何用户（防御手机号枚举：无论绑定与否都返回成功）
+	user, err := s.userRepo.GetByPhone(ctx, phone)
+	if err != nil || user == nil {
+		// 手机号未绑定：返回成功但不发送短信，防止枚举
+		return &SendVerifyCodeResult{Countdown: 60}, nil
+	}
+
+	if !user.IsActive() {
+		// 用户被禁用：返回成功但不发送短信
+		return &SendVerifyCodeResult{Countdown: 60}, nil
+	}
+
+	// 发送验证码
+	if err := s.smsService.SendVerifyCode(ctx, "login", phone); err != nil {
+		return nil, err
+	}
+
+	return &SendVerifyCodeResult{Countdown: 60}, nil
+}
+
+// LoginWithPhoneCode 手机号验证码登录。
+func (s *AuthService) LoginWithPhoneCode(ctx context.Context, phone, code string) (*User, error) {
+	phone = strings.TrimSpace(phone)
+	code = strings.TrimSpace(code)
+	if phone == "" || code == "" {
+		return nil, ErrPhoneNotBound
+	}
+
+	// Check if phone login is enabled
+	if s.settingService != nil && !s.settingService.IsPhoneLoginEnabled(ctx) {
+		return nil, ErrPhoneLoginDisabled
+	}
+
+	// Verify the SMS code
+	if s.smsService == nil {
+		return nil, ErrSmsNotConfigured
+	}
+	if err := s.smsService.VerifyCode(ctx, "login", phone, code); err != nil {
+		return nil, err
+	}
+
+	// Find user by phone
+	user, err := s.userRepo.GetByPhone(ctx, phone)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return nil, ErrPhoneNotBound
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Database error during phone login: %v", err)
+		return nil, ErrServiceUnavailable
+	}
+
+	// Verify phone is verified
+	if !user.PhoneVerified {
+		return nil, ErrPhoneNotBound
+	}
+
+	// Check user status
+	if !user.IsActive() {
+		return nil, ErrUserNotActive
+	}
+
+	return user, nil
 }
 
 // LoginOrRegisterOAuth 用于第三方 OAuth/SSO 登录：

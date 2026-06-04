@@ -159,6 +159,17 @@ func (r *stubUserRepoForQuota) UpdateConcurrency(context.Context, int64, int) er
 func (r *stubUserRepoForQuota) ExistsByEmail(context.Context, string) (bool, error) {
 	return false, nil
 }
+func (r *stubUserRepoForQuota) GetByPhone(context.Context, string) (*User, error) {
+	return nil, ErrUserNotFound
+}
+func (r *stubUserRepoForQuota) ExistsByPhone(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (r *stubUserRepoForQuota) GetByReferralCode(context.Context, string) (*User, error) {
+	return nil, ErrUserNotFound
+}
+func (r *stubUserRepoForQuota) SetReferralCode(context.Context, int64, string) error { return nil }
+func (r *stubUserRepoForQuota) SetReferredBy(context.Context, int64, int64) error    { return nil }
 func (r *stubUserRepoForQuota) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	return 0, nil
 }

@@ -11,6 +11,8 @@ import type {
   CurrentUserResponse,
   SendVerifyCodeRequest,
   SendVerifyCodeResponse,
+  SendPhoneLoginCodeRequest,
+  PhoneCodeLoginRequest,
   PublicSettings,
   TotpLoginResponse,
   TotpLogin2FARequest
@@ -247,6 +249,42 @@ export async function sendVerifyCode(
 }
 
 /**
+ * Send phone login verification code
+ * @param request - Phone number and optional Turnstile token
+ * @returns Response with countdown seconds
+ */
+export async function sendPhoneLoginCode(
+  request: SendPhoneLoginCodeRequest
+): Promise<SendVerifyCodeResponse> {
+  const { data } = await apiClient.post<SendVerifyCodeResponse>('/auth/phone/send-code', request)
+  return data
+}
+
+/**
+ * Login with phone number and verification code
+ * @param request - Phone, verify code, and optional Turnstile token
+ * @returns Authentication response or 2FA required response
+ */
+export async function loginWithPhoneCode(
+  request: PhoneCodeLoginRequest
+): Promise<LoginResponse> {
+  const { data } = await apiClient.post<LoginResponse>('/auth/login/phone-code', request)
+
+  if (!isTotp2FARequired(data)) {
+    setAuthToken(data.access_token)
+    if (data.refresh_token) {
+      setRefreshToken(data.refresh_token)
+    }
+    if (data.expires_in) {
+      setTokenExpiresAt(data.expires_in)
+    }
+    localStorage.setItem('auth_user', JSON.stringify(data.user))
+  }
+
+  return data
+}
+
+/**
  * Validate promo code response
  */
 export interface ValidatePromoCodeResponse {
@@ -374,6 +412,8 @@ export const authAPI = {
   clearAuthToken,
   getPublicSettings,
   sendVerifyCode,
+  sendPhoneLoginCode,
+  loginWithPhoneCode,
   validatePromoCode,
   validateInvitationCode,
   forgotPassword,

@@ -49,6 +49,10 @@ type User struct {
 	SoraStorageQuotaBytes int64 `json:"sora_storage_quota_bytes,omitempty"`
 	// SoraStorageUsedBytes holds the value of the "sora_storage_used_bytes" field.
 	SoraStorageUsedBytes int64 `json:"sora_storage_used_bytes,omitempty"`
+	// Phone holds the value of the "phone" field.
+	Phone string `json:"phone,omitempty"`
+	// PhoneVerified holds the value of the "phone_verified" field.
+	PhoneVerified bool `json:"phone_verified,omitempty"`
 	// ReferralCode holds the value of the "referral_code" field.
 	ReferralCode *string `json:"referral_code,omitempty"`
 	// ReferredBy holds the value of the "referred_by" field.
@@ -181,13 +185,13 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldTotpEnabled:
+		case user.FieldTotpEnabled, user.FieldPhoneVerified:
 			values[i] = new(sql.NullBool)
 		case user.FieldBalance:
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldSoraStorageQuotaBytes, user.FieldSoraStorageUsedBytes, user.FieldReferredBy:
 			values[i] = new(sql.NullInt64)
-		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldReferralCode:
+		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldPhone, user.FieldReferralCode:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt:
 			values[i] = new(sql.NullTime)
@@ -310,6 +314,18 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field sora_storage_used_bytes", values[i])
 			} else if value.Valid {
 				_m.SoraStorageUsedBytes = value.Int64
+			}
+		case user.FieldPhone:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field phone", values[i])
+			} else if value.Valid {
+				_m.Phone = value.String
+			}
+		case user.FieldPhoneVerified:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field phone_verified", values[i])
+			} else if value.Valid {
+				_m.PhoneVerified = value.Bool
 			}
 		case user.FieldReferralCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -464,6 +480,12 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sora_storage_used_bytes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SoraStorageUsedBytes))
+	builder.WriteString(", ")
+	builder.WriteString("phone=")
+	builder.WriteString(_m.Phone)
+	builder.WriteString(", ")
+	builder.WriteString("phone_verified=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PhoneVerified))
 	builder.WriteString(", ")
 	if v := _m.ReferralCode; v != nil {
 		builder.WriteString("referral_code=")

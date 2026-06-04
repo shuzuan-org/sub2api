@@ -32,6 +32,8 @@ export interface User {
   balance: number // User balance for API usage
   concurrency: number // Allowed concurrent requests
   status: 'active' | 'disabled' // Account status
+  phone: string
+  phone_verified: boolean
   allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
   subscriptions?: UserSubscription[] // User's active subscriptions
   created_at: string
@@ -53,6 +55,17 @@ export interface AdminUser extends User {
 export interface LoginRequest {
   email: string
   password: string
+  turnstile_token?: string
+}
+
+export interface SendPhoneLoginCodeRequest {
+  phone: string
+  turnstile_token?: string
+}
+
+export interface PhoneCodeLoginRequest {
+  phone: string
+  verify_code: string
   turnstile_token?: string
 }
 
@@ -112,6 +125,7 @@ export interface PublicSettings {
   purchase_subscription_url: string
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  phone_login_enabled: boolean
   linuxdo_oauth_enabled: boolean
   sora_client_enabled: boolean
   backend_mode_enabled: boolean

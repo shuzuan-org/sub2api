@@ -211,6 +211,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SoraClientEnabled:                settings[SettingKeySoraClientEnabled] == "true",
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
+		PhoneLoginEnabled:                settings[SettingKeyPhoneLoginEnabled] == "true",
 		LinuxDoOAuthEnabled:              linuxDoEnabled,
 		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
 	}, nil
@@ -264,6 +265,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		SoraClientEnabled                bool            `json:"sora_client_enabled"`
 		CustomMenuItems                  json.RawMessage `json:"custom_menu_items"`
 		CustomEndpoints                  json.RawMessage `json:"custom_endpoints"`
+		PhoneLoginEnabled                bool            `json:"phone_login_enabled"`
 		LinuxDoOAuthEnabled              bool            `json:"linuxdo_oauth_enabled"`
 		BackendModeEnabled               bool            `json:"backend_mode_enabled"`
 		Version                          string          `json:"version,omitempty"`
@@ -290,6 +292,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		SoraClientEnabled:                settings.SoraClientEnabled,
 		CustomMenuItems:                  filterUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                  safeRawJSONArray(settings.CustomEndpoints),
+		PhoneLoginEnabled:                settings.PhoneLoginEnabled,
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		Version:                          s.version,
@@ -461,6 +464,19 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyTurnstileSiteKey] = settings.TurnstileSiteKey
 	if settings.TurnstileSecretKey != "" {
 		updates[SettingKeyTurnstileSecretKey] = settings.TurnstileSecretKey
+	}
+
+	// 手机号登录与短信配置（只有非空才更新密钥）
+	updates[SettingKeyPhoneLoginEnabled] = strconv.FormatBool(settings.PhoneLoginEnabled)
+	updates[SettingKeyTencentSmsSdkAppID] = settings.TencentSmsSdkAppID
+	updates[SettingKeyTencentSmsSignName] = settings.TencentSmsSignName
+	updates[SettingKeyTencentSmsTemplateID] = settings.TencentSmsTemplateID
+	updates[SettingKeyTencentSmsRegion] = settings.TencentSmsRegion
+	if settings.TencentSmsSecretID != "" {
+		updates[SettingKeyTencentSmsSecretID] = settings.TencentSmsSecretID
+	}
+	if settings.TencentSmsSecretKey != "" {
+		updates[SettingKeyTencentSmsSecretKey] = settings.TencentSmsSecretKey
 	}
 
 	// LinuxDo Connect OAuth 登录
@@ -756,6 +772,15 @@ func (s *SettingService) IsTotpEnabled(ctx context.Context) bool {
 	return value == "true"
 }
 
+// IsPhoneLoginEnabled 检查是否启用了手机号登录。
+func (s *SettingService) IsPhoneLoginEnabled(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyPhoneLoginEnabled)
+	if err != nil {
+		return false // 默认关闭
+	}
+	return value == "true"
+}
+
 // IsTotpEncryptionKeyConfigured 检查 TOTP 加密密钥是否已手动配置
 // 只有手动配置了密钥才允许在管理后台启用 TOTP 功能
 func (s *SettingService) IsTotpEncryptionKeyConfigured() bool {
@@ -895,7 +920,16 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
 		TurnstileSecretKeyConfigured:     settings[SettingKeyTurnstileSecretKey] != "",
-		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
+		// 手机号登录与短信配置
+		PhoneLoginEnabled:             settings[SettingKeyPhoneLoginEnabled] == "true",
+		TencentSmsSecretID:            settings[SettingKeyTencentSmsSecretID],
+		TencentSmsSecretKey:           settings[SettingKeyTencentSmsSecretKey],
+		TencentSmsSecretKeyConfigured: settings[SettingKeyTencentSmsSecretKey] != "",
+		TencentSmsSdkAppID:            settings[SettingKeyTencentSmsSdkAppID],
+		TencentSmsSignName:            settings[SettingKeyTencentSmsSignName],
+		TencentSmsTemplateID:          settings[SettingKeyTencentSmsTemplateID],
+		TencentSmsRegion:              s.getStringOrDefault(settings, SettingKeyTencentSmsRegion, "ap-guangzhou"),
+		SiteName:                      s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],

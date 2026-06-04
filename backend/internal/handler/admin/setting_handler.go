@@ -94,6 +94,13 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		TurnstileEnabled:                     settings.TurnstileEnabled,
 		TurnstileSiteKey:                     settings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:         settings.TurnstileSecretKeyConfigured,
+		PhoneLoginEnabled:                    settings.PhoneLoginEnabled,
+		TencentSmsSecretIDConfigured:         settings.TencentSmsSecretID != "",
+		TencentSmsSecretKeyConfigured:        settings.TencentSmsSecretKey != "",
+		TencentSmsSdkAppID:                   settings.TencentSmsSdkAppID,
+		TencentSmsSignName:                   settings.TencentSmsSignName,
+		TencentSmsTemplateID:                 settings.TencentSmsTemplateID,
+		TencentSmsRegion:                     settings.TencentSmsRegion,
 		LinuxDoConnectEnabled:                settings.LinuxDoConnectEnabled,
 		LinuxDoConnectClientID:               settings.LinuxDoConnectClientID,
 		LinuxDoConnectClientSecretConfigured: settings.LinuxDoConnectClientSecretConfigured,
@@ -159,6 +166,15 @@ type UpdateSettingsRequest struct {
 	TurnstileEnabled   bool   `json:"turnstile_enabled"`
 	TurnstileSiteKey   string `json:"turnstile_site_key"`
 	TurnstileSecretKey string `json:"turnstile_secret_key"`
+
+	// 手机号登录与短信配置
+	PhoneLoginEnabled    bool   `json:"phone_login_enabled"`
+	TencentSmsSecretID   string `json:"tencent_sms_secret_id"`
+	TencentSmsSecretKey  string `json:"tencent_sms_secret_key"`
+	TencentSmsSdkAppID   string `json:"tencent_sms_sdk_app_id"`
+	TencentSmsSignName   string `json:"tencent_sms_sign_name"`
+	TencentSmsTemplateID string `json:"tencent_sms_template_id"`
+	TencentSmsRegion     string `json:"tencent_sms_region"`
 
 	// LinuxDo Connect OAuth 登录
 	LinuxDoConnectEnabled      bool   `json:"linuxdo_connect_enabled"`

@@ -24900,6 +24900,8 @@ type UserMutation struct {
 	addsora_storage_quota_bytes   *int64
 	sora_storage_used_bytes       *int64
 	addsora_storage_used_bytes    *int64
+	phone                         *string
+	phone_verified                *bool
 	referral_code                 *string
 	referred_by                   *int64
 	addreferred_by                *int64
@@ -25729,6 +25731,78 @@ func (m *UserMutation) ResetSoraStorageUsedBytes() {
 	m.addsora_storage_used_bytes = nil
 }
 
+// SetPhone sets the "phone" field.
+func (m *UserMutation) SetPhone(s string) {
+	m.phone = &s
+}
+
+// Phone returns the value of the "phone" field in the mutation.
+func (m *UserMutation) Phone() (r string, exists bool) {
+	v := m.phone
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhone returns the old "phone" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPhone(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhone: %w", err)
+	}
+	return oldValue.Phone, nil
+}
+
+// ResetPhone resets all changes to the "phone" field.
+func (m *UserMutation) ResetPhone() {
+	m.phone = nil
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (m *UserMutation) SetPhoneVerified(b bool) {
+	m.phone_verified = &b
+}
+
+// PhoneVerified returns the value of the "phone_verified" field in the mutation.
+func (m *UserMutation) PhoneVerified() (r bool, exists bool) {
+	v := m.phone_verified
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPhoneVerified returns the old "phone_verified" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldPhoneVerified(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPhoneVerified is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPhoneVerified requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPhoneVerified: %w", err)
+	}
+	return oldValue.PhoneVerified, nil
+}
+
+// ResetPhoneVerified resets all changes to the "phone_verified" field.
+func (m *UserMutation) ResetPhoneVerified() {
+	m.phone_verified = nil
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (m *UserMutation) SetReferralCode(s string) {
 	m.referral_code = &s
@@ -26368,7 +26442,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 18)
+	fields := make([]string, 0, 20)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -26417,6 +26491,12 @@ func (m *UserMutation) Fields() []string {
 	if m.sora_storage_used_bytes != nil {
 		fields = append(fields, user.FieldSoraStorageUsedBytes)
 	}
+	if m.phone != nil {
+		fields = append(fields, user.FieldPhone)
+	}
+	if m.phone_verified != nil {
+		fields = append(fields, user.FieldPhoneVerified)
+	}
 	if m.referral_code != nil {
 		fields = append(fields, user.FieldReferralCode)
 	}
@@ -26463,6 +26543,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.SoraStorageQuotaBytes()
 	case user.FieldSoraStorageUsedBytes:
 		return m.SoraStorageUsedBytes()
+	case user.FieldPhone:
+		return m.Phone()
+	case user.FieldPhoneVerified:
+		return m.PhoneVerified()
 	case user.FieldReferralCode:
 		return m.ReferralCode()
 	case user.FieldReferredBy:
@@ -26508,6 +26592,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldSoraStorageQuotaBytes(ctx)
 	case user.FieldSoraStorageUsedBytes:
 		return m.OldSoraStorageUsedBytes(ctx)
+	case user.FieldPhone:
+		return m.OldPhone(ctx)
+	case user.FieldPhoneVerified:
+		return m.OldPhoneVerified(ctx)
 	case user.FieldReferralCode:
 		return m.OldReferralCode(ctx)
 	case user.FieldReferredBy:
@@ -26632,6 +26720,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSoraStorageUsedBytes(v)
+		return nil
+	case user.FieldPhone:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhone(v)
+		return nil
+	case user.FieldPhoneVerified:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPhoneVerified(v)
 		return nil
 	case user.FieldReferralCode:
 		v, ok := value.(string)
@@ -26839,6 +26941,12 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldSoraStorageUsedBytes:
 		m.ResetSoraStorageUsedBytes()
+		return nil
+	case user.FieldPhone:
+		m.ResetPhone()
+		return nil
+	case user.FieldPhoneVerified:
+		m.ResetPhoneVerified()
 		return nil
 	case user.FieldReferralCode:
 		m.ResetReferralCode()

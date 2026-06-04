@@ -115,6 +115,8 @@ type CreateUserInput struct {
 	Balance               float64
 	Concurrency           int
 	AllowedGroups         []int64
+	Phone                 string
+	PhoneVerified         bool
 	SoraStorageQuotaBytes int64
 }
 
@@ -127,6 +129,8 @@ type UpdateUserInput struct {
 	Concurrency   *int     // 使用指针区分"未提供"和"设置为0"
 	Status        string
 	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	Phone         *string  // 使用指针区分"未提供"和"设置为空字符串"
+	PhoneVerified *bool    // 使用指针区分"未提供"和"设置为false"
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates            map[int64]*float64
@@ -576,6 +580,8 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 		Balance:               input.Balance,
 		Concurrency:           input.Concurrency,
 		Status:                StatusActive,
+		Phone:                 input.Phone,
+		PhoneVerified:          input.PhoneVerified,
 		AllowedGroups:         input.AllowedGroups,
 		SoraStorageQuotaBytes: input.SoraStorageQuotaBytes,
 	}
@@ -647,6 +653,13 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 
 	if input.AllowedGroups != nil {
 		user.AllowedGroups = *input.AllowedGroups
+	}
+
+	if input.Phone != nil {
+		user.Phone = *input.Phone
+	}
+	if input.PhoneVerified != nil {
+		user.PhoneVerified = *input.PhoneVerified
 	}
 
 	if input.SoraStorageQuotaBytes != nil {

@@ -135,6 +135,16 @@ func SoraStorageUsedBytes(v int64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldSoraStorageUsedBytes, v))
 }
 
+// Phone applies equality check predicate on the "phone" field. It's identical to PhoneEQ.
+func Phone(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhone, v))
+}
+
+// PhoneVerified applies equality check predicate on the "phone_verified" field. It's identical to PhoneVerifiedEQ.
+func PhoneVerified(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneVerified, v))
+}
+
 // ReferralCode applies equality check predicate on the "referral_code" field. It's identical to ReferralCodeEQ.
 func ReferralCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldReferralCode, v))
@@ -958,6 +968,81 @@ func SoraStorageUsedBytesLT(v int64) predicate.User {
 // SoraStorageUsedBytesLTE applies the LTE predicate on the "sora_storage_used_bytes" field.
 func SoraStorageUsedBytesLTE(v int64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldSoraStorageUsedBytes, v))
+}
+
+// PhoneEQ applies the EQ predicate on the "phone" field.
+func PhoneEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhone, v))
+}
+
+// PhoneNEQ applies the NEQ predicate on the "phone" field.
+func PhoneNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhone, v))
+}
+
+// PhoneIn applies the In predicate on the "phone" field.
+func PhoneIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPhone, vs...))
+}
+
+// PhoneNotIn applies the NotIn predicate on the "phone" field.
+func PhoneNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPhone, vs...))
+}
+
+// PhoneGT applies the GT predicate on the "phone" field.
+func PhoneGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPhone, v))
+}
+
+// PhoneGTE applies the GTE predicate on the "phone" field.
+func PhoneGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPhone, v))
+}
+
+// PhoneLT applies the LT predicate on the "phone" field.
+func PhoneLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPhone, v))
+}
+
+// PhoneLTE applies the LTE predicate on the "phone" field.
+func PhoneLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPhone, v))
+}
+
+// PhoneContains applies the Contains predicate on the "phone" field.
+func PhoneContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldPhone, v))
+}
+
+// PhoneHasPrefix applies the HasPrefix predicate on the "phone" field.
+func PhoneHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldPhone, v))
+}
+
+// PhoneHasSuffix applies the HasSuffix predicate on the "phone" field.
+func PhoneHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldPhone, v))
+}
+
+// PhoneEqualFold applies the EqualFold predicate on the "phone" field.
+func PhoneEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldPhone, v))
+}
+
+// PhoneContainsFold applies the ContainsFold predicate on the "phone" field.
+func PhoneContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldPhone, v))
+}
+
+// PhoneVerifiedEQ applies the EQ predicate on the "phone_verified" field.
+func PhoneVerifiedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneVerified, v))
+}
+
+// PhoneVerifiedNEQ applies the NEQ predicate on the "phone_verified" field.
+func PhoneVerifiedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhoneVerified, v))
 }
 
 // ReferralCodeEQ applies the EQ predicate on the "referral_code" field.

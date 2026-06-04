@@ -61,6 +61,19 @@ type SendVerifyCodeResponse struct {
 	Countdown int    `json:"countdown"` // 倒计时秒数
 }
 
+// SendPhoneLoginCodeRequest 发送手机号登录验证码请求
+type SendPhoneLoginCodeRequest struct {
+	Phone          string `json:"phone" binding:"required"`
+	TurnstileToken string `json:"turnstile_token"`
+}
+
+// PhoneCodeLoginRequest 手机号验证码登录请求
+type PhoneCodeLoginRequest struct {
+	Phone          string `json:"phone" binding:"required"`
+	VerifyCode     string `json:"verify_code" binding:"required,len=6"`
+	TurnstileToken string `json:"turnstile_token"`
+}
+
 // LoginRequest represents the login request payload
 type LoginRequest struct {
 	Email          string `json:"email" binding:"required,email"`
@@ -156,6 +169,35 @@ func (h *AuthHandler) SendVerifyCode(c *gin.Context) {
 	})
 }
 
+// completePrimaryLogin handles TOTP 2FA check and backend-mode guard after primary credential
+// verification succeeds. It returns true if the response has been written (e.g. 2FA required or backend
+// mode denied); the caller should return immediately in that case.
+func (h *AuthHandler) completePrimaryLogin(c *gin.Context, user *service.User) bool {
+	// Check if TOTP 2FA is enabled for this user
+	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request.Context()) && user.TotpEnabled {
+		tempToken, err := h.totpService.CreateLoginSession(c.Request.Context(), user.ID, user.Email)
+		if err != nil {
+			response.InternalError(c, "Failed to create 2FA session")
+			return true
+		}
+		response.Success(c, TotpLoginResponse{
+			Requires2FA:     true,
+			TempToken:       tempToken,
+			UserEmailMasked: service.MaskEmail(user.Email),
+		})
+		return true
+	}
+
+	// Backend mode: only admin can login
+	if h.settingSvc.IsBackendModeEnabled(c.Request.Context()) && !user.IsAdmin() {
+		response.Forbidden(c, "Backend mode is active. Only admin login is allowed.")
+		return true
+	}
+
+	h.respondWithTokenPair(c, user)
+	return false
+}
+
 // Login handles user login
 // POST /api/v1/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -171,37 +213,64 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
+	_, user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	_ = token // token 由 authService.Login 返回但此处由 respondWithTokenPair 重新生成
 
-	// Check if TOTP 2FA is enabled for this user
-	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request.Context()) && user.TotpEnabled {
-		// Create a temporary login session for 2FA
-		tempToken, err := h.totpService.CreateLoginSession(c.Request.Context(), user.ID, user.Email)
-		if err != nil {
-			response.InternalError(c, "Failed to create 2FA session")
-			return
-		}
+	h.completePrimaryLogin(c, user)
+}
 
-		response.Success(c, TotpLoginResponse{
-			Requires2FA:     true,
-			TempToken:       tempToken,
-			UserEmailMasked: service.MaskEmail(user.Email),
-		})
+// SendPhoneLoginCode 发送手机号登录验证码
+// POST /api/v1/auth/phone/send-code
+func (h *AuthHandler) SendPhoneLoginCode(c *gin.Context) {
+	var req SendPhoneLoginCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
 
-	// Backend mode: only admin can login
-	if h.settingSvc.IsBackendModeEnabled(c.Request.Context()) && !user.IsAdmin() {
-		response.Forbidden(c, "Backend mode is active. Only admin login is allowed.")
+	// Turnstile 验证
+	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
 		return
 	}
 
-	h.respondWithTokenPair(c, user)
+	result, err := h.authService.SendPhoneLoginCode(c.Request.Context(), req.Phone)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, SendVerifyCodeResponse{
+		Message:   "Verification code sent successfully",
+		Countdown: result.Countdown,
+	})
+}
+
+// LoginWithPhoneCode 手机号验证码登录
+// POST /api/v1/auth/login/phone-code
+func (h *AuthHandler) LoginWithPhoneCode(c *gin.Context) {
+	var req PhoneCodeLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// Turnstile 验证
+	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	user, err := h.authService.LoginWithPhoneCode(c.Request.Context(), req.Phone, req.VerifyCode)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	h.completePrimaryLogin(c, user)
 }
 
 // TotpLoginResponse represents the response when 2FA is required

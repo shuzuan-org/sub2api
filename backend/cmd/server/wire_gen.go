@@ -52,6 +52,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	settingService := service.ProvideSettingService(settingRepository, groupRepository, configConfig)
 	emailCache := repository.NewEmailCache(redisClient)
 	emailService := service.NewEmailService(settingRepository, emailCache)
+	phoneCodeCache := repository.NewPhoneCodeCache(redisClient)
+	smsService := service.NewSmsService(settingRepository, phoneCodeCache)
 	turnstileVerifier := repository.NewTurnstileVerifier()
 	turnstileService := service.NewTurnstileService(settingService, turnstileVerifier)
 	emailQueueService := service.ProvideEmailQueueService(emailService)
@@ -71,6 +73,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionService := service.NewSubscriptionService(subscriptionPlanRepository, userSubscriptionRepository, userRepository, billingCacheService, client, configConfig)
 	inviteService := service.NewInviteService(client, userRepository, settingService, billingCacheService, apiKeyAuthCacheInvalidator)
 	authService := service.NewAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, subscriptionService, inviteService)
+	authService.SetSmsService(smsService) // MANUAL: inject SMS service for phone login
 	userService := service.NewUserService(userRepository, apiKeyAuthCacheInvalidator, billingCache)
 	redeemCache := repository.NewRedeemCache(redisClient)
 	redeemService := service.NewRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService, client, apiKeyAuthCacheInvalidator)

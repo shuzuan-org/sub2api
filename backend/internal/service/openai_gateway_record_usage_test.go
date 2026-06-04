@@ -68,6 +68,26 @@ func (s *openAIRecordUsageUserRepoStub) DeductBalance(ctx context.Context, id in
 	return s.deductErr
 }
 
+func (s *openAIRecordUsageUserRepoStub) GetByPhone(ctx context.Context, phone string) (*User, error) {
+	panic("unexpected GetByPhone call")
+}
+
+func (s *openAIRecordUsageUserRepoStub) ExistsByPhone(ctx context.Context, phone string) (bool, error) {
+	panic("unexpected ExistsByPhone call")
+}
+
+func (s *openAIRecordUsageUserRepoStub) GetByReferralCode(ctx context.Context, code string) (*User, error) {
+	panic("unexpected GetByReferralCode call")
+}
+
+func (s *openAIRecordUsageUserRepoStub) SetReferralCode(ctx context.Context, id int64, code string) error {
+	panic("unexpected SetReferralCode call")
+}
+
+func (s *openAIRecordUsageUserRepoStub) SetReferredBy(ctx context.Context, id int64, referrerID int64) error {
+	panic("unexpected SetReferredBy call")
+}
+
 type openAIRecordUsageSubRepoStub struct {
 	UserSubscriptionRepository
 

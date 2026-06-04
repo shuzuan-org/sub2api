@@ -18,7 +18,7 @@ func newAuthServiceForPendingOAuthTest() *AuthService {
 			ExpireHour: 1,
 		},
 	}
-	return NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil)
+	return NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil)
 }
 
 // TestVerifyPendingOAuthToken_ValidToken 验证正常签发的 pending token 可以被成功解析。
@@ -124,7 +124,7 @@ func TestVerifyPendingOAuthToken_ExpiredToken(t *testing.T) {
 func TestVerifyPendingOAuthToken_WrongSecret(t *testing.T) {
 	other := NewAuthService(nil, nil, nil, nil, &config.Config{
 		JWT: config.JWTConfig{Secret: "other-secret"},
-	}, nil, nil, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil, nil, nil)
 
 	token, err := other.CreatePendingOAuthToken("user@example.com", "alice")
 	require.NoError(t, err)

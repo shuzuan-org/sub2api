@@ -238,6 +238,34 @@ func (_c *UserCreate) SetNillableSoraStorageUsedBytes(v *int64) *UserCreate {
 	return _c
 }
 
+// SetPhone sets the "phone" field.
+func (_c *UserCreate) SetPhone(v string) *UserCreate {
+	_c.mutation.SetPhone(v)
+	return _c
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePhone(v *string) *UserCreate {
+	if v != nil {
+		_c.SetPhone(*v)
+	}
+	return _c
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (_c *UserCreate) SetPhoneVerified(v bool) *UserCreate {
+	_c.mutation.SetPhoneVerified(v)
+	return _c
+}
+
+// SetNillablePhoneVerified sets the "phone_verified" field if the given value is not nil.
+func (_c *UserCreate) SetNillablePhoneVerified(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetPhoneVerified(*v)
+	}
+	return _c
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_c *UserCreate) SetReferralCode(v string) *UserCreate {
 	_c.mutation.SetReferralCode(v)
@@ -488,6 +516,14 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultSoraStorageUsedBytes
 		_c.mutation.SetSoraStorageUsedBytes(v)
 	}
+	if _, ok := _c.mutation.Phone(); !ok {
+		v := user.DefaultPhone
+		_c.mutation.SetPhone(v)
+	}
+	if _, ok := _c.mutation.PhoneVerified(); !ok {
+		v := user.DefaultPhoneVerified
+		_c.mutation.SetPhoneVerified(v)
+	}
 	return nil
 }
 
@@ -556,6 +592,17 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.SoraStorageUsedBytes(); !ok {
 		return &ValidationError{Name: "sora_storage_used_bytes", err: errors.New(`ent: missing required field "User.sora_storage_used_bytes"`)}
+	}
+	if _, ok := _c.mutation.Phone(); !ok {
+		return &ValidationError{Name: "phone", err: errors.New(`ent: missing required field "User.phone"`)}
+	}
+	if v, ok := _c.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.PhoneVerified(); !ok {
+		return &ValidationError{Name: "phone_verified", err: errors.New(`ent: missing required field "User.phone_verified"`)}
 	}
 	if v, ok := _c.mutation.ReferralCode(); ok {
 		if err := user.ReferralCodeValidator(v); err != nil {
@@ -652,6 +699,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SoraStorageUsedBytes(); ok {
 		_spec.SetField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
 		_node.SoraStorageUsedBytes = value
+	}
+	if value, ok := _c.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+		_node.Phone = value
+	}
+	if value, ok := _c.mutation.PhoneVerified(); ok {
+		_spec.SetField(user.FieldPhoneVerified, field.TypeBool, value)
+		_node.PhoneVerified = value
 	}
 	if value, ok := _c.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
@@ -1083,6 +1138,30 @@ func (u *UserUpsert) AddSoraStorageUsedBytes(v int64) *UserUpsert {
 	return u
 }
 
+// SetPhone sets the "phone" field.
+func (u *UserUpsert) SetPhone(v string) *UserUpsert {
+	u.Set(user.FieldPhone, v)
+	return u
+}
+
+// UpdatePhone sets the "phone" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePhone() *UserUpsert {
+	u.SetExcluded(user.FieldPhone)
+	return u
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (u *UserUpsert) SetPhoneVerified(v bool) *UserUpsert {
+	u.Set(user.FieldPhoneVerified, v)
+	return u
+}
+
+// UpdatePhoneVerified sets the "phone_verified" field to the value that was provided on create.
+func (u *UserUpsert) UpdatePhoneVerified() *UserUpsert {
+	u.SetExcluded(user.FieldPhoneVerified)
+	return u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (u *UserUpsert) SetReferralCode(v string) *UserUpsert {
 	u.Set(user.FieldReferralCode, v)
@@ -1426,6 +1505,34 @@ func (u *UserUpsertOne) AddSoraStorageUsedBytes(v int64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateSoraStorageUsedBytes() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSoraStorageUsedBytes()
+	})
+}
+
+// SetPhone sets the "phone" field.
+func (u *UserUpsertOne) SetPhone(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhone(v)
+	})
+}
+
+// UpdatePhone sets the "phone" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePhone() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhone()
+	})
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (u *UserUpsertOne) SetPhoneVerified(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneVerified(v)
+	})
+}
+
+// UpdatePhoneVerified sets the "phone_verified" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdatePhoneVerified() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneVerified()
 	})
 }
 
@@ -1945,6 +2052,34 @@ func (u *UserUpsertBulk) AddSoraStorageUsedBytes(v int64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateSoraStorageUsedBytes() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateSoraStorageUsedBytes()
+	})
+}
+
+// SetPhone sets the "phone" field.
+func (u *UserUpsertBulk) SetPhone(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhone(v)
+	})
+}
+
+// UpdatePhone sets the "phone" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePhone() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhone()
+	})
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (u *UserUpsertBulk) SetPhoneVerified(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetPhoneVerified(v)
+	})
+}
+
+// UpdatePhoneVerified sets the "phone_verified" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdatePhoneVerified() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdatePhoneVerified()
 	})
 }
 

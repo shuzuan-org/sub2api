@@ -46,6 +46,15 @@ type SystemSettings struct {
 	TurnstileSiteKey             string `json:"turnstile_site_key"`
 	TurnstileSecretKeyConfigured bool   `json:"turnstile_secret_key_configured"`
 
+	// 手机号登录与短信配置
+	PhoneLoginEnabled             bool   `json:"phone_login_enabled"`
+	TencentSmsSecretIDConfigured  bool   `json:"tencent_sms_secret_id_configured"`
+	TencentSmsSecretKeyConfigured bool   `json:"tencent_sms_secret_key_configured"`
+	TencentSmsSdkAppID            string `json:"tencent_sms_sdk_app_id"`
+	TencentSmsSignName            string `json:"tencent_sms_sign_name"`
+	TencentSmsTemplateID          string `json:"tencent_sms_template_id"`
+	TencentSmsRegion              string `json:"tencent_sms_region"`
+
 	LinuxDoConnectEnabled                bool   `json:"linuxdo_connect_enabled"`
 	LinuxDoConnectClientID               string `json:"linuxdo_connect_client_id"`
 	LinuxDoConnectClientSecretConfigured bool   `json:"linuxdo_connect_client_secret_configured"`
@@ -127,6 +136,7 @@ type PublicSettings struct {
 	PurchaseSubscriptionURL          string           `json:"purchase_subscription_url"`
 	CustomMenuItems                  []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint `json:"custom_endpoints"`
+	PhoneLoginEnabled                bool             `json:"phone_login_enabled"`
 	LinuxDoOAuthEnabled              bool             `json:"linuxdo_oauth_enabled"`
 	SoraClientEnabled                bool             `json:"sora_client_enabled"`
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
