@@ -18,6 +18,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecode"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -102,6 +106,10 @@ func checkColumn(t, c string) error {
 			alipayorder.Table:             alipayorder.ValidColumn,
 			announcement.Table:            announcement.ValidColumn,
 			announcementread.Table:        announcementread.ValidColumn,
+			channelinvitebatch.Table:      channelinvitebatch.ValidColumn,
+			channelinvitebatchgroup.Table: channelinvitebatchgroup.ValidColumn,
+			channelinvitecode.Table:       channelinvitecode.ValidColumn,
+			channelinvitecodeusage.Table:  channelinvitecodeusage.ValidColumn,
 			errorpassthroughrule.Table:    errorpassthroughrule.ValidColumn,
 			group.Table:                   group.ValidColumn,
 			idempotencyrecord.Table:       idempotencyrecord.ValidColumn,

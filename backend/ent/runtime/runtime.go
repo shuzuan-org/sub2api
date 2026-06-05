@@ -11,6 +11,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecode"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -346,6 +349,104 @@ func init() {
 	announcementreadDescCreatedAt := announcementreadFields[3].Descriptor()
 	// announcementread.DefaultCreatedAt holds the default value on creation for the created_at field.
 	announcementread.DefaultCreatedAt = announcementreadDescCreatedAt.Default.(func() time.Time)
+	channelinvitebatchFields := schema.ChannelInviteBatch{}.Fields()
+	_ = channelinvitebatchFields
+	// channelinvitebatchDescName is the schema descriptor for name field.
+	channelinvitebatchDescName := channelinvitebatchFields[0].Descriptor()
+	// channelinvitebatch.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	channelinvitebatch.NameValidator = func() func(string) error {
+		validators := channelinvitebatchDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// channelinvitebatchDescBonusAmount is the schema descriptor for bonus_amount field.
+	channelinvitebatchDescBonusAmount := channelinvitebatchFields[1].Descriptor()
+	// channelinvitebatch.DefaultBonusAmount holds the default value on creation for the bonus_amount field.
+	channelinvitebatch.DefaultBonusAmount = channelinvitebatchDescBonusAmount.Default.(float64)
+	// channelinvitebatchDescMaxUsesPerCode is the schema descriptor for max_uses_per_code field.
+	channelinvitebatchDescMaxUsesPerCode := channelinvitebatchFields[2].Descriptor()
+	// channelinvitebatch.DefaultMaxUsesPerCode holds the default value on creation for the max_uses_per_code field.
+	channelinvitebatch.DefaultMaxUsesPerCode = channelinvitebatchDescMaxUsesPerCode.Default.(int)
+	// channelinvitebatchDescStatus is the schema descriptor for status field.
+	channelinvitebatchDescStatus := channelinvitebatchFields[5].Descriptor()
+	// channelinvitebatch.DefaultStatus holds the default value on creation for the status field.
+	channelinvitebatch.DefaultStatus = channelinvitebatchDescStatus.Default.(string)
+	// channelinvitebatch.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	channelinvitebatch.StatusValidator = channelinvitebatchDescStatus.Validators[0].(func(string) error)
+	// channelinvitebatchDescCreatedAt is the schema descriptor for created_at field.
+	channelinvitebatchDescCreatedAt := channelinvitebatchFields[8].Descriptor()
+	// channelinvitebatch.DefaultCreatedAt holds the default value on creation for the created_at field.
+	channelinvitebatch.DefaultCreatedAt = channelinvitebatchDescCreatedAt.Default.(func() time.Time)
+	// channelinvitebatchDescUpdatedAt is the schema descriptor for updated_at field.
+	channelinvitebatchDescUpdatedAt := channelinvitebatchFields[9].Descriptor()
+	// channelinvitebatch.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	channelinvitebatch.DefaultUpdatedAt = channelinvitebatchDescUpdatedAt.Default.(func() time.Time)
+	// channelinvitebatch.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	channelinvitebatch.UpdateDefaultUpdatedAt = channelinvitebatchDescUpdatedAt.UpdateDefault.(func() time.Time)
+	channelinvitecodeFields := schema.ChannelInviteCode{}.Fields()
+	_ = channelinvitecodeFields
+	// channelinvitecodeDescCode is the schema descriptor for code field.
+	channelinvitecodeDescCode := channelinvitecodeFields[1].Descriptor()
+	// channelinvitecode.CodeValidator is a validator for the "code" field. It is called by the builders before save.
+	channelinvitecode.CodeValidator = func() func(string) error {
+		validators := channelinvitecodeDescCode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code string) error {
+			for _, fn := range fns {
+				if err := fn(code); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// channelinvitecodeDescStatus is the schema descriptor for status field.
+	channelinvitecodeDescStatus := channelinvitecodeFields[2].Descriptor()
+	// channelinvitecode.DefaultStatus holds the default value on creation for the status field.
+	channelinvitecode.DefaultStatus = channelinvitecodeDescStatus.Default.(string)
+	// channelinvitecode.StatusValidator is a validator for the "status" field. It is called by the builders before save.
+	channelinvitecode.StatusValidator = channelinvitecodeDescStatus.Validators[0].(func(string) error)
+	// channelinvitecodeDescMaxUses is the schema descriptor for max_uses field.
+	channelinvitecodeDescMaxUses := channelinvitecodeFields[3].Descriptor()
+	// channelinvitecode.DefaultMaxUses holds the default value on creation for the max_uses field.
+	channelinvitecode.DefaultMaxUses = channelinvitecodeDescMaxUses.Default.(int)
+	// channelinvitecodeDescUsedCount is the schema descriptor for used_count field.
+	channelinvitecodeDescUsedCount := channelinvitecodeFields[4].Descriptor()
+	// channelinvitecode.DefaultUsedCount holds the default value on creation for the used_count field.
+	channelinvitecode.DefaultUsedCount = channelinvitecodeDescUsedCount.Default.(int)
+	// channelinvitecodeDescCreatedAt is the schema descriptor for created_at field.
+	channelinvitecodeDescCreatedAt := channelinvitecodeFields[5].Descriptor()
+	// channelinvitecode.DefaultCreatedAt holds the default value on creation for the created_at field.
+	channelinvitecode.DefaultCreatedAt = channelinvitecodeDescCreatedAt.Default.(func() time.Time)
+	// channelinvitecodeDescUpdatedAt is the schema descriptor for updated_at field.
+	channelinvitecodeDescUpdatedAt := channelinvitecodeFields[6].Descriptor()
+	// channelinvitecode.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	channelinvitecode.DefaultUpdatedAt = channelinvitecodeDescUpdatedAt.Default.(func() time.Time)
+	// channelinvitecode.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	channelinvitecode.UpdateDefaultUpdatedAt = channelinvitecodeDescUpdatedAt.UpdateDefault.(func() time.Time)
+	channelinvitecodeusageFields := schema.ChannelInviteCodeUsage{}.Fields()
+	_ = channelinvitecodeusageFields
+	// channelinvitecodeusageDescBonusGranted is the schema descriptor for bonus_granted field.
+	channelinvitecodeusageDescBonusGranted := channelinvitecodeusageFields[3].Descriptor()
+	// channelinvitecodeusage.DefaultBonusGranted holds the default value on creation for the bonus_granted field.
+	channelinvitecodeusage.DefaultBonusGranted = channelinvitecodeusageDescBonusGranted.Default.(bool)
+	// channelinvitecodeusageDescClaimedAt is the schema descriptor for claimed_at field.
+	channelinvitecodeusageDescClaimedAt := channelinvitecodeusageFields[5].Descriptor()
+	// channelinvitecodeusage.DefaultClaimedAt holds the default value on creation for the claimed_at field.
+	channelinvitecodeusage.DefaultClaimedAt = channelinvitecodeusageDescClaimedAt.Default.(func() time.Time)
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
 	errorpassthroughruleMixinFields0 := errorpassthroughruleMixin[0].Fields()
 	_ = errorpassthroughruleMixinFields0

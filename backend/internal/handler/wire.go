@@ -35,6 +35,7 @@ func ProvideAdminHandlers(
 	scheduledTestHandler *admin.ScheduledTestHandler,
 	subscriptionPlanHandler *admin.SubscriptionPlanHandler,
 	alipayHandler *admin.AlipayHandler,
+	channelInviteHandler *admin.ChannelInviteHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:             dashboardHandler,
@@ -63,6 +64,7 @@ func ProvideAdminHandlers(
 		ScheduledTest:         scheduledTestHandler,
 		SubscriptionPlan:      subscriptionPlanHandler,
 		Alipay:                alipayHandler,
+		ChannelInvite:         channelInviteHandler,
 	}
 }
 
@@ -95,6 +97,7 @@ func ProvideHandlers(
 	alipayHandler *AlipayHandler,
 	pricingHandler *PricingHandler,
 	inviteHandler *InviteHandler,
+	channelInviteHandler *ChannelInviteHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -116,6 +119,7 @@ func ProvideHandlers(
 		Alipay:        alipayHandler,
 		Pricing:       pricingHandler,
 		Invite:        inviteHandler,
+		ChannelInvite: channelInviteHandler,
 	}
 }
 
@@ -137,6 +141,7 @@ var ProviderSet = wire.NewSet(
 	NewAlipayHandler,
 	NewPricingHandler,
 	NewInviteHandler,
+	NewChannelInviteHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -165,6 +170,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewScheduledTestHandler,
 	admin.NewSubscriptionPlanHandler,
 	admin.NewAlipayHandler,
+	admin.NewChannelInviteHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

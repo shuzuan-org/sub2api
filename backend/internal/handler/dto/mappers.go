@@ -771,3 +771,68 @@ func SubscriptionPlanFromService(p *service.SubscriptionPlan) *SubscriptionPlan 
 		UpdatedAt:           p.UpdatedAt,
 	}
 }
+
+// ======================== ChannelInvite Mappers ========================
+
+func ChannelInviteBatchFromService(b *service.ChannelInviteBatch) *ChannelInviteBatch {
+	if b == nil {
+		return nil
+	}
+	out := &ChannelInviteBatch{
+		ID:             b.ID,
+		Name:           b.Name,
+		BonusAmount:    b.BonusAmount,
+		MaxUsesPerCode: b.MaxUsesPerCode,
+		StartTime:      b.StartTime,
+		EndTime:        b.EndTime,
+		Status:         b.Status,
+		Notes:          b.Notes,
+		CreatedBy:      b.CreatedBy,
+		CodeCount:      b.CodeCount,
+		UsedCount:      b.UsedCount,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+		Creator:        UserFromServiceShallow(b.Creator),
+	}
+	if b.Groups != nil {
+		groups := make([]Group, 0, len(b.Groups))
+		for i := range b.Groups {
+			groups = append(groups, *GroupFromService(&b.Groups[i]))
+		}
+		out.Groups = groups
+	}
+	return out
+}
+
+func ChannelInviteCodeFromService(c *service.ChannelInviteCode) *ChannelInviteCode {
+	if c == nil {
+		return nil
+	}
+	return &ChannelInviteCode{
+		ID:        c.ID,
+		BatchID:   c.BatchID,
+		Code:      c.Code,
+		Status:    c.Status,
+		MaxUses:   c.MaxUses,
+		UsedCount: c.UsedCount,
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+	}
+}
+
+func ChannelInviteCodeUsageFromService(u *service.ChannelInviteCodeUsage) *ChannelInviteCodeUsage {
+	if u == nil {
+		return nil
+	}
+	return &ChannelInviteCodeUsage{
+		ID:             u.ID,
+		CodeID:         u.CodeID,
+		BatchID:        u.BatchID,
+		UserID:         u.UserID,
+		BonusGranted:   u.BonusGranted,
+		BonusGrantedAt: u.BonusGrantedAt,
+		ClaimedAt:      u.ClaimedAt,
+		Code:           ChannelInviteCodeFromService(u.Code),
+		User:           UserFromServiceShallow(u.User),
+	}
+}

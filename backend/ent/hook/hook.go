@@ -81,6 +81,54 @@ func (f AnnouncementReadFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AnnouncementReadMutation", m)
 }
 
+// The ChannelInviteBatchFunc type is an adapter to allow the use of ordinary
+// function as ChannelInviteBatch mutator.
+type ChannelInviteBatchFunc func(context.Context, *ent.ChannelInviteBatchMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelInviteBatchFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelInviteBatchMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelInviteBatchMutation", m)
+}
+
+// The ChannelInviteBatchGroupFunc type is an adapter to allow the use of ordinary
+// function as ChannelInviteBatchGroup mutator.
+type ChannelInviteBatchGroupFunc func(context.Context, *ent.ChannelInviteBatchGroupMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelInviteBatchGroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelInviteBatchGroupMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelInviteBatchGroupMutation", m)
+}
+
+// The ChannelInviteCodeFunc type is an adapter to allow the use of ordinary
+// function as ChannelInviteCode mutator.
+type ChannelInviteCodeFunc func(context.Context, *ent.ChannelInviteCodeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelInviteCodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelInviteCodeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelInviteCodeMutation", m)
+}
+
+// The ChannelInviteCodeUsageFunc type is an adapter to allow the use of ordinary
+// function as ChannelInviteCodeUsage mutator.
+type ChannelInviteCodeUsageFunc func(context.Context, *ent.ChannelInviteCodeUsageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ChannelInviteCodeUsageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ChannelInviteCodeUsageMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ChannelInviteCodeUsageMutation", m)
+}
+
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary
 // function as ErrorPassthroughRule mutator.
 type ErrorPassthroughRuleFunc func(context.Context, *ent.ErrorPassthroughRuleMutation) (ent.Value, error)

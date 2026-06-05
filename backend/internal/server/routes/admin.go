@@ -52,6 +52,9 @@ func RegisterAdminRoutes(
 		// 优惠码管理
 		registerPromoCodeRoutes(admin, h)
 
+		// 渠道邀请码管理
+		registerChannelInviteRoutes(admin, h)
+
 		// 系统设置
 		registerSettingsRoutes(admin, h)
 
@@ -603,5 +606,19 @@ func registerAlipayRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		ap.GET("/packages", h.Admin.Alipay.GetPackages)
 		ap.PUT("/packages", h.Admin.Alipay.UpdatePackages)
 		ap.GET("/orders", h.Admin.Alipay.ListOrders)
+	}
+}
+
+func registerChannelInviteRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	ci := admin.Group("/channel-invite")
+	{
+		ci.GET("/batches", h.Admin.ChannelInvite.ListBatches)
+		ci.GET("/batches/:id", h.Admin.ChannelInvite.GetBatch)
+		ci.POST("/batches", h.Admin.ChannelInvite.CreateBatch)
+		ci.PUT("/batches/:id", h.Admin.ChannelInvite.UpdateBatch)
+		ci.DELETE("/batches/:id", h.Admin.ChannelInvite.DeleteBatch)
+		ci.POST("/batches/:id/generate-codes", h.Admin.ChannelInvite.GenerateCodes)
+		ci.GET("/batches/:id/codes", h.Admin.ChannelInvite.ListCodes)
+		ci.GET("/batches/:id/usages", h.Admin.ChannelInvite.ListUsages)
 	}
 }

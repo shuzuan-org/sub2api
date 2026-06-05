@@ -383,6 +383,189 @@ var (
 			},
 		},
 	}
+	// ChannelInviteBatchesColumns holds the columns for the "channel_invite_batches" table.
+	ChannelInviteBatchesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "bonus_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "max_uses_per_code", Type: field.TypeInt, Default: 1},
+		{Name: "start_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "end_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "notes", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_by", Type: field.TypeInt64},
+	}
+	// ChannelInviteBatchesTable holds the schema information for the "channel_invite_batches" table.
+	ChannelInviteBatchesTable = &schema.Table{
+		Name:       "channel_invite_batches",
+		Columns:    ChannelInviteBatchesColumns,
+		PrimaryKey: []*schema.Column{ChannelInviteBatchesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "channel_invite_batches_users_channel_invite_batches",
+				Columns:    []*schema.Column{ChannelInviteBatchesColumns[10]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channelinvitebatch_status",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteBatchesColumns[6]},
+			},
+			{
+				Name:    "channelinvitebatch_created_by",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteBatchesColumns[10]},
+			},
+		},
+	}
+	// ChannelInviteBatchGroupsColumns holds the columns for the "channel_invite_batch_groups" table.
+	ChannelInviteBatchGroupsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "batch_id", Type: field.TypeInt64},
+		{Name: "group_id", Type: field.TypeInt64},
+	}
+	// ChannelInviteBatchGroupsTable holds the schema information for the "channel_invite_batch_groups" table.
+	ChannelInviteBatchGroupsTable = &schema.Table{
+		Name:       "channel_invite_batch_groups",
+		Columns:    ChannelInviteBatchGroupsColumns,
+		PrimaryKey: []*schema.Column{ChannelInviteBatchGroupsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "channel_invite_batch_groups_channel_invite_batches_batch_groups",
+				Columns:    []*schema.Column{ChannelInviteBatchGroupsColumns[1]},
+				RefColumns: []*schema.Column{ChannelInviteBatchesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "channel_invite_batch_groups_groups_channel_invite_batch_groups",
+				Columns:    []*schema.Column{ChannelInviteBatchGroupsColumns[2]},
+				RefColumns: []*schema.Column{GroupsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channelinvitebatchgroup_batch_id_group_id",
+				Unique:  true,
+				Columns: []*schema.Column{ChannelInviteBatchGroupsColumns[1], ChannelInviteBatchGroupsColumns[2]},
+			},
+			{
+				Name:    "channelinvitebatchgroup_batch_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteBatchGroupsColumns[1]},
+			},
+			{
+				Name:    "channelinvitebatchgroup_group_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteBatchGroupsColumns[2]},
+			},
+		},
+	}
+	// ChannelInviteCodesColumns holds the columns for the "channel_invite_codes" table.
+	ChannelInviteCodesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "code", Type: field.TypeString, Unique: true, Size: 32},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "unused"},
+		{Name: "max_uses", Type: field.TypeInt, Default: 1},
+		{Name: "used_count", Type: field.TypeInt, Default: 0},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "batch_id", Type: field.TypeInt64},
+	}
+	// ChannelInviteCodesTable holds the schema information for the "channel_invite_codes" table.
+	ChannelInviteCodesTable = &schema.Table{
+		Name:       "channel_invite_codes",
+		Columns:    ChannelInviteCodesColumns,
+		PrimaryKey: []*schema.Column{ChannelInviteCodesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "channel_invite_codes_channel_invite_batches_codes",
+				Columns:    []*schema.Column{ChannelInviteCodesColumns[7]},
+				RefColumns: []*schema.Column{ChannelInviteBatchesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channelinvitecode_batch_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteCodesColumns[7]},
+			},
+			{
+				Name:    "channelinvitecode_status",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteCodesColumns[2]},
+			},
+		},
+	}
+	// ChannelInviteCodeUsagesColumns holds the columns for the "channel_invite_code_usages" table.
+	ChannelInviteCodeUsagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "bonus_granted", Type: field.TypeBool, Default: false},
+		{Name: "bonus_granted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "claimed_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "batch_id", Type: field.TypeInt64},
+		{Name: "code_id", Type: field.TypeInt64},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// ChannelInviteCodeUsagesTable holds the schema information for the "channel_invite_code_usages" table.
+	ChannelInviteCodeUsagesTable = &schema.Table{
+		Name:       "channel_invite_code_usages",
+		Columns:    ChannelInviteCodeUsagesColumns,
+		PrimaryKey: []*schema.Column{ChannelInviteCodeUsagesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "channel_invite_code_usages_channel_invite_batches_usages",
+				Columns:    []*schema.Column{ChannelInviteCodeUsagesColumns[4]},
+				RefColumns: []*schema.Column{ChannelInviteBatchesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "channel_invite_code_usages_channel_invite_codes_usages",
+				Columns:    []*schema.Column{ChannelInviteCodeUsagesColumns[5]},
+				RefColumns: []*schema.Column{ChannelInviteCodesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "channel_invite_code_usages_users_channel_invite_usages",
+				Columns:    []*schema.Column{ChannelInviteCodeUsagesColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "channelinvitecodeusage_code_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{ChannelInviteCodeUsagesColumns[5], ChannelInviteCodeUsagesColumns[6]},
+			},
+			{
+				Name:    "channelinvitecodeusage_code_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteCodeUsagesColumns[5]},
+			},
+			{
+				Name:    "channelinvitecodeusage_batch_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteCodeUsagesColumns[4]},
+			},
+			{
+				Name:    "channelinvitecodeusage_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteCodeUsagesColumns[6]},
+			},
+			{
+				Name:    "channelinvitecodeusage_user_id_bonus_granted",
+				Unique:  false,
+				Columns: []*schema.Column{ChannelInviteCodeUsagesColumns[6], ChannelInviteCodeUsagesColumns[1]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1223,6 +1406,10 @@ var (
 		AlipayOrdersTable,
 		AnnouncementsTable,
 		AnnouncementReadsTable,
+		ChannelInviteBatchesTable,
+		ChannelInviteBatchGroupsTable,
+		ChannelInviteCodesTable,
+		ChannelInviteCodeUsagesTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
@@ -1269,6 +1456,25 @@ func init() {
 	AnnouncementReadsTable.ForeignKeys[1].RefTable = UsersTable
 	AnnouncementReadsTable.Annotation = &entsql.Annotation{
 		Table: "announcement_reads",
+	}
+	ChannelInviteBatchesTable.ForeignKeys[0].RefTable = UsersTable
+	ChannelInviteBatchesTable.Annotation = &entsql.Annotation{
+		Table: "channel_invite_batches",
+	}
+	ChannelInviteBatchGroupsTable.ForeignKeys[0].RefTable = ChannelInviteBatchesTable
+	ChannelInviteBatchGroupsTable.ForeignKeys[1].RefTable = GroupsTable
+	ChannelInviteBatchGroupsTable.Annotation = &entsql.Annotation{
+		Table: "channel_invite_batch_groups",
+	}
+	ChannelInviteCodesTable.ForeignKeys[0].RefTable = ChannelInviteBatchesTable
+	ChannelInviteCodesTable.Annotation = &entsql.Annotation{
+		Table: "channel_invite_codes",
+	}
+	ChannelInviteCodeUsagesTable.ForeignKeys[0].RefTable = ChannelInviteBatchesTable
+	ChannelInviteCodeUsagesTable.ForeignKeys[1].RefTable = ChannelInviteCodesTable
+	ChannelInviteCodeUsagesTable.ForeignKeys[2].RefTable = UsersTable
+	ChannelInviteCodeUsagesTable.Annotation = &entsql.Annotation{
+		Table: "channel_invite_code_usages",
 	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",

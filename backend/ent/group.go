@@ -88,13 +88,15 @@ type GroupEdges struct {
 	Accounts []*Account `json:"accounts,omitempty"`
 	// AllowedUsers holds the value of the allowed_users edge.
 	AllowedUsers []*User `json:"allowed_users,omitempty"`
+	// ChannelInviteBatchGroups holds the value of the channel_invite_batch_groups edge.
+	ChannelInviteBatchGroups []*ChannelInviteBatchGroup `json:"channel_invite_batch_groups,omitempty"`
 	// AccountGroups holds the value of the account_groups edge.
 	AccountGroups []*AccountGroup `json:"account_groups,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [7]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -133,10 +135,19 @@ func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
 	return nil, &NotLoadedError{edge: "allowed_users"}
 }
 
+// ChannelInviteBatchGroupsOrErr returns the ChannelInviteBatchGroups value or an error if the edge
+// was not loaded in eager-loading.
+func (e GroupEdges) ChannelInviteBatchGroupsOrErr() ([]*ChannelInviteBatchGroup, error) {
+	if e.loadedTypes[4] {
+		return e.ChannelInviteBatchGroups, nil
+	}
+	return nil, &NotLoadedError{edge: "channel_invite_batch_groups"}
+}
+
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -145,7 +156,7 @@ func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -397,6 +408,11 @@ func (_m *Group) QueryAccounts() *AccountQuery {
 // QueryAllowedUsers queries the "allowed_users" edge of the Group entity.
 func (_m *Group) QueryAllowedUsers() *UserQuery {
 	return NewGroupClient(_m.config).QueryAllowedUsers(_m)
+}
+
+// QueryChannelInviteBatchGroups queries the "channel_invite_batch_groups" edge of the Group entity.
+func (_m *Group) QueryChannelInviteBatchGroups() *ChannelInviteBatchGroupQuery {
+	return NewGroupClient(_m.config).QueryChannelInviteBatchGroups(_m)
 }
 
 // QueryAccountGroups queries the "account_groups" edge of the Group entity.

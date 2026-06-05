@@ -1482,6 +1482,52 @@ func HasPromoCodeUsagesWith(preds ...predicate.PromoCodeUsage) predicate.User {
 	})
 }
 
+// HasChannelInviteBatches applies the HasEdge predicate on the "channel_invite_batches" edge.
+func HasChannelInviteBatches() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteBatchesTable, ChannelInviteBatchesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasChannelInviteBatchesWith applies the HasEdge predicate on the "channel_invite_batches" edge with a given conditions (other predicates).
+func HasChannelInviteBatchesWith(preds ...predicate.ChannelInviteBatch) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newChannelInviteBatchesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasChannelInviteUsages applies the HasEdge predicate on the "channel_invite_usages" edge.
+func HasChannelInviteUsages() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteUsagesTable, ChannelInviteUsagesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasChannelInviteUsagesWith applies the HasEdge predicate on the "channel_invite_usages" edge with a given conditions (other predicates).
+func HasChannelInviteUsagesWith(preds ...predicate.ChannelInviteCodeUsage) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newChannelInviteUsagesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasUserAllowedGroups applies the HasEdge predicate on the "user_allowed_groups" edge.
 func HasUserAllowedGroups() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

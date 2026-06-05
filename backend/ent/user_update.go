@@ -13,6 +13,8 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -526,6 +528,36 @@ func (_u *UserUpdate) AddPromoCodeUsages(v ...*PromoCodeUsage) *UserUpdate {
 	return _u.AddPromoCodeUsageIDs(ids...)
 }
 
+// AddChannelInviteBatchIDs adds the "channel_invite_batches" edge to the ChannelInviteBatch entity by IDs.
+func (_u *UserUpdate) AddChannelInviteBatchIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteBatches adds the "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdate) AddChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteBatchIDs(ids...)
+}
+
+// AddChannelInviteUsageIDs adds the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (_u *UserUpdate) AddChannelInviteUsageIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteUsages adds the "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdate) AddChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteUsageIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -718,6 +750,48 @@ func (_u *UserUpdate) RemovePromoCodeUsages(v ...*PromoCodeUsage) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePromoCodeUsageIDs(ids...)
+}
+
+// ClearChannelInviteBatches clears all "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdate) ClearChannelInviteBatches() *UserUpdate {
+	_u.mutation.ClearChannelInviteBatches()
+	return _u
+}
+
+// RemoveChannelInviteBatchIDs removes the "channel_invite_batches" edge to ChannelInviteBatch entities by IDs.
+func (_u *UserUpdate) RemoveChannelInviteBatchIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteBatches removes "channel_invite_batches" edges to ChannelInviteBatch entities.
+func (_u *UserUpdate) RemoveChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteBatchIDs(ids...)
+}
+
+// ClearChannelInviteUsages clears all "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdate) ClearChannelInviteUsages() *UserUpdate {
+	_u.mutation.ClearChannelInviteUsages()
+	return _u
+}
+
+// RemoveChannelInviteUsageIDs removes the "channel_invite_usages" edge to ChannelInviteCodeUsage entities by IDs.
+func (_u *UserUpdate) RemoveChannelInviteUsageIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteUsages removes "channel_invite_usages" edges to ChannelInviteCodeUsage entities.
+func (_u *UserUpdate) RemoveChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteUsageIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1330,6 +1404,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteBatchesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteBatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteUsagesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteUsagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1840,6 +2004,36 @@ func (_u *UserUpdateOne) AddPromoCodeUsages(v ...*PromoCodeUsage) *UserUpdateOne
 	return _u.AddPromoCodeUsageIDs(ids...)
 }
 
+// AddChannelInviteBatchIDs adds the "channel_invite_batches" edge to the ChannelInviteBatch entity by IDs.
+func (_u *UserUpdateOne) AddChannelInviteBatchIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteBatches adds the "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdateOne) AddChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteBatchIDs(ids...)
+}
+
+// AddChannelInviteUsageIDs adds the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (_u *UserUpdateOne) AddChannelInviteUsageIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteUsages adds the "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdateOne) AddChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteUsageIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -2032,6 +2226,48 @@ func (_u *UserUpdateOne) RemovePromoCodeUsages(v ...*PromoCodeUsage) *UserUpdate
 		ids[i] = v[i].ID
 	}
 	return _u.RemovePromoCodeUsageIDs(ids...)
+}
+
+// ClearChannelInviteBatches clears all "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdateOne) ClearChannelInviteBatches() *UserUpdateOne {
+	_u.mutation.ClearChannelInviteBatches()
+	return _u
+}
+
+// RemoveChannelInviteBatchIDs removes the "channel_invite_batches" edge to ChannelInviteBatch entities by IDs.
+func (_u *UserUpdateOne) RemoveChannelInviteBatchIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteBatches removes "channel_invite_batches" edges to ChannelInviteBatch entities.
+func (_u *UserUpdateOne) RemoveChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteBatchIDs(ids...)
+}
+
+// ClearChannelInviteUsages clears all "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdateOne) ClearChannelInviteUsages() *UserUpdateOne {
+	_u.mutation.ClearChannelInviteUsages()
+	return _u
+}
+
+// RemoveChannelInviteUsageIDs removes the "channel_invite_usages" edge to ChannelInviteCodeUsage entities by IDs.
+func (_u *UserUpdateOne) RemoveChannelInviteUsageIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteUsages removes "channel_invite_usages" edges to ChannelInviteCodeUsage entities.
+func (_u *UserUpdateOne) RemoveChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteUsageIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -2667,6 +2903,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(promocodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteBatchesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteBatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteUsagesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteUsagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

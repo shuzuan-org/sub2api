@@ -98,6 +98,7 @@ type UserService struct {
 	userRepo             UserRepository
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	billingCache         BillingCache
+	channelInviteSvc     *ChannelInviteService
 }
 
 // NewUserService 创建用户服务实例
@@ -107,6 +108,11 @@ func NewUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuthCach
 		authCacheInvalidator: authCacheInvalidator,
 		billingCache:         billingCache,
 	}
+}
+
+// SetChannelInviteService sets the channel invite service for deferred bonus granting.
+func (s *UserService) SetChannelInviteService(svc *ChannelInviteService) {
+	s.channelInviteSvc = svc
 }
 
 // GetFirstAdmin 获取首个管理员用户（用于 Admin API Key 认证）
@@ -294,6 +300,17 @@ func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, 
 			defer cancel()
 			if err := s.billingCache.InvalidateUserBalance(cacheCtx, userID); err != nil {
 				log.Printf("invalidate user balance cache failed: user_id=%d err=%v", userID, err)
+			}
+		}()
+	}
+
+	// 发放待处理的渠道邀请奖励
+	if s.channelInviteSvc != nil {
+		go func() {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := s.channelInviteSvc.GrantPendingBonuses(bgCtx, userID); err != nil {
+				log.Printf("grant pending channel invite bonuses failed: user_id=%d err=%v", userID, err)
 			}
 		}()
 	}

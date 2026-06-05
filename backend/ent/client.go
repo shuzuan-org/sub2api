@@ -21,6 +21,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecode"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -60,6 +64,14 @@ type Client struct {
 	Announcement *AnnouncementClient
 	// AnnouncementRead is the client for interacting with the AnnouncementRead builders.
 	AnnouncementRead *AnnouncementReadClient
+	// ChannelInviteBatch is the client for interacting with the ChannelInviteBatch builders.
+	ChannelInviteBatch *ChannelInviteBatchClient
+	// ChannelInviteBatchGroup is the client for interacting with the ChannelInviteBatchGroup builders.
+	ChannelInviteBatchGroup *ChannelInviteBatchGroupClient
+	// ChannelInviteCode is the client for interacting with the ChannelInviteCode builders.
+	ChannelInviteCode *ChannelInviteCodeClient
+	// ChannelInviteCodeUsage is the client for interacting with the ChannelInviteCodeUsage builders.
+	ChannelInviteCodeUsage *ChannelInviteCodeUsageClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -113,6 +125,10 @@ func (c *Client) init() {
 	c.AlipayOrder = NewAlipayOrderClient(c.config)
 	c.Announcement = NewAnnouncementClient(c.config)
 	c.AnnouncementRead = NewAnnouncementReadClient(c.config)
+	c.ChannelInviteBatch = NewChannelInviteBatchClient(c.config)
+	c.ChannelInviteBatchGroup = NewChannelInviteBatchGroupClient(c.config)
+	c.ChannelInviteCode = NewChannelInviteCodeClient(c.config)
+	c.ChannelInviteCodeUsage = NewChannelInviteCodeUsageClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
@@ -229,6 +245,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		AlipayOrder:             NewAlipayOrderClient(cfg),
 		Announcement:            NewAnnouncementClient(cfg),
 		AnnouncementRead:        NewAnnouncementReadClient(cfg),
+		ChannelInviteBatch:      NewChannelInviteBatchClient(cfg),
+		ChannelInviteBatchGroup: NewChannelInviteBatchGroupClient(cfg),
+		ChannelInviteCode:       NewChannelInviteCodeClient(cfg),
+		ChannelInviteCodeUsage:  NewChannelInviteCodeUsageClient(cfg),
 		ErrorPassthroughRule:    NewErrorPassthroughRuleClient(cfg),
 		Group:                   NewGroupClient(cfg),
 		IdempotencyRecord:       NewIdempotencyRecordClient(cfg),
@@ -272,6 +292,10 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		AlipayOrder:             NewAlipayOrderClient(cfg),
 		Announcement:            NewAnnouncementClient(cfg),
 		AnnouncementRead:        NewAnnouncementReadClient(cfg),
+		ChannelInviteBatch:      NewChannelInviteBatchClient(cfg),
+		ChannelInviteBatchGroup: NewChannelInviteBatchGroupClient(cfg),
+		ChannelInviteCode:       NewChannelInviteCodeClient(cfg),
+		ChannelInviteCodeUsage:  NewChannelInviteCodeUsageClient(cfg),
 		ErrorPassthroughRule:    NewErrorPassthroughRuleClient(cfg),
 		Group:                   NewGroupClient(cfg),
 		IdempotencyRecord:       NewIdempotencyRecordClient(cfg),
@@ -320,11 +344,12 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIKey, c.Account, c.AccountGroup, c.AlipayOrder, c.Announcement,
-		c.AnnouncementRead, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret,
-		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
-		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserSubscription,
+		c.AnnouncementRead, c.ChannelInviteBatch, c.ChannelInviteBatchGroup,
+		c.ChannelInviteCode, c.ChannelInviteCodeUsage, c.ErrorPassthroughRule, c.Group,
+		c.IdempotencyRecord, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -335,11 +360,12 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIKey, c.Account, c.AccountGroup, c.AlipayOrder, c.Announcement,
-		c.AnnouncementRead, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
-		c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.SecuritySecret,
-		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.UsageCleanupTask,
-		c.UsageLog, c.User, c.UserAllowedGroup, c.UserAttributeDefinition,
-		c.UserAttributeValue, c.UserSubscription,
+		c.AnnouncementRead, c.ChannelInviteBatch, c.ChannelInviteBatchGroup,
+		c.ChannelInviteCode, c.ChannelInviteCodeUsage, c.ErrorPassthroughRule, c.Group,
+		c.IdempotencyRecord, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
+		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
+		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
+		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -360,6 +386,14 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Announcement.mutate(ctx, m)
 	case *AnnouncementReadMutation:
 		return c.AnnouncementRead.mutate(ctx, m)
+	case *ChannelInviteBatchMutation:
+		return c.ChannelInviteBatch.mutate(ctx, m)
+	case *ChannelInviteBatchGroupMutation:
+		return c.ChannelInviteBatchGroup.mutate(ctx, m)
+	case *ChannelInviteCodeMutation:
+		return c.ChannelInviteCode.mutate(ctx, m)
+	case *ChannelInviteCodeUsageMutation:
+		return c.ChannelInviteCodeUsage.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
@@ -1346,6 +1380,714 @@ func (c *AnnouncementReadClient) mutate(ctx context.Context, m *AnnouncementRead
 	}
 }
 
+// ChannelInviteBatchClient is a client for the ChannelInviteBatch schema.
+type ChannelInviteBatchClient struct {
+	config
+}
+
+// NewChannelInviteBatchClient returns a client for the ChannelInviteBatch from the given config.
+func NewChannelInviteBatchClient(c config) *ChannelInviteBatchClient {
+	return &ChannelInviteBatchClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `channelinvitebatch.Hooks(f(g(h())))`.
+func (c *ChannelInviteBatchClient) Use(hooks ...Hook) {
+	c.hooks.ChannelInviteBatch = append(c.hooks.ChannelInviteBatch, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `channelinvitebatch.Intercept(f(g(h())))`.
+func (c *ChannelInviteBatchClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ChannelInviteBatch = append(c.inters.ChannelInviteBatch, interceptors...)
+}
+
+// Create returns a builder for creating a ChannelInviteBatch entity.
+func (c *ChannelInviteBatchClient) Create() *ChannelInviteBatchCreate {
+	mutation := newChannelInviteBatchMutation(c.config, OpCreate)
+	return &ChannelInviteBatchCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ChannelInviteBatch entities.
+func (c *ChannelInviteBatchClient) CreateBulk(builders ...*ChannelInviteBatchCreate) *ChannelInviteBatchCreateBulk {
+	return &ChannelInviteBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ChannelInviteBatchClient) MapCreateBulk(slice any, setFunc func(*ChannelInviteBatchCreate, int)) *ChannelInviteBatchCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ChannelInviteBatchCreateBulk{err: fmt.Errorf("calling to ChannelInviteBatchClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ChannelInviteBatchCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ChannelInviteBatchCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) Update() *ChannelInviteBatchUpdate {
+	mutation := newChannelInviteBatchMutation(c.config, OpUpdate)
+	return &ChannelInviteBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ChannelInviteBatchClient) UpdateOne(_m *ChannelInviteBatch) *ChannelInviteBatchUpdateOne {
+	mutation := newChannelInviteBatchMutation(c.config, OpUpdateOne, withChannelInviteBatch(_m))
+	return &ChannelInviteBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ChannelInviteBatchClient) UpdateOneID(id int64) *ChannelInviteBatchUpdateOne {
+	mutation := newChannelInviteBatchMutation(c.config, OpUpdateOne, withChannelInviteBatchID(id))
+	return &ChannelInviteBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) Delete() *ChannelInviteBatchDelete {
+	mutation := newChannelInviteBatchMutation(c.config, OpDelete)
+	return &ChannelInviteBatchDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ChannelInviteBatchClient) DeleteOne(_m *ChannelInviteBatch) *ChannelInviteBatchDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ChannelInviteBatchClient) DeleteOneID(id int64) *ChannelInviteBatchDeleteOne {
+	builder := c.Delete().Where(channelinvitebatch.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ChannelInviteBatchDeleteOne{builder}
+}
+
+// Query returns a query builder for ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) Query() *ChannelInviteBatchQuery {
+	return &ChannelInviteBatchQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeChannelInviteBatch},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ChannelInviteBatch entity by its id.
+func (c *ChannelInviteBatchClient) Get(ctx context.Context, id int64) (*ChannelInviteBatch, error) {
+	return c.Query().Where(channelinvitebatch.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ChannelInviteBatchClient) GetX(ctx context.Context, id int64) *ChannelInviteBatch {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCreator queries the creator edge of a ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) QueryCreator(_m *ChannelInviteBatch) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitebatch.Table, channelinvitebatch.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitebatch.CreatorTable, channelinvitebatch.CreatorColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCodes queries the codes edge of a ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) QueryCodes(_m *ChannelInviteBatch) *ChannelInviteCodeQuery {
+	query := (&ChannelInviteCodeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitebatch.Table, channelinvitebatch.FieldID, id),
+			sqlgraph.To(channelinvitecode.Table, channelinvitecode.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, channelinvitebatch.CodesTable, channelinvitebatch.CodesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryBatchGroups queries the batch_groups edge of a ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) QueryBatchGroups(_m *ChannelInviteBatch) *ChannelInviteBatchGroupQuery {
+	query := (&ChannelInviteBatchGroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitebatch.Table, channelinvitebatch.FieldID, id),
+			sqlgraph.To(channelinvitebatchgroup.Table, channelinvitebatchgroup.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, channelinvitebatch.BatchGroupsTable, channelinvitebatch.BatchGroupsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUsages queries the usages edge of a ChannelInviteBatch.
+func (c *ChannelInviteBatchClient) QueryUsages(_m *ChannelInviteBatch) *ChannelInviteCodeUsageQuery {
+	query := (&ChannelInviteCodeUsageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitebatch.Table, channelinvitebatch.FieldID, id),
+			sqlgraph.To(channelinvitecodeusage.Table, channelinvitecodeusage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, channelinvitebatch.UsagesTable, channelinvitebatch.UsagesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ChannelInviteBatchClient) Hooks() []Hook {
+	return c.hooks.ChannelInviteBatch
+}
+
+// Interceptors returns the client interceptors.
+func (c *ChannelInviteBatchClient) Interceptors() []Interceptor {
+	return c.inters.ChannelInviteBatch
+}
+
+func (c *ChannelInviteBatchClient) mutate(ctx context.Context, m *ChannelInviteBatchMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ChannelInviteBatchCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ChannelInviteBatchUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ChannelInviteBatchUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ChannelInviteBatchDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ChannelInviteBatch mutation op: %q", m.Op())
+	}
+}
+
+// ChannelInviteBatchGroupClient is a client for the ChannelInviteBatchGroup schema.
+type ChannelInviteBatchGroupClient struct {
+	config
+}
+
+// NewChannelInviteBatchGroupClient returns a client for the ChannelInviteBatchGroup from the given config.
+func NewChannelInviteBatchGroupClient(c config) *ChannelInviteBatchGroupClient {
+	return &ChannelInviteBatchGroupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `channelinvitebatchgroup.Hooks(f(g(h())))`.
+func (c *ChannelInviteBatchGroupClient) Use(hooks ...Hook) {
+	c.hooks.ChannelInviteBatchGroup = append(c.hooks.ChannelInviteBatchGroup, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `channelinvitebatchgroup.Intercept(f(g(h())))`.
+func (c *ChannelInviteBatchGroupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ChannelInviteBatchGroup = append(c.inters.ChannelInviteBatchGroup, interceptors...)
+}
+
+// Create returns a builder for creating a ChannelInviteBatchGroup entity.
+func (c *ChannelInviteBatchGroupClient) Create() *ChannelInviteBatchGroupCreate {
+	mutation := newChannelInviteBatchGroupMutation(c.config, OpCreate)
+	return &ChannelInviteBatchGroupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ChannelInviteBatchGroup entities.
+func (c *ChannelInviteBatchGroupClient) CreateBulk(builders ...*ChannelInviteBatchGroupCreate) *ChannelInviteBatchGroupCreateBulk {
+	return &ChannelInviteBatchGroupCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ChannelInviteBatchGroupClient) MapCreateBulk(slice any, setFunc func(*ChannelInviteBatchGroupCreate, int)) *ChannelInviteBatchGroupCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ChannelInviteBatchGroupCreateBulk{err: fmt.Errorf("calling to ChannelInviteBatchGroupClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ChannelInviteBatchGroupCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ChannelInviteBatchGroupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ChannelInviteBatchGroup.
+func (c *ChannelInviteBatchGroupClient) Update() *ChannelInviteBatchGroupUpdate {
+	mutation := newChannelInviteBatchGroupMutation(c.config, OpUpdate)
+	return &ChannelInviteBatchGroupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ChannelInviteBatchGroupClient) UpdateOne(_m *ChannelInviteBatchGroup) *ChannelInviteBatchGroupUpdateOne {
+	mutation := newChannelInviteBatchGroupMutation(c.config, OpUpdateOne, withChannelInviteBatchGroup(_m))
+	return &ChannelInviteBatchGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ChannelInviteBatchGroupClient) UpdateOneID(id int64) *ChannelInviteBatchGroupUpdateOne {
+	mutation := newChannelInviteBatchGroupMutation(c.config, OpUpdateOne, withChannelInviteBatchGroupID(id))
+	return &ChannelInviteBatchGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ChannelInviteBatchGroup.
+func (c *ChannelInviteBatchGroupClient) Delete() *ChannelInviteBatchGroupDelete {
+	mutation := newChannelInviteBatchGroupMutation(c.config, OpDelete)
+	return &ChannelInviteBatchGroupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ChannelInviteBatchGroupClient) DeleteOne(_m *ChannelInviteBatchGroup) *ChannelInviteBatchGroupDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ChannelInviteBatchGroupClient) DeleteOneID(id int64) *ChannelInviteBatchGroupDeleteOne {
+	builder := c.Delete().Where(channelinvitebatchgroup.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ChannelInviteBatchGroupDeleteOne{builder}
+}
+
+// Query returns a query builder for ChannelInviteBatchGroup.
+func (c *ChannelInviteBatchGroupClient) Query() *ChannelInviteBatchGroupQuery {
+	return &ChannelInviteBatchGroupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeChannelInviteBatchGroup},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ChannelInviteBatchGroup entity by its id.
+func (c *ChannelInviteBatchGroupClient) Get(ctx context.Context, id int64) (*ChannelInviteBatchGroup, error) {
+	return c.Query().Where(channelinvitebatchgroup.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ChannelInviteBatchGroupClient) GetX(ctx context.Context, id int64) *ChannelInviteBatchGroup {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryBatch queries the batch edge of a ChannelInviteBatchGroup.
+func (c *ChannelInviteBatchGroupClient) QueryBatch(_m *ChannelInviteBatchGroup) *ChannelInviteBatchQuery {
+	query := (&ChannelInviteBatchClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitebatchgroup.Table, channelinvitebatchgroup.FieldID, id),
+			sqlgraph.To(channelinvitebatch.Table, channelinvitebatch.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitebatchgroup.BatchTable, channelinvitebatchgroup.BatchColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryGroup queries the group edge of a ChannelInviteBatchGroup.
+func (c *ChannelInviteBatchGroupClient) QueryGroup(_m *ChannelInviteBatchGroup) *GroupQuery {
+	query := (&GroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitebatchgroup.Table, channelinvitebatchgroup.FieldID, id),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitebatchgroup.GroupTable, channelinvitebatchgroup.GroupColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ChannelInviteBatchGroupClient) Hooks() []Hook {
+	return c.hooks.ChannelInviteBatchGroup
+}
+
+// Interceptors returns the client interceptors.
+func (c *ChannelInviteBatchGroupClient) Interceptors() []Interceptor {
+	return c.inters.ChannelInviteBatchGroup
+}
+
+func (c *ChannelInviteBatchGroupClient) mutate(ctx context.Context, m *ChannelInviteBatchGroupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ChannelInviteBatchGroupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ChannelInviteBatchGroupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ChannelInviteBatchGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ChannelInviteBatchGroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ChannelInviteBatchGroup mutation op: %q", m.Op())
+	}
+}
+
+// ChannelInviteCodeClient is a client for the ChannelInviteCode schema.
+type ChannelInviteCodeClient struct {
+	config
+}
+
+// NewChannelInviteCodeClient returns a client for the ChannelInviteCode from the given config.
+func NewChannelInviteCodeClient(c config) *ChannelInviteCodeClient {
+	return &ChannelInviteCodeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `channelinvitecode.Hooks(f(g(h())))`.
+func (c *ChannelInviteCodeClient) Use(hooks ...Hook) {
+	c.hooks.ChannelInviteCode = append(c.hooks.ChannelInviteCode, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `channelinvitecode.Intercept(f(g(h())))`.
+func (c *ChannelInviteCodeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ChannelInviteCode = append(c.inters.ChannelInviteCode, interceptors...)
+}
+
+// Create returns a builder for creating a ChannelInviteCode entity.
+func (c *ChannelInviteCodeClient) Create() *ChannelInviteCodeCreate {
+	mutation := newChannelInviteCodeMutation(c.config, OpCreate)
+	return &ChannelInviteCodeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ChannelInviteCode entities.
+func (c *ChannelInviteCodeClient) CreateBulk(builders ...*ChannelInviteCodeCreate) *ChannelInviteCodeCreateBulk {
+	return &ChannelInviteCodeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ChannelInviteCodeClient) MapCreateBulk(slice any, setFunc func(*ChannelInviteCodeCreate, int)) *ChannelInviteCodeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ChannelInviteCodeCreateBulk{err: fmt.Errorf("calling to ChannelInviteCodeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ChannelInviteCodeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ChannelInviteCodeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ChannelInviteCode.
+func (c *ChannelInviteCodeClient) Update() *ChannelInviteCodeUpdate {
+	mutation := newChannelInviteCodeMutation(c.config, OpUpdate)
+	return &ChannelInviteCodeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ChannelInviteCodeClient) UpdateOne(_m *ChannelInviteCode) *ChannelInviteCodeUpdateOne {
+	mutation := newChannelInviteCodeMutation(c.config, OpUpdateOne, withChannelInviteCode(_m))
+	return &ChannelInviteCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ChannelInviteCodeClient) UpdateOneID(id int64) *ChannelInviteCodeUpdateOne {
+	mutation := newChannelInviteCodeMutation(c.config, OpUpdateOne, withChannelInviteCodeID(id))
+	return &ChannelInviteCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ChannelInviteCode.
+func (c *ChannelInviteCodeClient) Delete() *ChannelInviteCodeDelete {
+	mutation := newChannelInviteCodeMutation(c.config, OpDelete)
+	return &ChannelInviteCodeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ChannelInviteCodeClient) DeleteOne(_m *ChannelInviteCode) *ChannelInviteCodeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ChannelInviteCodeClient) DeleteOneID(id int64) *ChannelInviteCodeDeleteOne {
+	builder := c.Delete().Where(channelinvitecode.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ChannelInviteCodeDeleteOne{builder}
+}
+
+// Query returns a query builder for ChannelInviteCode.
+func (c *ChannelInviteCodeClient) Query() *ChannelInviteCodeQuery {
+	return &ChannelInviteCodeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeChannelInviteCode},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ChannelInviteCode entity by its id.
+func (c *ChannelInviteCodeClient) Get(ctx context.Context, id int64) (*ChannelInviteCode, error) {
+	return c.Query().Where(channelinvitecode.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ChannelInviteCodeClient) GetX(ctx context.Context, id int64) *ChannelInviteCode {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryBatch queries the batch edge of a ChannelInviteCode.
+func (c *ChannelInviteCodeClient) QueryBatch(_m *ChannelInviteCode) *ChannelInviteBatchQuery {
+	query := (&ChannelInviteBatchClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitecode.Table, channelinvitecode.FieldID, id),
+			sqlgraph.To(channelinvitebatch.Table, channelinvitebatch.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitecode.BatchTable, channelinvitecode.BatchColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUsages queries the usages edge of a ChannelInviteCode.
+func (c *ChannelInviteCodeClient) QueryUsages(_m *ChannelInviteCode) *ChannelInviteCodeUsageQuery {
+	query := (&ChannelInviteCodeUsageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitecode.Table, channelinvitecode.FieldID, id),
+			sqlgraph.To(channelinvitecodeusage.Table, channelinvitecodeusage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, channelinvitecode.UsagesTable, channelinvitecode.UsagesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ChannelInviteCodeClient) Hooks() []Hook {
+	return c.hooks.ChannelInviteCode
+}
+
+// Interceptors returns the client interceptors.
+func (c *ChannelInviteCodeClient) Interceptors() []Interceptor {
+	return c.inters.ChannelInviteCode
+}
+
+func (c *ChannelInviteCodeClient) mutate(ctx context.Context, m *ChannelInviteCodeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ChannelInviteCodeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ChannelInviteCodeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ChannelInviteCodeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ChannelInviteCodeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ChannelInviteCode mutation op: %q", m.Op())
+	}
+}
+
+// ChannelInviteCodeUsageClient is a client for the ChannelInviteCodeUsage schema.
+type ChannelInviteCodeUsageClient struct {
+	config
+}
+
+// NewChannelInviteCodeUsageClient returns a client for the ChannelInviteCodeUsage from the given config.
+func NewChannelInviteCodeUsageClient(c config) *ChannelInviteCodeUsageClient {
+	return &ChannelInviteCodeUsageClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `channelinvitecodeusage.Hooks(f(g(h())))`.
+func (c *ChannelInviteCodeUsageClient) Use(hooks ...Hook) {
+	c.hooks.ChannelInviteCodeUsage = append(c.hooks.ChannelInviteCodeUsage, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `channelinvitecodeusage.Intercept(f(g(h())))`.
+func (c *ChannelInviteCodeUsageClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ChannelInviteCodeUsage = append(c.inters.ChannelInviteCodeUsage, interceptors...)
+}
+
+// Create returns a builder for creating a ChannelInviteCodeUsage entity.
+func (c *ChannelInviteCodeUsageClient) Create() *ChannelInviteCodeUsageCreate {
+	mutation := newChannelInviteCodeUsageMutation(c.config, OpCreate)
+	return &ChannelInviteCodeUsageCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ChannelInviteCodeUsage entities.
+func (c *ChannelInviteCodeUsageClient) CreateBulk(builders ...*ChannelInviteCodeUsageCreate) *ChannelInviteCodeUsageCreateBulk {
+	return &ChannelInviteCodeUsageCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ChannelInviteCodeUsageClient) MapCreateBulk(slice any, setFunc func(*ChannelInviteCodeUsageCreate, int)) *ChannelInviteCodeUsageCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ChannelInviteCodeUsageCreateBulk{err: fmt.Errorf("calling to ChannelInviteCodeUsageClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ChannelInviteCodeUsageCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ChannelInviteCodeUsageCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ChannelInviteCodeUsage.
+func (c *ChannelInviteCodeUsageClient) Update() *ChannelInviteCodeUsageUpdate {
+	mutation := newChannelInviteCodeUsageMutation(c.config, OpUpdate)
+	return &ChannelInviteCodeUsageUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ChannelInviteCodeUsageClient) UpdateOne(_m *ChannelInviteCodeUsage) *ChannelInviteCodeUsageUpdateOne {
+	mutation := newChannelInviteCodeUsageMutation(c.config, OpUpdateOne, withChannelInviteCodeUsage(_m))
+	return &ChannelInviteCodeUsageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ChannelInviteCodeUsageClient) UpdateOneID(id int64) *ChannelInviteCodeUsageUpdateOne {
+	mutation := newChannelInviteCodeUsageMutation(c.config, OpUpdateOne, withChannelInviteCodeUsageID(id))
+	return &ChannelInviteCodeUsageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ChannelInviteCodeUsage.
+func (c *ChannelInviteCodeUsageClient) Delete() *ChannelInviteCodeUsageDelete {
+	mutation := newChannelInviteCodeUsageMutation(c.config, OpDelete)
+	return &ChannelInviteCodeUsageDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ChannelInviteCodeUsageClient) DeleteOne(_m *ChannelInviteCodeUsage) *ChannelInviteCodeUsageDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ChannelInviteCodeUsageClient) DeleteOneID(id int64) *ChannelInviteCodeUsageDeleteOne {
+	builder := c.Delete().Where(channelinvitecodeusage.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ChannelInviteCodeUsageDeleteOne{builder}
+}
+
+// Query returns a query builder for ChannelInviteCodeUsage.
+func (c *ChannelInviteCodeUsageClient) Query() *ChannelInviteCodeUsageQuery {
+	return &ChannelInviteCodeUsageQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeChannelInviteCodeUsage},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ChannelInviteCodeUsage entity by its id.
+func (c *ChannelInviteCodeUsageClient) Get(ctx context.Context, id int64) (*ChannelInviteCodeUsage, error) {
+	return c.Query().Where(channelinvitecodeusage.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ChannelInviteCodeUsageClient) GetX(ctx context.Context, id int64) *ChannelInviteCodeUsage {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCode queries the code edge of a ChannelInviteCodeUsage.
+func (c *ChannelInviteCodeUsageClient) QueryCode(_m *ChannelInviteCodeUsage) *ChannelInviteCodeQuery {
+	query := (&ChannelInviteCodeClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitecodeusage.Table, channelinvitecodeusage.FieldID, id),
+			sqlgraph.To(channelinvitecode.Table, channelinvitecode.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitecodeusage.CodeTable, channelinvitecodeusage.CodeColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryBatch queries the batch edge of a ChannelInviteCodeUsage.
+func (c *ChannelInviteCodeUsageClient) QueryBatch(_m *ChannelInviteCodeUsage) *ChannelInviteBatchQuery {
+	query := (&ChannelInviteBatchClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitecodeusage.Table, channelinvitecodeusage.FieldID, id),
+			sqlgraph.To(channelinvitebatch.Table, channelinvitebatch.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitecodeusage.BatchTable, channelinvitecodeusage.BatchColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a ChannelInviteCodeUsage.
+func (c *ChannelInviteCodeUsageClient) QueryUser(_m *ChannelInviteCodeUsage) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(channelinvitecodeusage.Table, channelinvitecodeusage.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, channelinvitecodeusage.UserTable, channelinvitecodeusage.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ChannelInviteCodeUsageClient) Hooks() []Hook {
+	return c.hooks.ChannelInviteCodeUsage
+}
+
+// Interceptors returns the client interceptors.
+func (c *ChannelInviteCodeUsageClient) Interceptors() []Interceptor {
+	return c.inters.ChannelInviteCodeUsage
+}
+
+func (c *ChannelInviteCodeUsageClient) mutate(ctx context.Context, m *ChannelInviteCodeUsageMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ChannelInviteCodeUsageCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ChannelInviteCodeUsageUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ChannelInviteCodeUsageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ChannelInviteCodeUsageDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ChannelInviteCodeUsage mutation op: %q", m.Op())
+	}
+}
+
 // ErrorPassthroughRuleClient is a client for the ErrorPassthroughRule schema.
 type ErrorPassthroughRuleClient struct {
 	config
@@ -1644,6 +2386,22 @@ func (c *GroupClient) QueryAllowedUsers(_m *Group) *UserQuery {
 			sqlgraph.From(group.Table, group.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2M, true, group.AllowedUsersTable, group.AllowedUsersPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryChannelInviteBatchGroups queries the channel_invite_batch_groups edge of a Group.
+func (c *GroupClient) QueryChannelInviteBatchGroups(_m *Group) *ChannelInviteBatchGroupQuery {
+	query := (&ChannelInviteBatchGroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(channelinvitebatchgroup.Table, channelinvitebatchgroup.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, group.ChannelInviteBatchGroupsTable, group.ChannelInviteBatchGroupsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -3637,6 +4395,38 @@ func (c *UserClient) QueryPromoCodeUsages(_m *User) *PromoCodeUsageQuery {
 	return query
 }
 
+// QueryChannelInviteBatches queries the channel_invite_batches edge of a User.
+func (c *UserClient) QueryChannelInviteBatches(_m *User) *ChannelInviteBatchQuery {
+	query := (&ChannelInviteBatchClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(channelinvitebatch.Table, channelinvitebatch.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ChannelInviteBatchesTable, user.ChannelInviteBatchesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryChannelInviteUsages queries the channel_invite_usages edge of a User.
+func (c *UserClient) QueryChannelInviteUsages(_m *User) *ChannelInviteCodeUsageQuery {
+	query := (&ChannelInviteCodeUsageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(channelinvitecodeusage.Table, channelinvitecodeusage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ChannelInviteUsagesTable, user.ChannelInviteUsagesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryUserAllowedGroups queries the user_allowed_groups edge of a User.
 func (c *UserClient) QueryUserAllowedGroups(_m *User) *UserAllowedGroupQuery {
 	query := (&UserAllowedGroupClient{config: c.config}).Query()
@@ -4315,17 +5105,21 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 type (
 	hooks struct {
 		APIKey, Account, AccountGroup, AlipayOrder, Announcement, AnnouncementRead,
-		ErrorPassthroughRule, Group, IdempotencyRecord, PromoCode, PromoCodeUsage,
-		Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserSubscription []ent.Hook
+		ChannelInviteBatch, ChannelInviteBatchGroup, ChannelInviteCode,
+		ChannelInviteCodeUsage, ErrorPassthroughRule, Group, IdempotencyRecord,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, AlipayOrder, Announcement, AnnouncementRead,
-		ErrorPassthroughRule, Group, IdempotencyRecord, PromoCode, PromoCodeUsage,
-		Proxy, RedeemCode, SecuritySecret, Setting, SubscriptionPlan,
-		TLSFingerprintProfile, UsageCleanupTask, UsageLog, User, UserAllowedGroup,
-		UserAttributeDefinition, UserAttributeValue, UserSubscription []ent.Interceptor
+		ChannelInviteBatch, ChannelInviteBatchGroup, ChannelInviteCode,
+		ChannelInviteCodeUsage, ErrorPassthroughRule, Group, IdempotencyRecord,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserSubscription []ent.Interceptor
 	}
 )
 

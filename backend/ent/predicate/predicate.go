@@ -24,6 +24,18 @@ type Announcement func(*sql.Selector)
 // AnnouncementRead is the predicate function for announcementread builders.
 type AnnouncementRead func(*sql.Selector)
 
+// ChannelInviteBatch is the predicate function for channelinvitebatch builders.
+type ChannelInviteBatch func(*sql.Selector)
+
+// ChannelInviteBatchGroup is the predicate function for channelinvitebatchgroup builders.
+type ChannelInviteBatchGroup func(*sql.Selector)
+
+// ChannelInviteCode is the predicate function for channelinvitecode builders.
+type ChannelInviteCode func(*sql.Selector)
+
+// ChannelInviteCodeUsage is the predicate function for channelinvitecodeusage builders.
+type ChannelInviteCodeUsage func(*sql.Selector)
+
 // ErrorPassthroughRule is the predicate function for errorpassthroughrule builders.
 type ErrorPassthroughRule func(*sql.Selector)
 

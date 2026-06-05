@@ -115,6 +115,8 @@ func (User) Edges() []ent.Edge {
 		edge.To("usage_logs", UsageLog.Type),
 		edge.To("attribute_values", UserAttributeValue.Type),
 		edge.To("promo_code_usages", PromoCodeUsage.Type),
+		edge.To("channel_invite_batches", ChannelInviteBatch.Type),
+		edge.To("channel_invite_usages", ChannelInviteCodeUsage.Type),
 	}
 }
 

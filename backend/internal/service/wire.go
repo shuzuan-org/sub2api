@@ -417,11 +417,18 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	return svc
 }
 
+// ProvideUserService creates UserService with ChannelInviteService injected via setter.
+func ProvideUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuthCacheInvalidator, billingCache BillingCache, channelInviteSvc *ChannelInviteService) *UserService {
+	svc := NewUserService(userRepo, authCacheInvalidator, billingCache)
+	svc.SetChannelInviteService(channelInviteSvc)
+	return svc
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// Core services
 	NewAuthService,
-	NewUserService,
+	ProvideUserService,
 	NewAPIKeyService,
 	ProvideAPIKeyAuthCacheInvalidator,
 	NewGroupService,
@@ -431,6 +438,7 @@ var ProviderSet = wire.NewSet(
 	NewAlipayService,
 	NewPromoService,
 	NewInviteService,
+	NewChannelInviteService,
 	NewUsageService,
 	NewDashboardService,
 	ProvidePricingService,

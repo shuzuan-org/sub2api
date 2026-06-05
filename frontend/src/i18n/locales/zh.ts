@@ -4479,6 +4479,7 @@ export default {
         email: '邮件设置',
         backup: '数据备份',
         data: 'Sora 存储',
+        'channel-invite': '渠道邀请码',
       },
       emailTabDisabledTitle: '邮箱验证未启用',
       emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',

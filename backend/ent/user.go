@@ -85,11 +85,15 @@ type UserEdges struct {
 	AttributeValues []*UserAttributeValue `json:"attribute_values,omitempty"`
 	// PromoCodeUsages holds the value of the promo_code_usages edge.
 	PromoCodeUsages []*PromoCodeUsage `json:"promo_code_usages,omitempty"`
+	// ChannelInviteBatches holds the value of the channel_invite_batches edge.
+	ChannelInviteBatches []*ChannelInviteBatch `json:"channel_invite_batches,omitempty"`
+	// ChannelInviteUsages holds the value of the channel_invite_usages edge.
+	ChannelInviteUsages []*ChannelInviteCodeUsage `json:"channel_invite_usages,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [10]bool
+	loadedTypes [12]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -173,10 +177,28 @@ func (e UserEdges) PromoCodeUsagesOrErr() ([]*PromoCodeUsage, error) {
 	return nil, &NotLoadedError{edge: "promo_code_usages"}
 }
 
+// ChannelInviteBatchesOrErr returns the ChannelInviteBatches value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ChannelInviteBatchesOrErr() ([]*ChannelInviteBatch, error) {
+	if e.loadedTypes[9] {
+		return e.ChannelInviteBatches, nil
+	}
+	return nil, &NotLoadedError{edge: "channel_invite_batches"}
+}
+
+// ChannelInviteUsagesOrErr returns the ChannelInviteUsages value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ChannelInviteUsagesOrErr() ([]*ChannelInviteCodeUsage, error) {
+	if e.loadedTypes[10] {
+		return e.ChannelInviteUsages, nil
+	}
+	return nil, &NotLoadedError{edge: "channel_invite_usages"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[9] {
+	if e.loadedTypes[11] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -408,6 +430,16 @@ func (_m *User) QueryAttributeValues() *UserAttributeValueQuery {
 // QueryPromoCodeUsages queries the "promo_code_usages" edge of the User entity.
 func (_m *User) QueryPromoCodeUsages() *PromoCodeUsageQuery {
 	return NewUserClient(_m.config).QueryPromoCodeUsages(_m)
+}
+
+// QueryChannelInviteBatches queries the "channel_invite_batches" edge of the User entity.
+func (_m *User) QueryChannelInviteBatches() *ChannelInviteBatchQuery {
+	return NewUserClient(_m.config).QueryChannelInviteBatches(_m)
+}
+
+// QueryChannelInviteUsages queries the "channel_invite_usages" edge of the User entity.
+func (_m *User) QueryChannelInviteUsages() *ChannelInviteCodeUsageQuery {
+	return NewUserClient(_m.config).QueryChannelInviteUsages(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.

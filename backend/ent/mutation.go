@@ -18,6 +18,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecode"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -55,6 +59,10 @@ const (
 	TypeAlipayOrder             = "AlipayOrder"
 	TypeAnnouncement            = "Announcement"
 	TypeAnnouncementRead        = "AnnouncementRead"
+	TypeChannelInviteBatch      = "ChannelInviteBatch"
+	TypeChannelInviteBatchGroup = "ChannelInviteBatchGroup"
+	TypeChannelInviteCode       = "ChannelInviteCode"
+	TypeChannelInviteCodeUsage  = "ChannelInviteCodeUsage"
 	TypeErrorPassthroughRule    = "ErrorPassthroughRule"
 	TypeGroup                   = "Group"
 	TypeIdempotencyRecord       = "IdempotencyRecord"
@@ -8071,6 +8079,3373 @@ func (m *AnnouncementReadMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown AnnouncementRead edge %s", name)
 }
 
+// ChannelInviteBatchMutation represents an operation that mutates the ChannelInviteBatch nodes in the graph.
+type ChannelInviteBatchMutation struct {
+	config
+	op                   Op
+	typ                  string
+	id                   *int64
+	name                 *string
+	bonus_amount         *float64
+	addbonus_amount      *float64
+	max_uses_per_code    *int
+	addmax_uses_per_code *int
+	start_time           *time.Time
+	end_time             *time.Time
+	status               *string
+	notes                *string
+	created_at           *time.Time
+	updated_at           *time.Time
+	clearedFields        map[string]struct{}
+	creator              *int64
+	clearedcreator       bool
+	codes                map[int64]struct{}
+	removedcodes         map[int64]struct{}
+	clearedcodes         bool
+	batch_groups         map[int64]struct{}
+	removedbatch_groups  map[int64]struct{}
+	clearedbatch_groups  bool
+	usages               map[int64]struct{}
+	removedusages        map[int64]struct{}
+	clearedusages        bool
+	done                 bool
+	oldValue             func(context.Context) (*ChannelInviteBatch, error)
+	predicates           []predicate.ChannelInviteBatch
+}
+
+var _ ent.Mutation = (*ChannelInviteBatchMutation)(nil)
+
+// channelinvitebatchOption allows management of the mutation configuration using functional options.
+type channelinvitebatchOption func(*ChannelInviteBatchMutation)
+
+// newChannelInviteBatchMutation creates new mutation for the ChannelInviteBatch entity.
+func newChannelInviteBatchMutation(c config, op Op, opts ...channelinvitebatchOption) *ChannelInviteBatchMutation {
+	m := &ChannelInviteBatchMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeChannelInviteBatch,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withChannelInviteBatchID sets the ID field of the mutation.
+func withChannelInviteBatchID(id int64) channelinvitebatchOption {
+	return func(m *ChannelInviteBatchMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ChannelInviteBatch
+		)
+		m.oldValue = func(ctx context.Context) (*ChannelInviteBatch, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ChannelInviteBatch.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withChannelInviteBatch sets the old ChannelInviteBatch of the mutation.
+func withChannelInviteBatch(node *ChannelInviteBatch) channelinvitebatchOption {
+	return func(m *ChannelInviteBatchMutation) {
+		m.oldValue = func(context.Context) (*ChannelInviteBatch, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ChannelInviteBatchMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ChannelInviteBatchMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ChannelInviteBatchMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ChannelInviteBatchMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ChannelInviteBatch.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *ChannelInviteBatchMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *ChannelInviteBatchMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *ChannelInviteBatchMutation) ResetName() {
+	m.name = nil
+}
+
+// SetBonusAmount sets the "bonus_amount" field.
+func (m *ChannelInviteBatchMutation) SetBonusAmount(f float64) {
+	m.bonus_amount = &f
+	m.addbonus_amount = nil
+}
+
+// BonusAmount returns the value of the "bonus_amount" field in the mutation.
+func (m *ChannelInviteBatchMutation) BonusAmount() (r float64, exists bool) {
+	v := m.bonus_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBonusAmount returns the old "bonus_amount" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldBonusAmount(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBonusAmount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBonusAmount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBonusAmount: %w", err)
+	}
+	return oldValue.BonusAmount, nil
+}
+
+// AddBonusAmount adds f to the "bonus_amount" field.
+func (m *ChannelInviteBatchMutation) AddBonusAmount(f float64) {
+	if m.addbonus_amount != nil {
+		*m.addbonus_amount += f
+	} else {
+		m.addbonus_amount = &f
+	}
+}
+
+// AddedBonusAmount returns the value that was added to the "bonus_amount" field in this mutation.
+func (m *ChannelInviteBatchMutation) AddedBonusAmount() (r float64, exists bool) {
+	v := m.addbonus_amount
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetBonusAmount resets all changes to the "bonus_amount" field.
+func (m *ChannelInviteBatchMutation) ResetBonusAmount() {
+	m.bonus_amount = nil
+	m.addbonus_amount = nil
+}
+
+// SetMaxUsesPerCode sets the "max_uses_per_code" field.
+func (m *ChannelInviteBatchMutation) SetMaxUsesPerCode(i int) {
+	m.max_uses_per_code = &i
+	m.addmax_uses_per_code = nil
+}
+
+// MaxUsesPerCode returns the value of the "max_uses_per_code" field in the mutation.
+func (m *ChannelInviteBatchMutation) MaxUsesPerCode() (r int, exists bool) {
+	v := m.max_uses_per_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxUsesPerCode returns the old "max_uses_per_code" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldMaxUsesPerCode(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxUsesPerCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxUsesPerCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxUsesPerCode: %w", err)
+	}
+	return oldValue.MaxUsesPerCode, nil
+}
+
+// AddMaxUsesPerCode adds i to the "max_uses_per_code" field.
+func (m *ChannelInviteBatchMutation) AddMaxUsesPerCode(i int) {
+	if m.addmax_uses_per_code != nil {
+		*m.addmax_uses_per_code += i
+	} else {
+		m.addmax_uses_per_code = &i
+	}
+}
+
+// AddedMaxUsesPerCode returns the value that was added to the "max_uses_per_code" field in this mutation.
+func (m *ChannelInviteBatchMutation) AddedMaxUsesPerCode() (r int, exists bool) {
+	v := m.addmax_uses_per_code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxUsesPerCode resets all changes to the "max_uses_per_code" field.
+func (m *ChannelInviteBatchMutation) ResetMaxUsesPerCode() {
+	m.max_uses_per_code = nil
+	m.addmax_uses_per_code = nil
+}
+
+// SetStartTime sets the "start_time" field.
+func (m *ChannelInviteBatchMutation) SetStartTime(t time.Time) {
+	m.start_time = &t
+}
+
+// StartTime returns the value of the "start_time" field in the mutation.
+func (m *ChannelInviteBatchMutation) StartTime() (r time.Time, exists bool) {
+	v := m.start_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartTime returns the old "start_time" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldStartTime(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartTime: %w", err)
+	}
+	return oldValue.StartTime, nil
+}
+
+// ClearStartTime clears the value of the "start_time" field.
+func (m *ChannelInviteBatchMutation) ClearStartTime() {
+	m.start_time = nil
+	m.clearedFields[channelinvitebatch.FieldStartTime] = struct{}{}
+}
+
+// StartTimeCleared returns if the "start_time" field was cleared in this mutation.
+func (m *ChannelInviteBatchMutation) StartTimeCleared() bool {
+	_, ok := m.clearedFields[channelinvitebatch.FieldStartTime]
+	return ok
+}
+
+// ResetStartTime resets all changes to the "start_time" field.
+func (m *ChannelInviteBatchMutation) ResetStartTime() {
+	m.start_time = nil
+	delete(m.clearedFields, channelinvitebatch.FieldStartTime)
+}
+
+// SetEndTime sets the "end_time" field.
+func (m *ChannelInviteBatchMutation) SetEndTime(t time.Time) {
+	m.end_time = &t
+}
+
+// EndTime returns the value of the "end_time" field in the mutation.
+func (m *ChannelInviteBatchMutation) EndTime() (r time.Time, exists bool) {
+	v := m.end_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndTime returns the old "end_time" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldEndTime(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndTime: %w", err)
+	}
+	return oldValue.EndTime, nil
+}
+
+// ClearEndTime clears the value of the "end_time" field.
+func (m *ChannelInviteBatchMutation) ClearEndTime() {
+	m.end_time = nil
+	m.clearedFields[channelinvitebatch.FieldEndTime] = struct{}{}
+}
+
+// EndTimeCleared returns if the "end_time" field was cleared in this mutation.
+func (m *ChannelInviteBatchMutation) EndTimeCleared() bool {
+	_, ok := m.clearedFields[channelinvitebatch.FieldEndTime]
+	return ok
+}
+
+// ResetEndTime resets all changes to the "end_time" field.
+func (m *ChannelInviteBatchMutation) ResetEndTime() {
+	m.end_time = nil
+	delete(m.clearedFields, channelinvitebatch.FieldEndTime)
+}
+
+// SetStatus sets the "status" field.
+func (m *ChannelInviteBatchMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *ChannelInviteBatchMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *ChannelInviteBatchMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetNotes sets the "notes" field.
+func (m *ChannelInviteBatchMutation) SetNotes(s string) {
+	m.notes = &s
+}
+
+// Notes returns the value of the "notes" field in the mutation.
+func (m *ChannelInviteBatchMutation) Notes() (r string, exists bool) {
+	v := m.notes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNotes returns the old "notes" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldNotes(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNotes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNotes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNotes: %w", err)
+	}
+	return oldValue.Notes, nil
+}
+
+// ClearNotes clears the value of the "notes" field.
+func (m *ChannelInviteBatchMutation) ClearNotes() {
+	m.notes = nil
+	m.clearedFields[channelinvitebatch.FieldNotes] = struct{}{}
+}
+
+// NotesCleared returns if the "notes" field was cleared in this mutation.
+func (m *ChannelInviteBatchMutation) NotesCleared() bool {
+	_, ok := m.clearedFields[channelinvitebatch.FieldNotes]
+	return ok
+}
+
+// ResetNotes resets all changes to the "notes" field.
+func (m *ChannelInviteBatchMutation) ResetNotes() {
+	m.notes = nil
+	delete(m.clearedFields, channelinvitebatch.FieldNotes)
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *ChannelInviteBatchMutation) SetCreatedBy(i int64) {
+	m.creator = &i
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *ChannelInviteBatchMutation) CreatedBy() (r int64, exists bool) {
+	v := m.creator
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldCreatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *ChannelInviteBatchMutation) ResetCreatedBy() {
+	m.creator = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ChannelInviteBatchMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ChannelInviteBatchMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ChannelInviteBatchMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ChannelInviteBatchMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ChannelInviteBatchMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ChannelInviteBatchMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetCreatorID sets the "creator" edge to the User entity by id.
+func (m *ChannelInviteBatchMutation) SetCreatorID(id int64) {
+	m.creator = &id
+}
+
+// ClearCreator clears the "creator" edge to the User entity.
+func (m *ChannelInviteBatchMutation) ClearCreator() {
+	m.clearedcreator = true
+	m.clearedFields[channelinvitebatch.FieldCreatedBy] = struct{}{}
+}
+
+// CreatorCleared reports if the "creator" edge to the User entity was cleared.
+func (m *ChannelInviteBatchMutation) CreatorCleared() bool {
+	return m.clearedcreator
+}
+
+// CreatorID returns the "creator" edge ID in the mutation.
+func (m *ChannelInviteBatchMutation) CreatorID() (id int64, exists bool) {
+	if m.creator != nil {
+		return *m.creator, true
+	}
+	return
+}
+
+// CreatorIDs returns the "creator" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CreatorID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteBatchMutation) CreatorIDs() (ids []int64) {
+	if id := m.creator; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCreator resets all changes to the "creator" edge.
+func (m *ChannelInviteBatchMutation) ResetCreator() {
+	m.creator = nil
+	m.clearedcreator = false
+}
+
+// AddCodeIDs adds the "codes" edge to the ChannelInviteCode entity by ids.
+func (m *ChannelInviteBatchMutation) AddCodeIDs(ids ...int64) {
+	if m.codes == nil {
+		m.codes = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.codes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCodes clears the "codes" edge to the ChannelInviteCode entity.
+func (m *ChannelInviteBatchMutation) ClearCodes() {
+	m.clearedcodes = true
+}
+
+// CodesCleared reports if the "codes" edge to the ChannelInviteCode entity was cleared.
+func (m *ChannelInviteBatchMutation) CodesCleared() bool {
+	return m.clearedcodes
+}
+
+// RemoveCodeIDs removes the "codes" edge to the ChannelInviteCode entity by IDs.
+func (m *ChannelInviteBatchMutation) RemoveCodeIDs(ids ...int64) {
+	if m.removedcodes == nil {
+		m.removedcodes = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.codes, ids[i])
+		m.removedcodes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCodes returns the removed IDs of the "codes" edge to the ChannelInviteCode entity.
+func (m *ChannelInviteBatchMutation) RemovedCodesIDs() (ids []int64) {
+	for id := range m.removedcodes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CodesIDs returns the "codes" edge IDs in the mutation.
+func (m *ChannelInviteBatchMutation) CodesIDs() (ids []int64) {
+	for id := range m.codes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCodes resets all changes to the "codes" edge.
+func (m *ChannelInviteBatchMutation) ResetCodes() {
+	m.codes = nil
+	m.clearedcodes = false
+	m.removedcodes = nil
+}
+
+// AddBatchGroupIDs adds the "batch_groups" edge to the ChannelInviteBatchGroup entity by ids.
+func (m *ChannelInviteBatchMutation) AddBatchGroupIDs(ids ...int64) {
+	if m.batch_groups == nil {
+		m.batch_groups = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.batch_groups[ids[i]] = struct{}{}
+	}
+}
+
+// ClearBatchGroups clears the "batch_groups" edge to the ChannelInviteBatchGroup entity.
+func (m *ChannelInviteBatchMutation) ClearBatchGroups() {
+	m.clearedbatch_groups = true
+}
+
+// BatchGroupsCleared reports if the "batch_groups" edge to the ChannelInviteBatchGroup entity was cleared.
+func (m *ChannelInviteBatchMutation) BatchGroupsCleared() bool {
+	return m.clearedbatch_groups
+}
+
+// RemoveBatchGroupIDs removes the "batch_groups" edge to the ChannelInviteBatchGroup entity by IDs.
+func (m *ChannelInviteBatchMutation) RemoveBatchGroupIDs(ids ...int64) {
+	if m.removedbatch_groups == nil {
+		m.removedbatch_groups = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.batch_groups, ids[i])
+		m.removedbatch_groups[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedBatchGroups returns the removed IDs of the "batch_groups" edge to the ChannelInviteBatchGroup entity.
+func (m *ChannelInviteBatchMutation) RemovedBatchGroupsIDs() (ids []int64) {
+	for id := range m.removedbatch_groups {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// BatchGroupsIDs returns the "batch_groups" edge IDs in the mutation.
+func (m *ChannelInviteBatchMutation) BatchGroupsIDs() (ids []int64) {
+	for id := range m.batch_groups {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetBatchGroups resets all changes to the "batch_groups" edge.
+func (m *ChannelInviteBatchMutation) ResetBatchGroups() {
+	m.batch_groups = nil
+	m.clearedbatch_groups = false
+	m.removedbatch_groups = nil
+}
+
+// AddUsageIDs adds the "usages" edge to the ChannelInviteCodeUsage entity by ids.
+func (m *ChannelInviteBatchMutation) AddUsageIDs(ids ...int64) {
+	if m.usages == nil {
+		m.usages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.usages[ids[i]] = struct{}{}
+	}
+}
+
+// ClearUsages clears the "usages" edge to the ChannelInviteCodeUsage entity.
+func (m *ChannelInviteBatchMutation) ClearUsages() {
+	m.clearedusages = true
+}
+
+// UsagesCleared reports if the "usages" edge to the ChannelInviteCodeUsage entity was cleared.
+func (m *ChannelInviteBatchMutation) UsagesCleared() bool {
+	return m.clearedusages
+}
+
+// RemoveUsageIDs removes the "usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (m *ChannelInviteBatchMutation) RemoveUsageIDs(ids ...int64) {
+	if m.removedusages == nil {
+		m.removedusages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.usages, ids[i])
+		m.removedusages[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedUsages returns the removed IDs of the "usages" edge to the ChannelInviteCodeUsage entity.
+func (m *ChannelInviteBatchMutation) RemovedUsagesIDs() (ids []int64) {
+	for id := range m.removedusages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// UsagesIDs returns the "usages" edge IDs in the mutation.
+func (m *ChannelInviteBatchMutation) UsagesIDs() (ids []int64) {
+	for id := range m.usages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetUsages resets all changes to the "usages" edge.
+func (m *ChannelInviteBatchMutation) ResetUsages() {
+	m.usages = nil
+	m.clearedusages = false
+	m.removedusages = nil
+}
+
+// Where appends a list predicates to the ChannelInviteBatchMutation builder.
+func (m *ChannelInviteBatchMutation) Where(ps ...predicate.ChannelInviteBatch) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ChannelInviteBatchMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ChannelInviteBatchMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ChannelInviteBatch, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ChannelInviteBatchMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ChannelInviteBatchMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ChannelInviteBatch).
+func (m *ChannelInviteBatchMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ChannelInviteBatchMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.name != nil {
+		fields = append(fields, channelinvitebatch.FieldName)
+	}
+	if m.bonus_amount != nil {
+		fields = append(fields, channelinvitebatch.FieldBonusAmount)
+	}
+	if m.max_uses_per_code != nil {
+		fields = append(fields, channelinvitebatch.FieldMaxUsesPerCode)
+	}
+	if m.start_time != nil {
+		fields = append(fields, channelinvitebatch.FieldStartTime)
+	}
+	if m.end_time != nil {
+		fields = append(fields, channelinvitebatch.FieldEndTime)
+	}
+	if m.status != nil {
+		fields = append(fields, channelinvitebatch.FieldStatus)
+	}
+	if m.notes != nil {
+		fields = append(fields, channelinvitebatch.FieldNotes)
+	}
+	if m.creator != nil {
+		fields = append(fields, channelinvitebatch.FieldCreatedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, channelinvitebatch.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, channelinvitebatch.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ChannelInviteBatchMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case channelinvitebatch.FieldName:
+		return m.Name()
+	case channelinvitebatch.FieldBonusAmount:
+		return m.BonusAmount()
+	case channelinvitebatch.FieldMaxUsesPerCode:
+		return m.MaxUsesPerCode()
+	case channelinvitebatch.FieldStartTime:
+		return m.StartTime()
+	case channelinvitebatch.FieldEndTime:
+		return m.EndTime()
+	case channelinvitebatch.FieldStatus:
+		return m.Status()
+	case channelinvitebatch.FieldNotes:
+		return m.Notes()
+	case channelinvitebatch.FieldCreatedBy:
+		return m.CreatedBy()
+	case channelinvitebatch.FieldCreatedAt:
+		return m.CreatedAt()
+	case channelinvitebatch.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ChannelInviteBatchMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case channelinvitebatch.FieldName:
+		return m.OldName(ctx)
+	case channelinvitebatch.FieldBonusAmount:
+		return m.OldBonusAmount(ctx)
+	case channelinvitebatch.FieldMaxUsesPerCode:
+		return m.OldMaxUsesPerCode(ctx)
+	case channelinvitebatch.FieldStartTime:
+		return m.OldStartTime(ctx)
+	case channelinvitebatch.FieldEndTime:
+		return m.OldEndTime(ctx)
+	case channelinvitebatch.FieldStatus:
+		return m.OldStatus(ctx)
+	case channelinvitebatch.FieldNotes:
+		return m.OldNotes(ctx)
+	case channelinvitebatch.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
+	case channelinvitebatch.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case channelinvitebatch.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ChannelInviteBatch field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteBatchMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case channelinvitebatch.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case channelinvitebatch.FieldBonusAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBonusAmount(v)
+		return nil
+	case channelinvitebatch.FieldMaxUsesPerCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxUsesPerCode(v)
+		return nil
+	case channelinvitebatch.FieldStartTime:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartTime(v)
+		return nil
+	case channelinvitebatch.FieldEndTime:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndTime(v)
+		return nil
+	case channelinvitebatch.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case channelinvitebatch.FieldNotes:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNotes(v)
+		return nil
+	case channelinvitebatch.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
+		return nil
+	case channelinvitebatch.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case channelinvitebatch.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatch field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ChannelInviteBatchMutation) AddedFields() []string {
+	var fields []string
+	if m.addbonus_amount != nil {
+		fields = append(fields, channelinvitebatch.FieldBonusAmount)
+	}
+	if m.addmax_uses_per_code != nil {
+		fields = append(fields, channelinvitebatch.FieldMaxUsesPerCode)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ChannelInviteBatchMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case channelinvitebatch.FieldBonusAmount:
+		return m.AddedBonusAmount()
+	case channelinvitebatch.FieldMaxUsesPerCode:
+		return m.AddedMaxUsesPerCode()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteBatchMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case channelinvitebatch.FieldBonusAmount:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddBonusAmount(v)
+		return nil
+	case channelinvitebatch.FieldMaxUsesPerCode:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxUsesPerCode(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatch numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ChannelInviteBatchMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(channelinvitebatch.FieldStartTime) {
+		fields = append(fields, channelinvitebatch.FieldStartTime)
+	}
+	if m.FieldCleared(channelinvitebatch.FieldEndTime) {
+		fields = append(fields, channelinvitebatch.FieldEndTime)
+	}
+	if m.FieldCleared(channelinvitebatch.FieldNotes) {
+		fields = append(fields, channelinvitebatch.FieldNotes)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ChannelInviteBatchMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ChannelInviteBatchMutation) ClearField(name string) error {
+	switch name {
+	case channelinvitebatch.FieldStartTime:
+		m.ClearStartTime()
+		return nil
+	case channelinvitebatch.FieldEndTime:
+		m.ClearEndTime()
+		return nil
+	case channelinvitebatch.FieldNotes:
+		m.ClearNotes()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatch nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ChannelInviteBatchMutation) ResetField(name string) error {
+	switch name {
+	case channelinvitebatch.FieldName:
+		m.ResetName()
+		return nil
+	case channelinvitebatch.FieldBonusAmount:
+		m.ResetBonusAmount()
+		return nil
+	case channelinvitebatch.FieldMaxUsesPerCode:
+		m.ResetMaxUsesPerCode()
+		return nil
+	case channelinvitebatch.FieldStartTime:
+		m.ResetStartTime()
+		return nil
+	case channelinvitebatch.FieldEndTime:
+		m.ResetEndTime()
+		return nil
+	case channelinvitebatch.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case channelinvitebatch.FieldNotes:
+		m.ResetNotes()
+		return nil
+	case channelinvitebatch.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	case channelinvitebatch.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case channelinvitebatch.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatch field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ChannelInviteBatchMutation) AddedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.creator != nil {
+		edges = append(edges, channelinvitebatch.EdgeCreator)
+	}
+	if m.codes != nil {
+		edges = append(edges, channelinvitebatch.EdgeCodes)
+	}
+	if m.batch_groups != nil {
+		edges = append(edges, channelinvitebatch.EdgeBatchGroups)
+	}
+	if m.usages != nil {
+		edges = append(edges, channelinvitebatch.EdgeUsages)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ChannelInviteBatchMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case channelinvitebatch.EdgeCreator:
+		if id := m.creator; id != nil {
+			return []ent.Value{*id}
+		}
+	case channelinvitebatch.EdgeCodes:
+		ids := make([]ent.Value, 0, len(m.codes))
+		for id := range m.codes {
+			ids = append(ids, id)
+		}
+		return ids
+	case channelinvitebatch.EdgeBatchGroups:
+		ids := make([]ent.Value, 0, len(m.batch_groups))
+		for id := range m.batch_groups {
+			ids = append(ids, id)
+		}
+		return ids
+	case channelinvitebatch.EdgeUsages:
+		ids := make([]ent.Value, 0, len(m.usages))
+		for id := range m.usages {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ChannelInviteBatchMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.removedcodes != nil {
+		edges = append(edges, channelinvitebatch.EdgeCodes)
+	}
+	if m.removedbatch_groups != nil {
+		edges = append(edges, channelinvitebatch.EdgeBatchGroups)
+	}
+	if m.removedusages != nil {
+		edges = append(edges, channelinvitebatch.EdgeUsages)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ChannelInviteBatchMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case channelinvitebatch.EdgeCodes:
+		ids := make([]ent.Value, 0, len(m.removedcodes))
+		for id := range m.removedcodes {
+			ids = append(ids, id)
+		}
+		return ids
+	case channelinvitebatch.EdgeBatchGroups:
+		ids := make([]ent.Value, 0, len(m.removedbatch_groups))
+		for id := range m.removedbatch_groups {
+			ids = append(ids, id)
+		}
+		return ids
+	case channelinvitebatch.EdgeUsages:
+		ids := make([]ent.Value, 0, len(m.removedusages))
+		for id := range m.removedusages {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ChannelInviteBatchMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.clearedcreator {
+		edges = append(edges, channelinvitebatch.EdgeCreator)
+	}
+	if m.clearedcodes {
+		edges = append(edges, channelinvitebatch.EdgeCodes)
+	}
+	if m.clearedbatch_groups {
+		edges = append(edges, channelinvitebatch.EdgeBatchGroups)
+	}
+	if m.clearedusages {
+		edges = append(edges, channelinvitebatch.EdgeUsages)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ChannelInviteBatchMutation) EdgeCleared(name string) bool {
+	switch name {
+	case channelinvitebatch.EdgeCreator:
+		return m.clearedcreator
+	case channelinvitebatch.EdgeCodes:
+		return m.clearedcodes
+	case channelinvitebatch.EdgeBatchGroups:
+		return m.clearedbatch_groups
+	case channelinvitebatch.EdgeUsages:
+		return m.clearedusages
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ChannelInviteBatchMutation) ClearEdge(name string) error {
+	switch name {
+	case channelinvitebatch.EdgeCreator:
+		m.ClearCreator()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatch unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ChannelInviteBatchMutation) ResetEdge(name string) error {
+	switch name {
+	case channelinvitebatch.EdgeCreator:
+		m.ResetCreator()
+		return nil
+	case channelinvitebatch.EdgeCodes:
+		m.ResetCodes()
+		return nil
+	case channelinvitebatch.EdgeBatchGroups:
+		m.ResetBatchGroups()
+		return nil
+	case channelinvitebatch.EdgeUsages:
+		m.ResetUsages()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatch edge %s", name)
+}
+
+// ChannelInviteBatchGroupMutation represents an operation that mutates the ChannelInviteBatchGroup nodes in the graph.
+type ChannelInviteBatchGroupMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	clearedFields map[string]struct{}
+	batch         *int64
+	clearedbatch  bool
+	group         *int64
+	clearedgroup  bool
+	done          bool
+	oldValue      func(context.Context) (*ChannelInviteBatchGroup, error)
+	predicates    []predicate.ChannelInviteBatchGroup
+}
+
+var _ ent.Mutation = (*ChannelInviteBatchGroupMutation)(nil)
+
+// channelinvitebatchgroupOption allows management of the mutation configuration using functional options.
+type channelinvitebatchgroupOption func(*ChannelInviteBatchGroupMutation)
+
+// newChannelInviteBatchGroupMutation creates new mutation for the ChannelInviteBatchGroup entity.
+func newChannelInviteBatchGroupMutation(c config, op Op, opts ...channelinvitebatchgroupOption) *ChannelInviteBatchGroupMutation {
+	m := &ChannelInviteBatchGroupMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeChannelInviteBatchGroup,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withChannelInviteBatchGroupID sets the ID field of the mutation.
+func withChannelInviteBatchGroupID(id int64) channelinvitebatchgroupOption {
+	return func(m *ChannelInviteBatchGroupMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ChannelInviteBatchGroup
+		)
+		m.oldValue = func(ctx context.Context) (*ChannelInviteBatchGroup, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ChannelInviteBatchGroup.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withChannelInviteBatchGroup sets the old ChannelInviteBatchGroup of the mutation.
+func withChannelInviteBatchGroup(node *ChannelInviteBatchGroup) channelinvitebatchgroupOption {
+	return func(m *ChannelInviteBatchGroupMutation) {
+		m.oldValue = func(context.Context) (*ChannelInviteBatchGroup, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ChannelInviteBatchGroupMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ChannelInviteBatchGroupMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ChannelInviteBatchGroupMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ChannelInviteBatchGroupMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ChannelInviteBatchGroup.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetBatchID sets the "batch_id" field.
+func (m *ChannelInviteBatchGroupMutation) SetBatchID(i int64) {
+	m.batch = &i
+}
+
+// BatchID returns the value of the "batch_id" field in the mutation.
+func (m *ChannelInviteBatchGroupMutation) BatchID() (r int64, exists bool) {
+	v := m.batch
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchID returns the old "batch_id" field's value of the ChannelInviteBatchGroup entity.
+// If the ChannelInviteBatchGroup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchGroupMutation) OldBatchID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchID: %w", err)
+	}
+	return oldValue.BatchID, nil
+}
+
+// ResetBatchID resets all changes to the "batch_id" field.
+func (m *ChannelInviteBatchGroupMutation) ResetBatchID() {
+	m.batch = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *ChannelInviteBatchGroupMutation) SetGroupID(i int64) {
+	m.group = &i
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *ChannelInviteBatchGroupMutation) GroupID() (r int64, exists bool) {
+	v := m.group
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the ChannelInviteBatchGroup entity.
+// If the ChannelInviteBatchGroup object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchGroupMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *ChannelInviteBatchGroupMutation) ResetGroupID() {
+	m.group = nil
+}
+
+// ClearBatch clears the "batch" edge to the ChannelInviteBatch entity.
+func (m *ChannelInviteBatchGroupMutation) ClearBatch() {
+	m.clearedbatch = true
+	m.clearedFields[channelinvitebatchgroup.FieldBatchID] = struct{}{}
+}
+
+// BatchCleared reports if the "batch" edge to the ChannelInviteBatch entity was cleared.
+func (m *ChannelInviteBatchGroupMutation) BatchCleared() bool {
+	return m.clearedbatch
+}
+
+// BatchIDs returns the "batch" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// BatchID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteBatchGroupMutation) BatchIDs() (ids []int64) {
+	if id := m.batch; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetBatch resets all changes to the "batch" edge.
+func (m *ChannelInviteBatchGroupMutation) ResetBatch() {
+	m.batch = nil
+	m.clearedbatch = false
+}
+
+// ClearGroup clears the "group" edge to the Group entity.
+func (m *ChannelInviteBatchGroupMutation) ClearGroup() {
+	m.clearedgroup = true
+	m.clearedFields[channelinvitebatchgroup.FieldGroupID] = struct{}{}
+}
+
+// GroupCleared reports if the "group" edge to the Group entity was cleared.
+func (m *ChannelInviteBatchGroupMutation) GroupCleared() bool {
+	return m.clearedgroup
+}
+
+// GroupIDs returns the "group" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// GroupID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteBatchGroupMutation) GroupIDs() (ids []int64) {
+	if id := m.group; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetGroup resets all changes to the "group" edge.
+func (m *ChannelInviteBatchGroupMutation) ResetGroup() {
+	m.group = nil
+	m.clearedgroup = false
+}
+
+// Where appends a list predicates to the ChannelInviteBatchGroupMutation builder.
+func (m *ChannelInviteBatchGroupMutation) Where(ps ...predicate.ChannelInviteBatchGroup) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ChannelInviteBatchGroupMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ChannelInviteBatchGroupMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ChannelInviteBatchGroup, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ChannelInviteBatchGroupMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ChannelInviteBatchGroupMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ChannelInviteBatchGroup).
+func (m *ChannelInviteBatchGroupMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ChannelInviteBatchGroupMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.batch != nil {
+		fields = append(fields, channelinvitebatchgroup.FieldBatchID)
+	}
+	if m.group != nil {
+		fields = append(fields, channelinvitebatchgroup.FieldGroupID)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ChannelInviteBatchGroupMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case channelinvitebatchgroup.FieldBatchID:
+		return m.BatchID()
+	case channelinvitebatchgroup.FieldGroupID:
+		return m.GroupID()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ChannelInviteBatchGroupMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case channelinvitebatchgroup.FieldBatchID:
+		return m.OldBatchID(ctx)
+	case channelinvitebatchgroup.FieldGroupID:
+		return m.OldGroupID(ctx)
+	}
+	return nil, fmt.Errorf("unknown ChannelInviteBatchGroup field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteBatchGroupMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case channelinvitebatchgroup.FieldBatchID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchID(v)
+		return nil
+	case channelinvitebatchgroup.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatchGroup field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ChannelInviteBatchGroupMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ChannelInviteBatchGroupMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteBatchGroupMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown ChannelInviteBatchGroup numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ChannelInviteBatchGroupMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ChannelInviteBatchGroupMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ChannelInviteBatchGroupMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ChannelInviteBatchGroup nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ChannelInviteBatchGroupMutation) ResetField(name string) error {
+	switch name {
+	case channelinvitebatchgroup.FieldBatchID:
+		m.ResetBatchID()
+		return nil
+	case channelinvitebatchgroup.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatchGroup field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ChannelInviteBatchGroupMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.batch != nil {
+		edges = append(edges, channelinvitebatchgroup.EdgeBatch)
+	}
+	if m.group != nil {
+		edges = append(edges, channelinvitebatchgroup.EdgeGroup)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ChannelInviteBatchGroupMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case channelinvitebatchgroup.EdgeBatch:
+		if id := m.batch; id != nil {
+			return []ent.Value{*id}
+		}
+	case channelinvitebatchgroup.EdgeGroup:
+		if id := m.group; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ChannelInviteBatchGroupMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ChannelInviteBatchGroupMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ChannelInviteBatchGroupMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedbatch {
+		edges = append(edges, channelinvitebatchgroup.EdgeBatch)
+	}
+	if m.clearedgroup {
+		edges = append(edges, channelinvitebatchgroup.EdgeGroup)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ChannelInviteBatchGroupMutation) EdgeCleared(name string) bool {
+	switch name {
+	case channelinvitebatchgroup.EdgeBatch:
+		return m.clearedbatch
+	case channelinvitebatchgroup.EdgeGroup:
+		return m.clearedgroup
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ChannelInviteBatchGroupMutation) ClearEdge(name string) error {
+	switch name {
+	case channelinvitebatchgroup.EdgeBatch:
+		m.ClearBatch()
+		return nil
+	case channelinvitebatchgroup.EdgeGroup:
+		m.ClearGroup()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatchGroup unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ChannelInviteBatchGroupMutation) ResetEdge(name string) error {
+	switch name {
+	case channelinvitebatchgroup.EdgeBatch:
+		m.ResetBatch()
+		return nil
+	case channelinvitebatchgroup.EdgeGroup:
+		m.ResetGroup()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteBatchGroup edge %s", name)
+}
+
+// ChannelInviteCodeMutation represents an operation that mutates the ChannelInviteCode nodes in the graph.
+type ChannelInviteCodeMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int64
+	code          *string
+	status        *string
+	max_uses      *int
+	addmax_uses   *int
+	used_count    *int
+	addused_count *int
+	created_at    *time.Time
+	updated_at    *time.Time
+	clearedFields map[string]struct{}
+	batch         *int64
+	clearedbatch  bool
+	usages        map[int64]struct{}
+	removedusages map[int64]struct{}
+	clearedusages bool
+	done          bool
+	oldValue      func(context.Context) (*ChannelInviteCode, error)
+	predicates    []predicate.ChannelInviteCode
+}
+
+var _ ent.Mutation = (*ChannelInviteCodeMutation)(nil)
+
+// channelinvitecodeOption allows management of the mutation configuration using functional options.
+type channelinvitecodeOption func(*ChannelInviteCodeMutation)
+
+// newChannelInviteCodeMutation creates new mutation for the ChannelInviteCode entity.
+func newChannelInviteCodeMutation(c config, op Op, opts ...channelinvitecodeOption) *ChannelInviteCodeMutation {
+	m := &ChannelInviteCodeMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeChannelInviteCode,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withChannelInviteCodeID sets the ID field of the mutation.
+func withChannelInviteCodeID(id int64) channelinvitecodeOption {
+	return func(m *ChannelInviteCodeMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ChannelInviteCode
+		)
+		m.oldValue = func(ctx context.Context) (*ChannelInviteCode, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ChannelInviteCode.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withChannelInviteCode sets the old ChannelInviteCode of the mutation.
+func withChannelInviteCode(node *ChannelInviteCode) channelinvitecodeOption {
+	return func(m *ChannelInviteCodeMutation) {
+		m.oldValue = func(context.Context) (*ChannelInviteCode, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ChannelInviteCodeMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ChannelInviteCodeMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ChannelInviteCodeMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ChannelInviteCodeMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ChannelInviteCode.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetBatchID sets the "batch_id" field.
+func (m *ChannelInviteCodeMutation) SetBatchID(i int64) {
+	m.batch = &i
+}
+
+// BatchID returns the value of the "batch_id" field in the mutation.
+func (m *ChannelInviteCodeMutation) BatchID() (r int64, exists bool) {
+	v := m.batch
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchID returns the old "batch_id" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldBatchID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchID: %w", err)
+	}
+	return oldValue.BatchID, nil
+}
+
+// ResetBatchID resets all changes to the "batch_id" field.
+func (m *ChannelInviteCodeMutation) ResetBatchID() {
+	m.batch = nil
+}
+
+// SetCode sets the "code" field.
+func (m *ChannelInviteCodeMutation) SetCode(s string) {
+	m.code = &s
+}
+
+// Code returns the value of the "code" field in the mutation.
+func (m *ChannelInviteCodeMutation) Code() (r string, exists bool) {
+	v := m.code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCode returns the old "code" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldCode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCode: %w", err)
+	}
+	return oldValue.Code, nil
+}
+
+// ResetCode resets all changes to the "code" field.
+func (m *ChannelInviteCodeMutation) ResetCode() {
+	m.code = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *ChannelInviteCodeMutation) SetStatus(s string) {
+	m.status = &s
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *ChannelInviteCodeMutation) Status() (r string, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldStatus(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *ChannelInviteCodeMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetMaxUses sets the "max_uses" field.
+func (m *ChannelInviteCodeMutation) SetMaxUses(i int) {
+	m.max_uses = &i
+	m.addmax_uses = nil
+}
+
+// MaxUses returns the value of the "max_uses" field in the mutation.
+func (m *ChannelInviteCodeMutation) MaxUses() (r int, exists bool) {
+	v := m.max_uses
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxUses returns the old "max_uses" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldMaxUses(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxUses is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxUses requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxUses: %w", err)
+	}
+	return oldValue.MaxUses, nil
+}
+
+// AddMaxUses adds i to the "max_uses" field.
+func (m *ChannelInviteCodeMutation) AddMaxUses(i int) {
+	if m.addmax_uses != nil {
+		*m.addmax_uses += i
+	} else {
+		m.addmax_uses = &i
+	}
+}
+
+// AddedMaxUses returns the value that was added to the "max_uses" field in this mutation.
+func (m *ChannelInviteCodeMutation) AddedMaxUses() (r int, exists bool) {
+	v := m.addmax_uses
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxUses resets all changes to the "max_uses" field.
+func (m *ChannelInviteCodeMutation) ResetMaxUses() {
+	m.max_uses = nil
+	m.addmax_uses = nil
+}
+
+// SetUsedCount sets the "used_count" field.
+func (m *ChannelInviteCodeMutation) SetUsedCount(i int) {
+	m.used_count = &i
+	m.addused_count = nil
+}
+
+// UsedCount returns the value of the "used_count" field in the mutation.
+func (m *ChannelInviteCodeMutation) UsedCount() (r int, exists bool) {
+	v := m.used_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsedCount returns the old "used_count" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldUsedCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsedCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsedCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsedCount: %w", err)
+	}
+	return oldValue.UsedCount, nil
+}
+
+// AddUsedCount adds i to the "used_count" field.
+func (m *ChannelInviteCodeMutation) AddUsedCount(i int) {
+	if m.addused_count != nil {
+		*m.addused_count += i
+	} else {
+		m.addused_count = &i
+	}
+}
+
+// AddedUsedCount returns the value that was added to the "used_count" field in this mutation.
+func (m *ChannelInviteCodeMutation) AddedUsedCount() (r int, exists bool) {
+	v := m.addused_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUsedCount resets all changes to the "used_count" field.
+func (m *ChannelInviteCodeMutation) ResetUsedCount() {
+	m.used_count = nil
+	m.addused_count = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ChannelInviteCodeMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ChannelInviteCodeMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ChannelInviteCodeMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ChannelInviteCodeMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ChannelInviteCodeMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ChannelInviteCode entity.
+// If the ChannelInviteCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ChannelInviteCodeMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// ClearBatch clears the "batch" edge to the ChannelInviteBatch entity.
+func (m *ChannelInviteCodeMutation) ClearBatch() {
+	m.clearedbatch = true
+	m.clearedFields[channelinvitecode.FieldBatchID] = struct{}{}
+}
+
+// BatchCleared reports if the "batch" edge to the ChannelInviteBatch entity was cleared.
+func (m *ChannelInviteCodeMutation) BatchCleared() bool {
+	return m.clearedbatch
+}
+
+// BatchIDs returns the "batch" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// BatchID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteCodeMutation) BatchIDs() (ids []int64) {
+	if id := m.batch; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetBatch resets all changes to the "batch" edge.
+func (m *ChannelInviteCodeMutation) ResetBatch() {
+	m.batch = nil
+	m.clearedbatch = false
+}
+
+// AddUsageIDs adds the "usages" edge to the ChannelInviteCodeUsage entity by ids.
+func (m *ChannelInviteCodeMutation) AddUsageIDs(ids ...int64) {
+	if m.usages == nil {
+		m.usages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.usages[ids[i]] = struct{}{}
+	}
+}
+
+// ClearUsages clears the "usages" edge to the ChannelInviteCodeUsage entity.
+func (m *ChannelInviteCodeMutation) ClearUsages() {
+	m.clearedusages = true
+}
+
+// UsagesCleared reports if the "usages" edge to the ChannelInviteCodeUsage entity was cleared.
+func (m *ChannelInviteCodeMutation) UsagesCleared() bool {
+	return m.clearedusages
+}
+
+// RemoveUsageIDs removes the "usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (m *ChannelInviteCodeMutation) RemoveUsageIDs(ids ...int64) {
+	if m.removedusages == nil {
+		m.removedusages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.usages, ids[i])
+		m.removedusages[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedUsages returns the removed IDs of the "usages" edge to the ChannelInviteCodeUsage entity.
+func (m *ChannelInviteCodeMutation) RemovedUsagesIDs() (ids []int64) {
+	for id := range m.removedusages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// UsagesIDs returns the "usages" edge IDs in the mutation.
+func (m *ChannelInviteCodeMutation) UsagesIDs() (ids []int64) {
+	for id := range m.usages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetUsages resets all changes to the "usages" edge.
+func (m *ChannelInviteCodeMutation) ResetUsages() {
+	m.usages = nil
+	m.clearedusages = false
+	m.removedusages = nil
+}
+
+// Where appends a list predicates to the ChannelInviteCodeMutation builder.
+func (m *ChannelInviteCodeMutation) Where(ps ...predicate.ChannelInviteCode) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ChannelInviteCodeMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ChannelInviteCodeMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ChannelInviteCode, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ChannelInviteCodeMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ChannelInviteCodeMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ChannelInviteCode).
+func (m *ChannelInviteCodeMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ChannelInviteCodeMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.batch != nil {
+		fields = append(fields, channelinvitecode.FieldBatchID)
+	}
+	if m.code != nil {
+		fields = append(fields, channelinvitecode.FieldCode)
+	}
+	if m.status != nil {
+		fields = append(fields, channelinvitecode.FieldStatus)
+	}
+	if m.max_uses != nil {
+		fields = append(fields, channelinvitecode.FieldMaxUses)
+	}
+	if m.used_count != nil {
+		fields = append(fields, channelinvitecode.FieldUsedCount)
+	}
+	if m.created_at != nil {
+		fields = append(fields, channelinvitecode.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, channelinvitecode.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ChannelInviteCodeMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case channelinvitecode.FieldBatchID:
+		return m.BatchID()
+	case channelinvitecode.FieldCode:
+		return m.Code()
+	case channelinvitecode.FieldStatus:
+		return m.Status()
+	case channelinvitecode.FieldMaxUses:
+		return m.MaxUses()
+	case channelinvitecode.FieldUsedCount:
+		return m.UsedCount()
+	case channelinvitecode.FieldCreatedAt:
+		return m.CreatedAt()
+	case channelinvitecode.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ChannelInviteCodeMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case channelinvitecode.FieldBatchID:
+		return m.OldBatchID(ctx)
+	case channelinvitecode.FieldCode:
+		return m.OldCode(ctx)
+	case channelinvitecode.FieldStatus:
+		return m.OldStatus(ctx)
+	case channelinvitecode.FieldMaxUses:
+		return m.OldMaxUses(ctx)
+	case channelinvitecode.FieldUsedCount:
+		return m.OldUsedCount(ctx)
+	case channelinvitecode.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case channelinvitecode.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ChannelInviteCode field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteCodeMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case channelinvitecode.FieldBatchID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchID(v)
+		return nil
+	case channelinvitecode.FieldCode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCode(v)
+		return nil
+	case channelinvitecode.FieldStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case channelinvitecode.FieldMaxUses:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxUses(v)
+		return nil
+	case channelinvitecode.FieldUsedCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsedCount(v)
+		return nil
+	case channelinvitecode.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case channelinvitecode.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCode field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ChannelInviteCodeMutation) AddedFields() []string {
+	var fields []string
+	if m.addmax_uses != nil {
+		fields = append(fields, channelinvitecode.FieldMaxUses)
+	}
+	if m.addused_count != nil {
+		fields = append(fields, channelinvitecode.FieldUsedCount)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ChannelInviteCodeMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case channelinvitecode.FieldMaxUses:
+		return m.AddedMaxUses()
+	case channelinvitecode.FieldUsedCount:
+		return m.AddedUsedCount()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteCodeMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case channelinvitecode.FieldMaxUses:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxUses(v)
+		return nil
+	case channelinvitecode.FieldUsedCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddUsedCount(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCode numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ChannelInviteCodeMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ChannelInviteCodeMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ChannelInviteCodeMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown ChannelInviteCode nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ChannelInviteCodeMutation) ResetField(name string) error {
+	switch name {
+	case channelinvitecode.FieldBatchID:
+		m.ResetBatchID()
+		return nil
+	case channelinvitecode.FieldCode:
+		m.ResetCode()
+		return nil
+	case channelinvitecode.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case channelinvitecode.FieldMaxUses:
+		m.ResetMaxUses()
+		return nil
+	case channelinvitecode.FieldUsedCount:
+		m.ResetUsedCount()
+		return nil
+	case channelinvitecode.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case channelinvitecode.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCode field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ChannelInviteCodeMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.batch != nil {
+		edges = append(edges, channelinvitecode.EdgeBatch)
+	}
+	if m.usages != nil {
+		edges = append(edges, channelinvitecode.EdgeUsages)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ChannelInviteCodeMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case channelinvitecode.EdgeBatch:
+		if id := m.batch; id != nil {
+			return []ent.Value{*id}
+		}
+	case channelinvitecode.EdgeUsages:
+		ids := make([]ent.Value, 0, len(m.usages))
+		for id := range m.usages {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ChannelInviteCodeMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.removedusages != nil {
+		edges = append(edges, channelinvitecode.EdgeUsages)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ChannelInviteCodeMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case channelinvitecode.EdgeUsages:
+		ids := make([]ent.Value, 0, len(m.removedusages))
+		for id := range m.removedusages {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ChannelInviteCodeMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedbatch {
+		edges = append(edges, channelinvitecode.EdgeBatch)
+	}
+	if m.clearedusages {
+		edges = append(edges, channelinvitecode.EdgeUsages)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ChannelInviteCodeMutation) EdgeCleared(name string) bool {
+	switch name {
+	case channelinvitecode.EdgeBatch:
+		return m.clearedbatch
+	case channelinvitecode.EdgeUsages:
+		return m.clearedusages
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ChannelInviteCodeMutation) ClearEdge(name string) error {
+	switch name {
+	case channelinvitecode.EdgeBatch:
+		m.ClearBatch()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCode unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ChannelInviteCodeMutation) ResetEdge(name string) error {
+	switch name {
+	case channelinvitecode.EdgeBatch:
+		m.ResetBatch()
+		return nil
+	case channelinvitecode.EdgeUsages:
+		m.ResetUsages()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCode edge %s", name)
+}
+
+// ChannelInviteCodeUsageMutation represents an operation that mutates the ChannelInviteCodeUsage nodes in the graph.
+type ChannelInviteCodeUsageMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *int64
+	bonus_granted    *bool
+	bonus_granted_at *time.Time
+	claimed_at       *time.Time
+	clearedFields    map[string]struct{}
+	code             *int64
+	clearedcode      bool
+	batch            *int64
+	clearedbatch     bool
+	user             *int64
+	cleareduser      bool
+	done             bool
+	oldValue         func(context.Context) (*ChannelInviteCodeUsage, error)
+	predicates       []predicate.ChannelInviteCodeUsage
+}
+
+var _ ent.Mutation = (*ChannelInviteCodeUsageMutation)(nil)
+
+// channelinvitecodeusageOption allows management of the mutation configuration using functional options.
+type channelinvitecodeusageOption func(*ChannelInviteCodeUsageMutation)
+
+// newChannelInviteCodeUsageMutation creates new mutation for the ChannelInviteCodeUsage entity.
+func newChannelInviteCodeUsageMutation(c config, op Op, opts ...channelinvitecodeusageOption) *ChannelInviteCodeUsageMutation {
+	m := &ChannelInviteCodeUsageMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeChannelInviteCodeUsage,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withChannelInviteCodeUsageID sets the ID field of the mutation.
+func withChannelInviteCodeUsageID(id int64) channelinvitecodeusageOption {
+	return func(m *ChannelInviteCodeUsageMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ChannelInviteCodeUsage
+		)
+		m.oldValue = func(ctx context.Context) (*ChannelInviteCodeUsage, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ChannelInviteCodeUsage.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withChannelInviteCodeUsage sets the old ChannelInviteCodeUsage of the mutation.
+func withChannelInviteCodeUsage(node *ChannelInviteCodeUsage) channelinvitecodeusageOption {
+	return func(m *ChannelInviteCodeUsageMutation) {
+		m.oldValue = func(context.Context) (*ChannelInviteCodeUsage, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ChannelInviteCodeUsageMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ChannelInviteCodeUsageMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ChannelInviteCodeUsageMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ChannelInviteCodeUsageMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ChannelInviteCodeUsage.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCodeID sets the "code_id" field.
+func (m *ChannelInviteCodeUsageMutation) SetCodeID(i int64) {
+	m.code = &i
+}
+
+// CodeID returns the value of the "code_id" field in the mutation.
+func (m *ChannelInviteCodeUsageMutation) CodeID() (r int64, exists bool) {
+	v := m.code
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodeID returns the old "code_id" field's value of the ChannelInviteCodeUsage entity.
+// If the ChannelInviteCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeUsageMutation) OldCodeID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodeID: %w", err)
+	}
+	return oldValue.CodeID, nil
+}
+
+// ResetCodeID resets all changes to the "code_id" field.
+func (m *ChannelInviteCodeUsageMutation) ResetCodeID() {
+	m.code = nil
+}
+
+// SetBatchID sets the "batch_id" field.
+func (m *ChannelInviteCodeUsageMutation) SetBatchID(i int64) {
+	m.batch = &i
+}
+
+// BatchID returns the value of the "batch_id" field in the mutation.
+func (m *ChannelInviteCodeUsageMutation) BatchID() (r int64, exists bool) {
+	v := m.batch
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchID returns the old "batch_id" field's value of the ChannelInviteCodeUsage entity.
+// If the ChannelInviteCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeUsageMutation) OldBatchID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchID: %w", err)
+	}
+	return oldValue.BatchID, nil
+}
+
+// ResetBatchID resets all changes to the "batch_id" field.
+func (m *ChannelInviteCodeUsageMutation) ResetBatchID() {
+	m.batch = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ChannelInviteCodeUsageMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ChannelInviteCodeUsageMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the ChannelInviteCodeUsage entity.
+// If the ChannelInviteCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeUsageMutation) OldUserID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ChannelInviteCodeUsageMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetBonusGranted sets the "bonus_granted" field.
+func (m *ChannelInviteCodeUsageMutation) SetBonusGranted(b bool) {
+	m.bonus_granted = &b
+}
+
+// BonusGranted returns the value of the "bonus_granted" field in the mutation.
+func (m *ChannelInviteCodeUsageMutation) BonusGranted() (r bool, exists bool) {
+	v := m.bonus_granted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBonusGranted returns the old "bonus_granted" field's value of the ChannelInviteCodeUsage entity.
+// If the ChannelInviteCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeUsageMutation) OldBonusGranted(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBonusGranted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBonusGranted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBonusGranted: %w", err)
+	}
+	return oldValue.BonusGranted, nil
+}
+
+// ResetBonusGranted resets all changes to the "bonus_granted" field.
+func (m *ChannelInviteCodeUsageMutation) ResetBonusGranted() {
+	m.bonus_granted = nil
+}
+
+// SetBonusGrantedAt sets the "bonus_granted_at" field.
+func (m *ChannelInviteCodeUsageMutation) SetBonusGrantedAt(t time.Time) {
+	m.bonus_granted_at = &t
+}
+
+// BonusGrantedAt returns the value of the "bonus_granted_at" field in the mutation.
+func (m *ChannelInviteCodeUsageMutation) BonusGrantedAt() (r time.Time, exists bool) {
+	v := m.bonus_granted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBonusGrantedAt returns the old "bonus_granted_at" field's value of the ChannelInviteCodeUsage entity.
+// If the ChannelInviteCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeUsageMutation) OldBonusGrantedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBonusGrantedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBonusGrantedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBonusGrantedAt: %w", err)
+	}
+	return oldValue.BonusGrantedAt, nil
+}
+
+// ClearBonusGrantedAt clears the value of the "bonus_granted_at" field.
+func (m *ChannelInviteCodeUsageMutation) ClearBonusGrantedAt() {
+	m.bonus_granted_at = nil
+	m.clearedFields[channelinvitecodeusage.FieldBonusGrantedAt] = struct{}{}
+}
+
+// BonusGrantedAtCleared returns if the "bonus_granted_at" field was cleared in this mutation.
+func (m *ChannelInviteCodeUsageMutation) BonusGrantedAtCleared() bool {
+	_, ok := m.clearedFields[channelinvitecodeusage.FieldBonusGrantedAt]
+	return ok
+}
+
+// ResetBonusGrantedAt resets all changes to the "bonus_granted_at" field.
+func (m *ChannelInviteCodeUsageMutation) ResetBonusGrantedAt() {
+	m.bonus_granted_at = nil
+	delete(m.clearedFields, channelinvitecodeusage.FieldBonusGrantedAt)
+}
+
+// SetClaimedAt sets the "claimed_at" field.
+func (m *ChannelInviteCodeUsageMutation) SetClaimedAt(t time.Time) {
+	m.claimed_at = &t
+}
+
+// ClaimedAt returns the value of the "claimed_at" field in the mutation.
+func (m *ChannelInviteCodeUsageMutation) ClaimedAt() (r time.Time, exists bool) {
+	v := m.claimed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimedAt returns the old "claimed_at" field's value of the ChannelInviteCodeUsage entity.
+// If the ChannelInviteCodeUsage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteCodeUsageMutation) OldClaimedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimedAt: %w", err)
+	}
+	return oldValue.ClaimedAt, nil
+}
+
+// ResetClaimedAt resets all changes to the "claimed_at" field.
+func (m *ChannelInviteCodeUsageMutation) ResetClaimedAt() {
+	m.claimed_at = nil
+}
+
+// ClearCode clears the "code" edge to the ChannelInviteCode entity.
+func (m *ChannelInviteCodeUsageMutation) ClearCode() {
+	m.clearedcode = true
+	m.clearedFields[channelinvitecodeusage.FieldCodeID] = struct{}{}
+}
+
+// CodeCleared reports if the "code" edge to the ChannelInviteCode entity was cleared.
+func (m *ChannelInviteCodeUsageMutation) CodeCleared() bool {
+	return m.clearedcode
+}
+
+// CodeIDs returns the "code" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CodeID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteCodeUsageMutation) CodeIDs() (ids []int64) {
+	if id := m.code; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCode resets all changes to the "code" edge.
+func (m *ChannelInviteCodeUsageMutation) ResetCode() {
+	m.code = nil
+	m.clearedcode = false
+}
+
+// ClearBatch clears the "batch" edge to the ChannelInviteBatch entity.
+func (m *ChannelInviteCodeUsageMutation) ClearBatch() {
+	m.clearedbatch = true
+	m.clearedFields[channelinvitecodeusage.FieldBatchID] = struct{}{}
+}
+
+// BatchCleared reports if the "batch" edge to the ChannelInviteBatch entity was cleared.
+func (m *ChannelInviteCodeUsageMutation) BatchCleared() bool {
+	return m.clearedbatch
+}
+
+// BatchIDs returns the "batch" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// BatchID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteCodeUsageMutation) BatchIDs() (ids []int64) {
+	if id := m.batch; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetBatch resets all changes to the "batch" edge.
+func (m *ChannelInviteCodeUsageMutation) ResetBatch() {
+	m.batch = nil
+	m.clearedbatch = false
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *ChannelInviteCodeUsageMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[channelinvitecodeusage.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ChannelInviteCodeUsageMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ChannelInviteCodeUsageMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *ChannelInviteCodeUsageMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the ChannelInviteCodeUsageMutation builder.
+func (m *ChannelInviteCodeUsageMutation) Where(ps ...predicate.ChannelInviteCodeUsage) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ChannelInviteCodeUsageMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ChannelInviteCodeUsageMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ChannelInviteCodeUsage, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ChannelInviteCodeUsageMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ChannelInviteCodeUsageMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ChannelInviteCodeUsage).
+func (m *ChannelInviteCodeUsageMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ChannelInviteCodeUsageMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.code != nil {
+		fields = append(fields, channelinvitecodeusage.FieldCodeID)
+	}
+	if m.batch != nil {
+		fields = append(fields, channelinvitecodeusage.FieldBatchID)
+	}
+	if m.user != nil {
+		fields = append(fields, channelinvitecodeusage.FieldUserID)
+	}
+	if m.bonus_granted != nil {
+		fields = append(fields, channelinvitecodeusage.FieldBonusGranted)
+	}
+	if m.bonus_granted_at != nil {
+		fields = append(fields, channelinvitecodeusage.FieldBonusGrantedAt)
+	}
+	if m.claimed_at != nil {
+		fields = append(fields, channelinvitecodeusage.FieldClaimedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ChannelInviteCodeUsageMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case channelinvitecodeusage.FieldCodeID:
+		return m.CodeID()
+	case channelinvitecodeusage.FieldBatchID:
+		return m.BatchID()
+	case channelinvitecodeusage.FieldUserID:
+		return m.UserID()
+	case channelinvitecodeusage.FieldBonusGranted:
+		return m.BonusGranted()
+	case channelinvitecodeusage.FieldBonusGrantedAt:
+		return m.BonusGrantedAt()
+	case channelinvitecodeusage.FieldClaimedAt:
+		return m.ClaimedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ChannelInviteCodeUsageMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case channelinvitecodeusage.FieldCodeID:
+		return m.OldCodeID(ctx)
+	case channelinvitecodeusage.FieldBatchID:
+		return m.OldBatchID(ctx)
+	case channelinvitecodeusage.FieldUserID:
+		return m.OldUserID(ctx)
+	case channelinvitecodeusage.FieldBonusGranted:
+		return m.OldBonusGranted(ctx)
+	case channelinvitecodeusage.FieldBonusGrantedAt:
+		return m.OldBonusGrantedAt(ctx)
+	case channelinvitecodeusage.FieldClaimedAt:
+		return m.OldClaimedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ChannelInviteCodeUsage field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteCodeUsageMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case channelinvitecodeusage.FieldCodeID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodeID(v)
+		return nil
+	case channelinvitecodeusage.FieldBatchID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchID(v)
+		return nil
+	case channelinvitecodeusage.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case channelinvitecodeusage.FieldBonusGranted:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBonusGranted(v)
+		return nil
+	case channelinvitecodeusage.FieldBonusGrantedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBonusGrantedAt(v)
+		return nil
+	case channelinvitecodeusage.FieldClaimedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCodeUsage field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ChannelInviteCodeUsageMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ChannelInviteCodeUsageMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ChannelInviteCodeUsageMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown ChannelInviteCodeUsage numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ChannelInviteCodeUsageMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(channelinvitecodeusage.FieldBonusGrantedAt) {
+		fields = append(fields, channelinvitecodeusage.FieldBonusGrantedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ChannelInviteCodeUsageMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ChannelInviteCodeUsageMutation) ClearField(name string) error {
+	switch name {
+	case channelinvitecodeusage.FieldBonusGrantedAt:
+		m.ClearBonusGrantedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCodeUsage nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ChannelInviteCodeUsageMutation) ResetField(name string) error {
+	switch name {
+	case channelinvitecodeusage.FieldCodeID:
+		m.ResetCodeID()
+		return nil
+	case channelinvitecodeusage.FieldBatchID:
+		m.ResetBatchID()
+		return nil
+	case channelinvitecodeusage.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case channelinvitecodeusage.FieldBonusGranted:
+		m.ResetBonusGranted()
+		return nil
+	case channelinvitecodeusage.FieldBonusGrantedAt:
+		m.ResetBonusGrantedAt()
+		return nil
+	case channelinvitecodeusage.FieldClaimedAt:
+		m.ResetClaimedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCodeUsage field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ChannelInviteCodeUsageMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.code != nil {
+		edges = append(edges, channelinvitecodeusage.EdgeCode)
+	}
+	if m.batch != nil {
+		edges = append(edges, channelinvitecodeusage.EdgeBatch)
+	}
+	if m.user != nil {
+		edges = append(edges, channelinvitecodeusage.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ChannelInviteCodeUsageMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case channelinvitecodeusage.EdgeCode:
+		if id := m.code; id != nil {
+			return []ent.Value{*id}
+		}
+	case channelinvitecodeusage.EdgeBatch:
+		if id := m.batch; id != nil {
+			return []ent.Value{*id}
+		}
+	case channelinvitecodeusage.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ChannelInviteCodeUsageMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ChannelInviteCodeUsageMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ChannelInviteCodeUsageMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedcode {
+		edges = append(edges, channelinvitecodeusage.EdgeCode)
+	}
+	if m.clearedbatch {
+		edges = append(edges, channelinvitecodeusage.EdgeBatch)
+	}
+	if m.cleareduser {
+		edges = append(edges, channelinvitecodeusage.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ChannelInviteCodeUsageMutation) EdgeCleared(name string) bool {
+	switch name {
+	case channelinvitecodeusage.EdgeCode:
+		return m.clearedcode
+	case channelinvitecodeusage.EdgeBatch:
+		return m.clearedbatch
+	case channelinvitecodeusage.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ChannelInviteCodeUsageMutation) ClearEdge(name string) error {
+	switch name {
+	case channelinvitecodeusage.EdgeCode:
+		m.ClearCode()
+		return nil
+	case channelinvitecodeusage.EdgeBatch:
+		m.ClearBatch()
+		return nil
+	case channelinvitecodeusage.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCodeUsage unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ChannelInviteCodeUsageMutation) ResetEdge(name string) error {
+	switch name {
+	case channelinvitecodeusage.EdgeCode:
+		m.ResetCode()
+		return nil
+	case channelinvitecodeusage.EdgeBatch:
+		m.ResetBatch()
+		return nil
+	case channelinvitecodeusage.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown ChannelInviteCodeUsage edge %s", name)
+}
+
 // ErrorPassthroughRuleMutation represents an operation that mutates the ErrorPassthroughRule nodes in the graph.
 type ErrorPassthroughRuleMutation struct {
 	config
@@ -9450,6 +12825,9 @@ type GroupMutation struct {
 	allowed_users                           map[int64]struct{}
 	removedallowed_users                    map[int64]struct{}
 	clearedallowed_users                    bool
+	channel_invite_batch_groups             map[int64]struct{}
+	removedchannel_invite_batch_groups      map[int64]struct{}
+	clearedchannel_invite_batch_groups      bool
 	done                                    bool
 	oldValue                                func(context.Context) (*Group, error)
 	predicates                              []predicate.Group
@@ -11161,6 +14539,60 @@ func (m *GroupMutation) ResetAllowedUsers() {
 	m.removedallowed_users = nil
 }
 
+// AddChannelInviteBatchGroupIDs adds the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity by ids.
+func (m *GroupMutation) AddChannelInviteBatchGroupIDs(ids ...int64) {
+	if m.channel_invite_batch_groups == nil {
+		m.channel_invite_batch_groups = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.channel_invite_batch_groups[ids[i]] = struct{}{}
+	}
+}
+
+// ClearChannelInviteBatchGroups clears the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity.
+func (m *GroupMutation) ClearChannelInviteBatchGroups() {
+	m.clearedchannel_invite_batch_groups = true
+}
+
+// ChannelInviteBatchGroupsCleared reports if the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity was cleared.
+func (m *GroupMutation) ChannelInviteBatchGroupsCleared() bool {
+	return m.clearedchannel_invite_batch_groups
+}
+
+// RemoveChannelInviteBatchGroupIDs removes the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity by IDs.
+func (m *GroupMutation) RemoveChannelInviteBatchGroupIDs(ids ...int64) {
+	if m.removedchannel_invite_batch_groups == nil {
+		m.removedchannel_invite_batch_groups = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.channel_invite_batch_groups, ids[i])
+		m.removedchannel_invite_batch_groups[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedChannelInviteBatchGroups returns the removed IDs of the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity.
+func (m *GroupMutation) RemovedChannelInviteBatchGroupsIDs() (ids []int64) {
+	for id := range m.removedchannel_invite_batch_groups {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ChannelInviteBatchGroupsIDs returns the "channel_invite_batch_groups" edge IDs in the mutation.
+func (m *GroupMutation) ChannelInviteBatchGroupsIDs() (ids []int64) {
+	for id := range m.channel_invite_batch_groups {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetChannelInviteBatchGroups resets all changes to the "channel_invite_batch_groups" edge.
+func (m *GroupMutation) ResetChannelInviteBatchGroups() {
+	m.channel_invite_batch_groups = nil
+	m.clearedchannel_invite_batch_groups = false
+	m.removedchannel_invite_batch_groups = nil
+}
+
 // Where appends a list predicates to the GroupMutation builder.
 func (m *GroupMutation) Where(ps ...predicate.Group) {
 	m.predicates = append(m.predicates, ps...)
@@ -11958,7 +15390,7 @@ func (m *GroupMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *GroupMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.api_keys != nil {
 		edges = append(edges, group.EdgeAPIKeys)
 	}
@@ -11970,6 +15402,9 @@ func (m *GroupMutation) AddedEdges() []string {
 	}
 	if m.allowed_users != nil {
 		edges = append(edges, group.EdgeAllowedUsers)
+	}
+	if m.channel_invite_batch_groups != nil {
+		edges = append(edges, group.EdgeChannelInviteBatchGroups)
 	}
 	return edges
 }
@@ -12002,13 +15437,19 @@ func (m *GroupMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case group.EdgeChannelInviteBatchGroups:
+		ids := make([]ent.Value, 0, len(m.channel_invite_batch_groups))
+		for id := range m.channel_invite_batch_groups {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *GroupMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.removedapi_keys != nil {
 		edges = append(edges, group.EdgeAPIKeys)
 	}
@@ -12020,6 +15461,9 @@ func (m *GroupMutation) RemovedEdges() []string {
 	}
 	if m.removedallowed_users != nil {
 		edges = append(edges, group.EdgeAllowedUsers)
+	}
+	if m.removedchannel_invite_batch_groups != nil {
+		edges = append(edges, group.EdgeChannelInviteBatchGroups)
 	}
 	return edges
 }
@@ -12052,13 +15496,19 @@ func (m *GroupMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case group.EdgeChannelInviteBatchGroups:
+		ids := make([]ent.Value, 0, len(m.removedchannel_invite_batch_groups))
+		for id := range m.removedchannel_invite_batch_groups {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *GroupMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.clearedapi_keys {
 		edges = append(edges, group.EdgeAPIKeys)
 	}
@@ -12070,6 +15520,9 @@ func (m *GroupMutation) ClearedEdges() []string {
 	}
 	if m.clearedallowed_users {
 		edges = append(edges, group.EdgeAllowedUsers)
+	}
+	if m.clearedchannel_invite_batch_groups {
+		edges = append(edges, group.EdgeChannelInviteBatchGroups)
 	}
 	return edges
 }
@@ -12086,6 +15539,8 @@ func (m *GroupMutation) EdgeCleared(name string) bool {
 		return m.clearedaccounts
 	case group.EdgeAllowedUsers:
 		return m.clearedallowed_users
+	case group.EdgeChannelInviteBatchGroups:
+		return m.clearedchannel_invite_batch_groups
 	}
 	return false
 }
@@ -12113,6 +15568,9 @@ func (m *GroupMutation) ResetEdge(name string) error {
 		return nil
 	case group.EdgeAllowedUsers:
 		m.ResetAllowedUsers()
+		return nil
+	case group.EdgeChannelInviteBatchGroups:
+		m.ResetChannelInviteBatchGroups()
 		return nil
 	}
 	return fmt.Errorf("unknown Group edge %s", name)
@@ -24934,6 +28392,12 @@ type UserMutation struct {
 	promo_code_usages             map[int64]struct{}
 	removedpromo_code_usages      map[int64]struct{}
 	clearedpromo_code_usages      bool
+	channel_invite_batches        map[int64]struct{}
+	removedchannel_invite_batches map[int64]struct{}
+	clearedchannel_invite_batches bool
+	channel_invite_usages         map[int64]struct{}
+	removedchannel_invite_usages  map[int64]struct{}
+	clearedchannel_invite_usages  bool
 	done                          bool
 	oldValue                      func(context.Context) (*User, error)
 	predicates                    []predicate.User
@@ -26484,6 +29948,114 @@ func (m *UserMutation) ResetPromoCodeUsages() {
 	m.removedpromo_code_usages = nil
 }
 
+// AddChannelInviteBatchIDs adds the "channel_invite_batches" edge to the ChannelInviteBatch entity by ids.
+func (m *UserMutation) AddChannelInviteBatchIDs(ids ...int64) {
+	if m.channel_invite_batches == nil {
+		m.channel_invite_batches = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.channel_invite_batches[ids[i]] = struct{}{}
+	}
+}
+
+// ClearChannelInviteBatches clears the "channel_invite_batches" edge to the ChannelInviteBatch entity.
+func (m *UserMutation) ClearChannelInviteBatches() {
+	m.clearedchannel_invite_batches = true
+}
+
+// ChannelInviteBatchesCleared reports if the "channel_invite_batches" edge to the ChannelInviteBatch entity was cleared.
+func (m *UserMutation) ChannelInviteBatchesCleared() bool {
+	return m.clearedchannel_invite_batches
+}
+
+// RemoveChannelInviteBatchIDs removes the "channel_invite_batches" edge to the ChannelInviteBatch entity by IDs.
+func (m *UserMutation) RemoveChannelInviteBatchIDs(ids ...int64) {
+	if m.removedchannel_invite_batches == nil {
+		m.removedchannel_invite_batches = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.channel_invite_batches, ids[i])
+		m.removedchannel_invite_batches[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedChannelInviteBatches returns the removed IDs of the "channel_invite_batches" edge to the ChannelInviteBatch entity.
+func (m *UserMutation) RemovedChannelInviteBatchesIDs() (ids []int64) {
+	for id := range m.removedchannel_invite_batches {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ChannelInviteBatchesIDs returns the "channel_invite_batches" edge IDs in the mutation.
+func (m *UserMutation) ChannelInviteBatchesIDs() (ids []int64) {
+	for id := range m.channel_invite_batches {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetChannelInviteBatches resets all changes to the "channel_invite_batches" edge.
+func (m *UserMutation) ResetChannelInviteBatches() {
+	m.channel_invite_batches = nil
+	m.clearedchannel_invite_batches = false
+	m.removedchannel_invite_batches = nil
+}
+
+// AddChannelInviteUsageIDs adds the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity by ids.
+func (m *UserMutation) AddChannelInviteUsageIDs(ids ...int64) {
+	if m.channel_invite_usages == nil {
+		m.channel_invite_usages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.channel_invite_usages[ids[i]] = struct{}{}
+	}
+}
+
+// ClearChannelInviteUsages clears the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity.
+func (m *UserMutation) ClearChannelInviteUsages() {
+	m.clearedchannel_invite_usages = true
+}
+
+// ChannelInviteUsagesCleared reports if the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity was cleared.
+func (m *UserMutation) ChannelInviteUsagesCleared() bool {
+	return m.clearedchannel_invite_usages
+}
+
+// RemoveChannelInviteUsageIDs removes the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (m *UserMutation) RemoveChannelInviteUsageIDs(ids ...int64) {
+	if m.removedchannel_invite_usages == nil {
+		m.removedchannel_invite_usages = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.channel_invite_usages, ids[i])
+		m.removedchannel_invite_usages[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedChannelInviteUsages returns the removed IDs of the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity.
+func (m *UserMutation) RemovedChannelInviteUsagesIDs() (ids []int64) {
+	for id := range m.removedchannel_invite_usages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ChannelInviteUsagesIDs returns the "channel_invite_usages" edge IDs in the mutation.
+func (m *UserMutation) ChannelInviteUsagesIDs() (ids []int64) {
+	for id := range m.channel_invite_usages {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetChannelInviteUsages resets all changes to the "channel_invite_usages" edge.
+func (m *UserMutation) ResetChannelInviteUsages() {
+	m.channel_invite_usages = nil
+	m.clearedchannel_invite_usages = false
+	m.removedchannel_invite_usages = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -27071,7 +30643,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 11)
 	if m.api_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -27098,6 +30670,12 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.promo_code_usages != nil {
 		edges = append(edges, user.EdgePromoCodeUsages)
+	}
+	if m.channel_invite_batches != nil {
+		edges = append(edges, user.EdgeChannelInviteBatches)
+	}
+	if m.channel_invite_usages != nil {
+		edges = append(edges, user.EdgeChannelInviteUsages)
 	}
 	return edges
 }
@@ -27160,13 +30738,25 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeChannelInviteBatches:
+		ids := make([]ent.Value, 0, len(m.channel_invite_batches))
+		for id := range m.channel_invite_batches {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeChannelInviteUsages:
+		ids := make([]ent.Value, 0, len(m.channel_invite_usages))
+		for id := range m.channel_invite_usages {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 11)
 	if m.removedapi_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -27193,6 +30783,12 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedpromo_code_usages != nil {
 		edges = append(edges, user.EdgePromoCodeUsages)
+	}
+	if m.removedchannel_invite_batches != nil {
+		edges = append(edges, user.EdgeChannelInviteBatches)
+	}
+	if m.removedchannel_invite_usages != nil {
+		edges = append(edges, user.EdgeChannelInviteUsages)
 	}
 	return edges
 }
@@ -27255,13 +30851,25 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeChannelInviteBatches:
+		ids := make([]ent.Value, 0, len(m.removedchannel_invite_batches))
+		for id := range m.removedchannel_invite_batches {
+			ids = append(ids, id)
+		}
+		return ids
+	case user.EdgeChannelInviteUsages:
+		ids := make([]ent.Value, 0, len(m.removedchannel_invite_usages))
+		for id := range m.removedchannel_invite_usages {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 9)
+	edges := make([]string, 0, 11)
 	if m.clearedapi_keys {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -27289,6 +30897,12 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearedpromo_code_usages {
 		edges = append(edges, user.EdgePromoCodeUsages)
 	}
+	if m.clearedchannel_invite_batches {
+		edges = append(edges, user.EdgeChannelInviteBatches)
+	}
+	if m.clearedchannel_invite_usages {
+		edges = append(edges, user.EdgeChannelInviteUsages)
+	}
 	return edges
 }
 
@@ -27314,6 +30928,10 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedattribute_values
 	case user.EdgePromoCodeUsages:
 		return m.clearedpromo_code_usages
+	case user.EdgeChannelInviteBatches:
+		return m.clearedchannel_invite_batches
+	case user.EdgeChannelInviteUsages:
+		return m.clearedchannel_invite_usages
 	}
 	return false
 }
@@ -27356,6 +30974,12 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgePromoCodeUsages:
 		m.ResetPromoCodeUsages()
+		return nil
+	case user.EdgeChannelInviteBatches:
+		m.ResetChannelInviteBatches()
+		return nil
+	case user.EdgeChannelInviteUsages:
+		m.ResetChannelInviteUsages()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)

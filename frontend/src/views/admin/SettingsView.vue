@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-6">
+    <div class="mx-auto w-full max-w-7xl space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
@@ -1925,6 +1925,11 @@
         </div>
         </div><!-- /Tab: Email -->
 
+        <!-- Tab: Channel Invite -->
+        <div v-show="activeTab === 'channel-invite'" class="space-y-6">
+          <ChannelInviteSettings />
+        </div>
+
         <!-- Tab: Backup -->
         <div v-show="activeTab === 'backup'">
           <BackupSettings />
@@ -1936,7 +1941,7 @@
         </div>
 
         <!-- Save Button -->
-        <div v-show="activeTab !== 'backup' && activeTab !== 'data'" class="flex justify-end">
+        <div v-show="activeTab !== 'backup' && activeTab !== 'data' && activeTab !== 'channel-invite'" class="flex justify-end">
           <button type="submit" :disabled="saving || loadFailed" class="btn btn-primary">
             <svg v-if="saving" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle
@@ -1978,6 +1983,7 @@ import Toggle from '@/components/common/Toggle.vue'
 import ImageUpload from '@/components/common/ImageUpload.vue'
 import BackupSettings from '@/views/admin/BackupView.vue'
 import DataManagementSettings from '@/views/admin/DataManagementView.vue'
+import ChannelInviteSettings from '@/components/admin/settings/ChannelInviteTab.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore } from '@/stores'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
@@ -1992,7 +1998,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const adminSettingsStore = useAdminSettingsStore()
 
-type SettingsTab = 'general' | 'security' | 'users' | 'gateway' | 'email' | 'backup' | 'data'
+type SettingsTab = 'general' | 'security' | 'users' | 'gateway' | 'email' | 'backup' | 'data' | 'channel-invite'
 const activeTab = ref<SettingsTab>('general')
 const settingsTabs = [
   { key: 'general'  as SettingsTab, icon: 'home'   as const },
@@ -2001,7 +2007,8 @@ const settingsTabs = [
   { key: 'gateway'  as SettingsTab, icon: 'server' as const },
   { key: 'email'    as SettingsTab, icon: 'mail'   as const },
   { key: 'backup'   as SettingsTab, icon: 'database' as const },
-  { key: 'data'     as SettingsTab, icon: 'cube'     as const },
+  { key: 'data'           as SettingsTab, icon: 'cube'       as const },
+  { key: 'channel-invite' as SettingsTab, icon: 'gift'       as const },
 ]
 const { copyToClipboard } = useClipboard()
 
@@ -2814,21 +2821,15 @@ onMounted(() => {
 }
 
 .settings-tabs {
-  @apply inline-flex min-w-full gap-0.5 rounded-2xl
+  @apply inline-flex w-max min-w-full gap-0.5 rounded-2xl
          border border-gray-100 bg-white/80 p-1 backdrop-blur-sm
          dark:border-dark-700/50 dark:bg-dark-800/80;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.02);
 }
 
-@media (min-width: 640px) {
-  .settings-tabs {
-    @apply flex;
-  }
-}
-
 .settings-tab {
-  @apply relative flex flex-1 items-center justify-center gap-1.5
-         whitespace-nowrap rounded-xl px-2.5 py-2
+  @apply relative flex flex-none items-center justify-center gap-1.5
+         whitespace-nowrap rounded-xl px-3 py-2
          text-sm font-medium
          text-gray-500 dark:text-dark-400
          transition-all duration-200 ease-out;

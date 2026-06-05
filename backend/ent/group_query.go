@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
@@ -26,17 +27,18 @@ import (
 // GroupQuery is the builder for querying Group entities.
 type GroupQuery struct {
 	config
-	ctx                   *QueryContext
-	order                 []group.OrderOption
-	inters                []Interceptor
-	predicates            []predicate.Group
-	withAPIKeys           *APIKeyQuery
-	withUsageLogs         *UsageLogQuery
-	withAccounts          *AccountQuery
-	withAllowedUsers      *UserQuery
-	withAccountGroups     *AccountGroupQuery
-	withUserAllowedGroups *UserAllowedGroupQuery
-	modifiers             []func(*sql.Selector)
+	ctx                          *QueryContext
+	order                        []group.OrderOption
+	inters                       []Interceptor
+	predicates                   []predicate.Group
+	withAPIKeys                  *APIKeyQuery
+	withUsageLogs                *UsageLogQuery
+	withAccounts                 *AccountQuery
+	withAllowedUsers             *UserQuery
+	withChannelInviteBatchGroups *ChannelInviteBatchGroupQuery
+	withAccountGroups            *AccountGroupQuery
+	withUserAllowedGroups        *UserAllowedGroupQuery
+	modifiers                    []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -154,6 +156,28 @@ func (_q *GroupQuery) QueryAllowedUsers() *UserQuery {
 			sqlgraph.From(group.Table, group.FieldID, selector),
 			sqlgraph.To(user.Table, user.FieldID),
 			sqlgraph.Edge(sqlgraph.M2M, true, group.AllowedUsersTable, group.AllowedUsersPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryChannelInviteBatchGroups chains the current query on the "channel_invite_batch_groups" edge.
+func (_q *GroupQuery) QueryChannelInviteBatchGroups() *ChannelInviteBatchGroupQuery {
+	query := (&ChannelInviteBatchGroupClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, selector),
+			sqlgraph.To(channelinvitebatchgroup.Table, channelinvitebatchgroup.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, group.ChannelInviteBatchGroupsTable, group.ChannelInviteBatchGroupsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -392,17 +416,18 @@ func (_q *GroupQuery) Clone() *GroupQuery {
 		return nil
 	}
 	return &GroupQuery{
-		config:                _q.config,
-		ctx:                   _q.ctx.Clone(),
-		order:                 append([]group.OrderOption{}, _q.order...),
-		inters:                append([]Interceptor{}, _q.inters...),
-		predicates:            append([]predicate.Group{}, _q.predicates...),
-		withAPIKeys:           _q.withAPIKeys.Clone(),
-		withUsageLogs:         _q.withUsageLogs.Clone(),
-		withAccounts:          _q.withAccounts.Clone(),
-		withAllowedUsers:      _q.withAllowedUsers.Clone(),
-		withAccountGroups:     _q.withAccountGroups.Clone(),
-		withUserAllowedGroups: _q.withUserAllowedGroups.Clone(),
+		config:                       _q.config,
+		ctx:                          _q.ctx.Clone(),
+		order:                        append([]group.OrderOption{}, _q.order...),
+		inters:                       append([]Interceptor{}, _q.inters...),
+		predicates:                   append([]predicate.Group{}, _q.predicates...),
+		withAPIKeys:                  _q.withAPIKeys.Clone(),
+		withUsageLogs:                _q.withUsageLogs.Clone(),
+		withAccounts:                 _q.withAccounts.Clone(),
+		withAllowedUsers:             _q.withAllowedUsers.Clone(),
+		withChannelInviteBatchGroups: _q.withChannelInviteBatchGroups.Clone(),
+		withAccountGroups:            _q.withAccountGroups.Clone(),
+		withUserAllowedGroups:        _q.withUserAllowedGroups.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -450,6 +475,17 @@ func (_q *GroupQuery) WithAllowedUsers(opts ...func(*UserQuery)) *GroupQuery {
 		opt(query)
 	}
 	_q.withAllowedUsers = query
+	return _q
+}
+
+// WithChannelInviteBatchGroups tells the query-builder to eager-load the nodes that are connected to
+// the "channel_invite_batch_groups" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *GroupQuery) WithChannelInviteBatchGroups(opts ...func(*ChannelInviteBatchGroupQuery)) *GroupQuery {
+	query := (&ChannelInviteBatchGroupClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withChannelInviteBatchGroups = query
 	return _q
 }
 
@@ -553,11 +589,12 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 	var (
 		nodes       = []*Group{}
 		_spec       = _q.querySpec()
-		loadedTypes = [6]bool{
+		loadedTypes = [7]bool{
 			_q.withAPIKeys != nil,
 			_q.withUsageLogs != nil,
 			_q.withAccounts != nil,
 			_q.withAllowedUsers != nil,
+			_q.withChannelInviteBatchGroups != nil,
 			_q.withAccountGroups != nil,
 			_q.withUserAllowedGroups != nil,
 		}
@@ -608,6 +645,15 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 		if err := _q.loadAllowedUsers(ctx, query, nodes,
 			func(n *Group) { n.Edges.AllowedUsers = []*User{} },
 			func(n *Group, e *User) { n.Edges.AllowedUsers = append(n.Edges.AllowedUsers, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withChannelInviteBatchGroups; query != nil {
+		if err := _q.loadChannelInviteBatchGroups(ctx, query, nodes,
+			func(n *Group) { n.Edges.ChannelInviteBatchGroups = []*ChannelInviteBatchGroup{} },
+			func(n *Group, e *ChannelInviteBatchGroup) {
+				n.Edges.ChannelInviteBatchGroups = append(n.Edges.ChannelInviteBatchGroups, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -813,6 +859,36 @@ func (_q *GroupQuery) loadAllowedUsers(ctx context.Context, query *UserQuery, no
 		for kn := range nodes {
 			assign(kn, n)
 		}
+	}
+	return nil
+}
+func (_q *GroupQuery) loadChannelInviteBatchGroups(ctx context.Context, query *ChannelInviteBatchGroupQuery, nodes []*Group, init func(*Group), assign func(*Group, *ChannelInviteBatchGroup)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*Group)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(channelinvitebatchgroup.FieldGroupID)
+	}
+	query.Where(predicate.ChannelInviteBatchGroup(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(group.ChannelInviteBatchGroupsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.GroupID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
 	}
 	return nil
 }

@@ -1367,6 +1367,29 @@ func HasAllowedUsersWith(preds ...predicate.User) predicate.Group {
 	})
 }
 
+// HasChannelInviteBatchGroups applies the HasEdge predicate on the "channel_invite_batch_groups" edge.
+func HasChannelInviteBatchGroups() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteBatchGroupsTable, ChannelInviteBatchGroupsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasChannelInviteBatchGroupsWith applies the HasEdge predicate on the "channel_invite_batch_groups" edge with a given conditions (other predicates).
+func HasChannelInviteBatchGroupsWith(preds ...predicate.ChannelInviteBatchGroup) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newChannelInviteBatchGroupsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasAccountGroups applies the HasEdge predicate on the "account_groups" edge.
 func HasAccountGroups() predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {
