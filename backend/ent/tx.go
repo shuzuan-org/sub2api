@@ -26,6 +26,14 @@ type Tx struct {
 	Announcement *AnnouncementClient
 	// AnnouncementRead is the client for interacting with the AnnouncementRead builders.
 	AnnouncementRead *AnnouncementReadClient
+	// ChannelInviteBatch is the client for interacting with the ChannelInviteBatch builders.
+	ChannelInviteBatch *ChannelInviteBatchClient
+	// ChannelInviteBatchGroup is the client for interacting with the ChannelInviteBatchGroup builders.
+	ChannelInviteBatchGroup *ChannelInviteBatchGroupClient
+	// ChannelInviteCode is the client for interacting with the ChannelInviteCode builders.
+	ChannelInviteCode *ChannelInviteCodeClient
+	// ChannelInviteCodeUsage is the client for interacting with the ChannelInviteCodeUsage builders.
+	ChannelInviteCodeUsage *ChannelInviteCodeUsageClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -199,6 +207,10 @@ func (tx *Tx) init() {
 	tx.AlipayOrder = NewAlipayOrderClient(tx.config)
 	tx.Announcement = NewAnnouncementClient(tx.config)
 	tx.AnnouncementRead = NewAnnouncementReadClient(tx.config)
+	tx.ChannelInviteBatch = NewChannelInviteBatchClient(tx.config)
+	tx.ChannelInviteBatchGroup = NewChannelInviteBatchGroupClient(tx.config)
+	tx.ChannelInviteCode = NewChannelInviteCodeClient(tx.config)
+	tx.ChannelInviteCodeUsage = NewChannelInviteCodeUsageClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)

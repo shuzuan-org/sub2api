@@ -442,6 +442,8 @@ export default {
     passwordHint: '至少 6 个字符',
     emailRequired: '请输入邮箱',
     invalidEmail: '请输入有效的邮箱地址',
+    emailLogin: '邮箱登录',
+    resendAfter: '{seconds}秒后重发',
     passwordRequired: '请输入密码',
     passwordMinLength: '密码至少需要 6 个字符',
     loginFailed: '登录失败，请检查您的凭据后重试。',

@@ -14,6 +14,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecode"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -251,6 +255,114 @@ func (f TraverseAnnouncementRead) Traverse(ctx context.Context, q ent.Query) err
 		return f(ctx, q)
 	}
 	return fmt.Errorf("unexpected query type %T. expect *ent.AnnouncementReadQuery", q)
+}
+
+// The ChannelInviteBatchFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ChannelInviteBatchFunc func(context.Context, *ent.ChannelInviteBatchQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ChannelInviteBatchFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ChannelInviteBatchQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteBatchQuery", q)
+}
+
+// The TraverseChannelInviteBatch type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseChannelInviteBatch func(context.Context, *ent.ChannelInviteBatchQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseChannelInviteBatch) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseChannelInviteBatch) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ChannelInviteBatchQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteBatchQuery", q)
+}
+
+// The ChannelInviteBatchGroupFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ChannelInviteBatchGroupFunc func(context.Context, *ent.ChannelInviteBatchGroupQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ChannelInviteBatchGroupFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ChannelInviteBatchGroupQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteBatchGroupQuery", q)
+}
+
+// The TraverseChannelInviteBatchGroup type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseChannelInviteBatchGroup func(context.Context, *ent.ChannelInviteBatchGroupQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseChannelInviteBatchGroup) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseChannelInviteBatchGroup) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ChannelInviteBatchGroupQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteBatchGroupQuery", q)
+}
+
+// The ChannelInviteCodeFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ChannelInviteCodeFunc func(context.Context, *ent.ChannelInviteCodeQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ChannelInviteCodeFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ChannelInviteCodeQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteCodeQuery", q)
+}
+
+// The TraverseChannelInviteCode type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseChannelInviteCode func(context.Context, *ent.ChannelInviteCodeQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseChannelInviteCode) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseChannelInviteCode) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ChannelInviteCodeQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteCodeQuery", q)
+}
+
+// The ChannelInviteCodeUsageFunc type is an adapter to allow the use of ordinary function as a Querier.
+type ChannelInviteCodeUsageFunc func(context.Context, *ent.ChannelInviteCodeUsageQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f ChannelInviteCodeUsageFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.ChannelInviteCodeUsageQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteCodeUsageQuery", q)
+}
+
+// The TraverseChannelInviteCodeUsage type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseChannelInviteCodeUsage func(context.Context, *ent.ChannelInviteCodeUsageQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseChannelInviteCodeUsage) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseChannelInviteCodeUsage) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.ChannelInviteCodeUsageQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.ChannelInviteCodeUsageQuery", q)
 }
 
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -754,6 +866,14 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.AnnouncementQuery, predicate.Announcement, announcement.OrderOption]{typ: ent.TypeAnnouncement, tq: q}, nil
 	case *ent.AnnouncementReadQuery:
 		return &query[*ent.AnnouncementReadQuery, predicate.AnnouncementRead, announcementread.OrderOption]{typ: ent.TypeAnnouncementRead, tq: q}, nil
+	case *ent.ChannelInviteBatchQuery:
+		return &query[*ent.ChannelInviteBatchQuery, predicate.ChannelInviteBatch, channelinvitebatch.OrderOption]{typ: ent.TypeChannelInviteBatch, tq: q}, nil
+	case *ent.ChannelInviteBatchGroupQuery:
+		return &query[*ent.ChannelInviteBatchGroupQuery, predicate.ChannelInviteBatchGroup, channelinvitebatchgroup.OrderOption]{typ: ent.TypeChannelInviteBatchGroup, tq: q}, nil
+	case *ent.ChannelInviteCodeQuery:
+		return &query[*ent.ChannelInviteCodeQuery, predicate.ChannelInviteCode, channelinvitecode.OrderOption]{typ: ent.TypeChannelInviteCode, tq: q}, nil
+	case *ent.ChannelInviteCodeUsageQuery:
+		return &query[*ent.ChannelInviteCodeUsageQuery, predicate.ChannelInviteCodeUsage, channelinvitecodeusage.OrderOption]{typ: ent.TypeChannelInviteCodeUsage, tq: q}, nil
 	case *ent.ErrorPassthroughRuleQuery:
 		return &query[*ent.ErrorPassthroughRuleQuery, predicate.ErrorPassthroughRule, errorpassthroughrule.OrderOption]{typ: ent.TypeErrorPassthroughRule, tq: q}, nil
 	case *ent.GroupQuery:

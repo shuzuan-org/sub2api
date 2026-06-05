@@ -13,6 +13,8 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -344,6 +346,34 @@ func (_u *UserUpdate) ClearPhoneBonusGrantedAt() *UserUpdate {
 	return _u
 }
 
+// SetPhone sets the "phone" field.
+func (_u *UserUpdate) SetPhone(v string) *UserUpdate {
+	_u.mutation.SetPhone(v)
+	return _u
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhone(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetPhone(*v)
+	}
+	return _u
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (_u *UserUpdate) SetPhoneVerified(v bool) *UserUpdate {
+	_u.mutation.SetPhoneVerified(v)
+	return _u
+}
+
+// SetNillablePhoneVerified sets the "phone_verified" field if the given value is not nil.
+func (_u *UserUpdate) SetNillablePhoneVerified(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetPhoneVerified(*v)
+	}
+	return _u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_u *UserUpdate) SetReferralCode(v string) *UserUpdate {
 	_u.mutation.SetReferralCode(v)
@@ -524,6 +554,36 @@ func (_u *UserUpdate) AddPromoCodeUsages(v ...*PromoCodeUsage) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddPromoCodeUsageIDs(ids...)
+}
+
+// AddChannelInviteBatchIDs adds the "channel_invite_batches" edge to the ChannelInviteBatch entity by IDs.
+func (_u *UserUpdate) AddChannelInviteBatchIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteBatches adds the "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdate) AddChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteBatchIDs(ids...)
+}
+
+// AddChannelInviteUsageIDs adds the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (_u *UserUpdate) AddChannelInviteUsageIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteUsages adds the "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdate) AddChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteUsageIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -720,6 +780,48 @@ func (_u *UserUpdate) RemovePromoCodeUsages(v ...*PromoCodeUsage) *UserUpdate {
 	return _u.RemovePromoCodeUsageIDs(ids...)
 }
 
+// ClearChannelInviteBatches clears all "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdate) ClearChannelInviteBatches() *UserUpdate {
+	_u.mutation.ClearChannelInviteBatches()
+	return _u
+}
+
+// RemoveChannelInviteBatchIDs removes the "channel_invite_batches" edge to ChannelInviteBatch entities by IDs.
+func (_u *UserUpdate) RemoveChannelInviteBatchIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteBatches removes "channel_invite_batches" edges to ChannelInviteBatch entities.
+func (_u *UserUpdate) RemoveChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteBatchIDs(ids...)
+}
+
+// ClearChannelInviteUsages clears all "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdate) ClearChannelInviteUsages() *UserUpdate {
+	_u.mutation.ClearChannelInviteUsages()
+	return _u
+}
+
+// RemoveChannelInviteUsageIDs removes the "channel_invite_usages" edge to ChannelInviteCodeUsage entities by IDs.
+func (_u *UserUpdate) RemoveChannelInviteUsageIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteUsages removes "channel_invite_usages" edges to ChannelInviteCodeUsage entities.
+func (_u *UserUpdate) RemoveChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteUsageIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *UserUpdate) Save(ctx context.Context) (int, error) {
 	if err := _u.defaults(); err != nil {
@@ -792,6 +894,11 @@ func (_u *UserUpdate) check() error {
 	if v, ok := _u.mutation.PhoneNumber(); ok {
 		if err := user.PhoneNumberValidator(v); err != nil {
 			return &ValidationError{Name: "phone_number", err: fmt.Errorf(`ent: validator failed for field "User.phone_number": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.ReferralCode(); ok {
@@ -897,6 +1004,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.PhoneBonusGrantedAtCleared() {
 		_spec.ClearField(user.FieldPhoneBonusGrantedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PhoneVerified(); ok {
+		_spec.SetField(user.FieldPhoneVerified, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
@@ -1323,6 +1436,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(promocodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteBatchesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteBatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteUsagesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteUsagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1658,6 +1861,34 @@ func (_u *UserUpdateOne) ClearPhoneBonusGrantedAt() *UserUpdateOne {
 	return _u
 }
 
+// SetPhone sets the "phone" field.
+func (_u *UserUpdateOne) SetPhone(v string) *UserUpdateOne {
+	_u.mutation.SetPhone(v)
+	return _u
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhone(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhone(*v)
+	}
+	return _u
+}
+
+// SetPhoneVerified sets the "phone_verified" field.
+func (_u *UserUpdateOne) SetPhoneVerified(v bool) *UserUpdateOne {
+	_u.mutation.SetPhoneVerified(v)
+	return _u
+}
+
+// SetNillablePhoneVerified sets the "phone_verified" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillablePhoneVerified(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetPhoneVerified(*v)
+	}
+	return _u
+}
+
 // SetReferralCode sets the "referral_code" field.
 func (_u *UserUpdateOne) SetReferralCode(v string) *UserUpdateOne {
 	_u.mutation.SetReferralCode(v)
@@ -1838,6 +2069,36 @@ func (_u *UserUpdateOne) AddPromoCodeUsages(v ...*PromoCodeUsage) *UserUpdateOne
 		ids[i] = v[i].ID
 	}
 	return _u.AddPromoCodeUsageIDs(ids...)
+}
+
+// AddChannelInviteBatchIDs adds the "channel_invite_batches" edge to the ChannelInviteBatch entity by IDs.
+func (_u *UserUpdateOne) AddChannelInviteBatchIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteBatches adds the "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdateOne) AddChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteBatchIDs(ids...)
+}
+
+// AddChannelInviteUsageIDs adds the "channel_invite_usages" edge to the ChannelInviteCodeUsage entity by IDs.
+func (_u *UserUpdateOne) AddChannelInviteUsageIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// AddChannelInviteUsages adds the "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdateOne) AddChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddChannelInviteUsageIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -2034,6 +2295,48 @@ func (_u *UserUpdateOne) RemovePromoCodeUsages(v ...*PromoCodeUsage) *UserUpdate
 	return _u.RemovePromoCodeUsageIDs(ids...)
 }
 
+// ClearChannelInviteBatches clears all "channel_invite_batches" edges to the ChannelInviteBatch entity.
+func (_u *UserUpdateOne) ClearChannelInviteBatches() *UserUpdateOne {
+	_u.mutation.ClearChannelInviteBatches()
+	return _u
+}
+
+// RemoveChannelInviteBatchIDs removes the "channel_invite_batches" edge to ChannelInviteBatch entities by IDs.
+func (_u *UserUpdateOne) RemoveChannelInviteBatchIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveChannelInviteBatchIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteBatches removes "channel_invite_batches" edges to ChannelInviteBatch entities.
+func (_u *UserUpdateOne) RemoveChannelInviteBatches(v ...*ChannelInviteBatch) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteBatchIDs(ids...)
+}
+
+// ClearChannelInviteUsages clears all "channel_invite_usages" edges to the ChannelInviteCodeUsage entity.
+func (_u *UserUpdateOne) ClearChannelInviteUsages() *UserUpdateOne {
+	_u.mutation.ClearChannelInviteUsages()
+	return _u
+}
+
+// RemoveChannelInviteUsageIDs removes the "channel_invite_usages" edge to ChannelInviteCodeUsage entities by IDs.
+func (_u *UserUpdateOne) RemoveChannelInviteUsageIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveChannelInviteUsageIDs(ids...)
+	return _u
+}
+
+// RemoveChannelInviteUsages removes "channel_invite_usages" edges to ChannelInviteCodeUsage entities.
+func (_u *UserUpdateOne) RemoveChannelInviteUsages(v ...*ChannelInviteCodeUsage) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveChannelInviteUsageIDs(ids...)
+}
+
 // Where appends a list predicates to the UserUpdate builder.
 func (_u *UserUpdateOne) Where(ps ...predicate.User) *UserUpdateOne {
 	_u.mutation.Where(ps...)
@@ -2119,6 +2422,11 @@ func (_u *UserUpdateOne) check() error {
 	if v, ok := _u.mutation.PhoneNumber(); ok {
 		if err := user.PhoneNumberValidator(v); err != nil {
 			return &ValidationError{Name: "phone_number", err: fmt.Errorf(`ent: validator failed for field "User.phone_number": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.ReferralCode(); ok {
@@ -2241,6 +2549,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if _u.mutation.PhoneBonusGrantedAtCleared() {
 		_spec.ClearField(user.FieldPhoneBonusGrantedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PhoneVerified(); ok {
+		_spec.SetField(user.FieldPhoneVerified, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ReferralCode(); ok {
 		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
@@ -2667,6 +2981,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(promocodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteBatchesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteBatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteBatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteBatchesTable,
+			Columns: []string{user.ChannelInviteBatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitebatch.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedChannelInviteUsagesIDs(); len(nodes) > 0 && !_u.mutation.ChannelInviteUsagesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ChannelInviteUsagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ChannelInviteUsagesTable,
+			Columns: []string{user.ChannelInviteUsagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(channelinvitecodeusage.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

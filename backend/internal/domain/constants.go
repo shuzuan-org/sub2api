@@ -43,6 +43,19 @@ const (
 	RedeemTypeInvitation   = "invitation"
 )
 
+// ChannelInviteBatch status constants
+const (
+	ChannelInviteBatchStatusActive   = "active"
+	ChannelInviteBatchStatusDisabled = "disabled"
+)
+
+// ChannelInviteCode status constants
+const (
+	ChannelInviteCodeStatusUnused  = "unused"
+	ChannelInviteCodeStatusUsed    = "used"
+	ChannelInviteCodeStatusExpired = "expired"
+)
+
 // PromoCode status constants
 const (
 	PromoCodeStatusActive   = "active"

@@ -150,6 +150,16 @@ func PhoneBonusGrantedAt(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldPhoneBonusGrantedAt, v))
 }
 
+// Phone applies equality check predicate on the "phone" field. It's identical to PhoneEQ.
+func Phone(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhone, v))
+}
+
+// PhoneVerified applies equality check predicate on the "phone_verified" field. It's identical to PhoneVerifiedEQ.
+func PhoneVerified(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneVerified, v))
+}
+
 // ReferralCode applies equality check predicate on the "referral_code" field. It's identical to ReferralCodeEQ.
 func ReferralCode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldReferralCode, v))
@@ -1150,6 +1160,81 @@ func PhoneBonusGrantedAtNotNil() predicate.User {
 	return predicate.User(sql.FieldNotNull(FieldPhoneBonusGrantedAt))
 }
 
+// PhoneEQ applies the EQ predicate on the "phone" field.
+func PhoneEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhone, v))
+}
+
+// PhoneNEQ applies the NEQ predicate on the "phone" field.
+func PhoneNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhone, v))
+}
+
+// PhoneIn applies the In predicate on the "phone" field.
+func PhoneIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPhone, vs...))
+}
+
+// PhoneNotIn applies the NotIn predicate on the "phone" field.
+func PhoneNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPhone, vs...))
+}
+
+// PhoneGT applies the GT predicate on the "phone" field.
+func PhoneGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPhone, v))
+}
+
+// PhoneGTE applies the GTE predicate on the "phone" field.
+func PhoneGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPhone, v))
+}
+
+// PhoneLT applies the LT predicate on the "phone" field.
+func PhoneLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPhone, v))
+}
+
+// PhoneLTE applies the LTE predicate on the "phone" field.
+func PhoneLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPhone, v))
+}
+
+// PhoneContains applies the Contains predicate on the "phone" field.
+func PhoneContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldPhone, v))
+}
+
+// PhoneHasPrefix applies the HasPrefix predicate on the "phone" field.
+func PhoneHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldPhone, v))
+}
+
+// PhoneHasSuffix applies the HasSuffix predicate on the "phone" field.
+func PhoneHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldPhone, v))
+}
+
+// PhoneEqualFold applies the EqualFold predicate on the "phone" field.
+func PhoneEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldPhone, v))
+}
+
+// PhoneContainsFold applies the ContainsFold predicate on the "phone" field.
+func PhoneContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldPhone, v))
+}
+
+// PhoneVerifiedEQ applies the EQ predicate on the "phone_verified" field.
+func PhoneVerifiedEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPhoneVerified, v))
+}
+
+// PhoneVerifiedNEQ applies the NEQ predicate on the "phone_verified" field.
+func PhoneVerifiedNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPhoneVerified, v))
+}
+
 // ReferralCodeEQ applies the EQ predicate on the "referral_code" field.
 func ReferralCodeEQ(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldReferralCode, v))
@@ -1474,6 +1559,52 @@ func HasPromoCodeUsages() predicate.User {
 func HasPromoCodeUsagesWith(preds ...predicate.PromoCodeUsage) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newPromoCodeUsagesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasChannelInviteBatches applies the HasEdge predicate on the "channel_invite_batches" edge.
+func HasChannelInviteBatches() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteBatchesTable, ChannelInviteBatchesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasChannelInviteBatchesWith applies the HasEdge predicate on the "channel_invite_batches" edge with a given conditions (other predicates).
+func HasChannelInviteBatchesWith(preds ...predicate.ChannelInviteBatch) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newChannelInviteBatchesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasChannelInviteUsages applies the HasEdge predicate on the "channel_invite_usages" edge.
+func HasChannelInviteUsages() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteUsagesTable, ChannelInviteUsagesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasChannelInviteUsagesWith applies the HasEdge predicate on the "channel_invite_usages" edge with a given conditions (other predicates).
+func HasChannelInviteUsagesWith(preds ...predicate.ChannelInviteCodeUsage) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newChannelInviteUsagesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

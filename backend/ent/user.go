@@ -55,6 +55,10 @@ type User struct {
 	PhoneBoundAt *time.Time `json:"phone_bound_at,omitempty"`
 	// PhoneBonusGrantedAt holds the value of the "phone_bonus_granted_at" field.
 	PhoneBonusGrantedAt *time.Time `json:"phone_bonus_granted_at,omitempty"`
+	// Phone holds the value of the "phone" field.
+	Phone string `json:"phone,omitempty"`
+	// PhoneVerified holds the value of the "phone_verified" field.
+	PhoneVerified bool `json:"phone_verified,omitempty"`
 	// ReferralCode holds the value of the "referral_code" field.
 	ReferralCode *string `json:"referral_code,omitempty"`
 	// ReferredBy holds the value of the "referred_by" field.
@@ -85,11 +89,15 @@ type UserEdges struct {
 	AttributeValues []*UserAttributeValue `json:"attribute_values,omitempty"`
 	// PromoCodeUsages holds the value of the promo_code_usages edge.
 	PromoCodeUsages []*PromoCodeUsage `json:"promo_code_usages,omitempty"`
+	// ChannelInviteBatches holds the value of the channel_invite_batches edge.
+	ChannelInviteBatches []*ChannelInviteBatch `json:"channel_invite_batches,omitempty"`
+	// ChannelInviteUsages holds the value of the channel_invite_usages edge.
+	ChannelInviteUsages []*ChannelInviteCodeUsage `json:"channel_invite_usages,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [10]bool
+	loadedTypes [12]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -173,10 +181,28 @@ func (e UserEdges) PromoCodeUsagesOrErr() ([]*PromoCodeUsage, error) {
 	return nil, &NotLoadedError{edge: "promo_code_usages"}
 }
 
+// ChannelInviteBatchesOrErr returns the ChannelInviteBatches value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ChannelInviteBatchesOrErr() ([]*ChannelInviteBatch, error) {
+	if e.loadedTypes[9] {
+		return e.ChannelInviteBatches, nil
+	}
+	return nil, &NotLoadedError{edge: "channel_invite_batches"}
+}
+
+// ChannelInviteUsagesOrErr returns the ChannelInviteUsages value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ChannelInviteUsagesOrErr() ([]*ChannelInviteCodeUsage, error) {
+	if e.loadedTypes[10] {
+		return e.ChannelInviteUsages, nil
+	}
+	return nil, &NotLoadedError{edge: "channel_invite_usages"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[9] {
+	if e.loadedTypes[11] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -187,13 +213,13 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldTotpEnabled:
+		case user.FieldTotpEnabled, user.FieldPhoneVerified:
 			values[i] = new(sql.NullBool)
 		case user.FieldBalance:
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldSoraStorageQuotaBytes, user.FieldSoraStorageUsedBytes, user.FieldReferredBy:
 			values[i] = new(sql.NullInt64)
-		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldPhoneNumber, user.FieldReferralCode:
+		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldPhoneNumber, user.FieldPhone, user.FieldReferralCode:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt, user.FieldPhoneBoundAt, user.FieldPhoneBonusGrantedAt:
 			values[i] = new(sql.NullTime)
@@ -338,6 +364,18 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				_m.PhoneBonusGrantedAt = new(time.Time)
 				*_m.PhoneBonusGrantedAt = value.Time
 			}
+		case user.FieldPhone:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field phone", values[i])
+			} else if value.Valid {
+				_m.Phone = value.String
+			}
+		case user.FieldPhoneVerified:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field phone_verified", values[i])
+			} else if value.Valid {
+				_m.PhoneVerified = value.Bool
+			}
 		case user.FieldReferralCode:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field referral_code", values[i])
@@ -408,6 +446,16 @@ func (_m *User) QueryAttributeValues() *UserAttributeValueQuery {
 // QueryPromoCodeUsages queries the "promo_code_usages" edge of the User entity.
 func (_m *User) QueryPromoCodeUsages() *PromoCodeUsageQuery {
 	return NewUserClient(_m.config).QueryPromoCodeUsages(_m)
+}
+
+// QueryChannelInviteBatches queries the "channel_invite_batches" edge of the User entity.
+func (_m *User) QueryChannelInviteBatches() *ChannelInviteBatchQuery {
+	return NewUserClient(_m.config).QueryChannelInviteBatches(_m)
+}
+
+// QueryChannelInviteUsages queries the "channel_invite_usages" edge of the User entity.
+func (_m *User) QueryChannelInviteUsages() *ChannelInviteCodeUsageQuery {
+	return NewUserClient(_m.config).QueryChannelInviteUsages(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.
@@ -506,6 +554,12 @@ func (_m *User) String() string {
 		builder.WriteString("phone_bonus_granted_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("phone=")
+	builder.WriteString(_m.Phone)
+	builder.WriteString(", ")
+	builder.WriteString("phone_verified=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PhoneVerified))
 	builder.WriteString(", ")
 	if v := _m.ReferralCode; v != nil {
 		builder.WriteString("referral_code=")

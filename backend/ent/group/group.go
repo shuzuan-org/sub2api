@@ -77,6 +77,8 @@ const (
 	EdgeAccounts = "accounts"
 	// EdgeAllowedUsers holds the string denoting the allowed_users edge name in mutations.
 	EdgeAllowedUsers = "allowed_users"
+	// EdgeChannelInviteBatchGroups holds the string denoting the channel_invite_batch_groups edge name in mutations.
+	EdgeChannelInviteBatchGroups = "channel_invite_batch_groups"
 	// EdgeAccountGroups holds the string denoting the account_groups edge name in mutations.
 	EdgeAccountGroups = "account_groups"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
@@ -107,6 +109,13 @@ const (
 	// AllowedUsersInverseTable is the table name for the User entity.
 	// It exists in this package in order to avoid circular dependency with the "user" package.
 	AllowedUsersInverseTable = "users"
+	// ChannelInviteBatchGroupsTable is the table that holds the channel_invite_batch_groups relation/edge.
+	ChannelInviteBatchGroupsTable = "channel_invite_batch_groups"
+	// ChannelInviteBatchGroupsInverseTable is the table name for the ChannelInviteBatchGroup entity.
+	// It exists in this package in order to avoid circular dependency with the "channelinvitebatchgroup" package.
+	ChannelInviteBatchGroupsInverseTable = "channel_invite_batch_groups"
+	// ChannelInviteBatchGroupsColumn is the table column denoting the channel_invite_batch_groups relation/edge.
+	ChannelInviteBatchGroupsColumn = "group_id"
 	// AccountGroupsTable is the table that holds the account_groups relation/edge.
 	AccountGroupsTable = "account_groups"
 	// AccountGroupsInverseTable is the table name for the AccountGroup entity.
@@ -411,6 +420,20 @@ func ByAllowedUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByChannelInviteBatchGroupsCount orders the results by channel_invite_batch_groups count.
+func ByChannelInviteBatchGroupsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newChannelInviteBatchGroupsStep(), opts...)
+	}
+}
+
+// ByChannelInviteBatchGroups orders the results by channel_invite_batch_groups terms.
+func ByChannelInviteBatchGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newChannelInviteBatchGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByAccountGroupsCount orders the results by account_groups count.
 func ByAccountGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -464,6 +487,13 @@ func newAllowedUsersStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AllowedUsersInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2M, true, AllowedUsersTable, AllowedUsersPrimaryKey...),
+	)
+}
+func newChannelInviteBatchGroupsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ChannelInviteBatchGroupsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteBatchGroupsTable, ChannelInviteBatchGroupsColumn),
 	)
 }
 func newAccountGroupsStep() *sqlgraph.Step {

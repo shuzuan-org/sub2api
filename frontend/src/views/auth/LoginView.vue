@@ -14,27 +14,35 @@
       <!-- LinuxDo Connect OAuth 登录 -->
       <LinuxDoOAuthSection v-if="linuxdoOAuthEnabled && !backendModeEnabled" :disabled="isLoading" />
 
-      <!-- Login Mode Tabs -->
-      <div v-if="phoneLoginEnabled && !backendModeEnabled" class="flex rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
+      <!-- Login Mode Toggle -->
+      <div v-if="phoneLoginEnabled" class="flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
         <button
           type="button"
+          :class="[
+            'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            loginMode === 'email'
+              ? 'bg-white text-gray-900 shadow dark:bg-dark-600 dark:text-white'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          ]"
           @click="loginMode = 'email'"
-          class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-          :class="loginMode === 'email' ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-300'"
         >
-          {{ t('auth.emailPasswordLogin') }}
+          {{ t('auth.emailLogin') }}
         </button>
         <button
           type="button"
+          :class="[
+            'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            loginMode === 'phone'
+              ? 'bg-white text-gray-900 shadow dark:bg-dark-600 dark:text-white'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          ]"
           @click="loginMode = 'phone'"
-          class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-          :class="loginMode === 'phone' ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-300'"
         >
           {{ t('auth.phoneLogin') }}
         </button>
       </div>
 
-      <!-- Email Password Login Form -->
+      <!-- Email Login Form -->
       <form v-if="loginMode === 'email'" @submit.prevent="handleLogin" class="space-y-5">
         <!-- Email Input -->
         <div>
@@ -169,7 +177,7 @@
         </button>
       </form>
 
-      <!-- Phone Verification Code Login Form -->
+      <!-- Phone Code Login Form -->
       <form v-if="loginMode === 'phone'" @submit.prevent="handlePhoneLogin" class="space-y-5">
         <!-- Phone Input -->
         <div>
@@ -178,7 +186,7 @@
           </label>
           <div class="relative">
             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="mail" size="md" class="text-gray-400 dark:text-dark-500" />
+              <Icon name="key" size="md" class="text-gray-400 dark:text-dark-500" />
             </div>
             <input
               id="phone"
@@ -190,7 +198,6 @@
               class="input pl-11"
               :class="{ 'input-error': phoneErrors.phone }"
               :placeholder="t('auth.phonePlaceholder')"
-              maxlength="20"
             />
           </div>
           <p v-if="phoneErrors.phone" class="input-error-text">
@@ -198,40 +205,102 @@
           </p>
         </div>
 
-        <!-- Verification Code Input -->
+        <!-- Verify Code Input -->
         <div>
-          <label for="verify_code" class="input-label">
-            {{ t('auth.verifyCodeLabel') }}
+          <label for="phoneVerifyCode" class="input-label">
+            {{ t('auth.verificationCode') }}
           </label>
           <div class="flex gap-2">
             <div class="relative flex-1">
               <input
-                id="verify_code"
+                id="phoneVerifyCode"
                 v-model="phoneFormData.verifyCode"
                 type="text"
                 required
                 inputmode="numeric"
+                maxlength="6"
                 autocomplete="one-time-code"
                 :disabled="isLoading"
-                class="input pr-10"
+                class="input"
                 :class="{ 'input-error': phoneErrors.verifyCode }"
-                :placeholder="t('auth.verifyCodePlaceholder')"
-                maxlength="6"
+                :placeholder="t('auth.verificationCodeHint')"
               />
             </div>
             <button
               type="button"
-              @click="sendPhoneCode"
-              :disabled="sendCodeLoading || sendCodeCountdown > 0"
-              class="btn btn-secondary shrink-0 px-4 text-sm"
+              :disabled="isLoading || sendCodeDisabled"
+              class="btn btn-secondary whitespace-nowrap"
+              @click="handleSendPhoneCode"
             >
-              {{ sendCodeLoading ? t('auth.sendingCode') : sendCodeCountdown > 0 ? t('auth.resendCountdown', { countdown: sendCodeCountdown }) : sendCodeCountdown === -1 ? t('auth.resendCode') : t('auth.sendCode') }}
+              {{ sendCodeButtonText }}
             </button>
           </div>
           <p v-if="phoneErrors.verifyCode" class="input-error-text">
             {{ phoneErrors.verifyCode }}
           </p>
         </div>
+
+        <!-- Turnstile Widget -->
+        <div v-if="turnstileEnabled && turnstileSiteKey">
+          <TurnstileWidget
+            ref="turnstileRef"
+            :site-key="turnstileSiteKey"
+            @verify="onTurnstileVerify"
+            @expire="onTurnstileExpire"
+            @error="onTurnstileError"
+          />
+          <p v-if="errors.turnstile" class="input-error-text mt-2 text-center">
+            {{ errors.turnstile }}
+          </p>
+        </div>
+
+        <!-- Error Message -->
+        <transition name="fade">
+          <div
+            v-if="errorMessage"
+            class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20"
+          >
+            <div class="flex items-start gap-3">
+              <div class="flex-shrink-0">
+                <Icon name="exclamationCircle" size="md" class="text-red-500" />
+              </div>
+              <p class="text-sm text-red-700 dark:text-red-400">
+                {{ errorMessage }}
+              </p>
+            </div>
+          </div>
+        </transition>
+
+        <!-- Submit Button -->
+        <button
+          type="submit"
+          :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
+          class="btn btn-primary w-full"
+        >
+          <svg
+            v-if="isLoading"
+            class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          <Icon v-else name="login" size="md" class="mr-2" />
+          {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
+        </button>
+      </form>
 
         <!-- Turnstile Widget -->
         <div v-if="turnstileEnabled && turnstileSiteKey">
@@ -322,7 +391,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
@@ -355,7 +424,6 @@ const linuxdoOAuthEnabled = ref<boolean>(false)
 const backendModeEnabled = ref<boolean>(false)
 const passwordResetEnabled = ref<boolean>(false)
 const registrationEnabled = ref<boolean>(false)
-const phoneLoginEnabled = ref<boolean>(false)
 const publicSettingsLoaded = ref<boolean>(false)
 
 // Turnstile
@@ -368,24 +436,9 @@ const totpTempToken = ref<string>('')
 const totpUserEmailMasked = ref<string>('')
 const totpModalRef = ref<InstanceType<typeof TotpLoginModal> | null>(null)
 
-const loginMode = ref<'email' | 'phone'>('email')
-
 const formData = reactive({
   email: '',
   password: ''
-})
-
-const phoneFormData = reactive({
-  phone: '',
-  verifyCode: ''
-})
-
-const sendCodeLoading = ref<boolean>(false)
-const sendCodeCountdown = ref<number>(-1)
-
-const phoneErrors = reactive({
-  phone: '',
-  verifyCode: ''
 })
 
 const errors = reactive({
@@ -393,6 +446,34 @@ const errors = reactive({
   password: '',
   turnstile: ''
 })
+
+// Phone login mode
+const phoneLoginEnabled = ref<boolean>(false)
+const loginMode = ref<'email' | 'phone'>('email')
+
+const phoneFormData = reactive({
+  phone: '',
+  verifyCode: ''
+})
+
+const phoneErrors = reactive({
+  phone: '',
+  verifyCode: ''
+})
+
+// Send code countdown
+const sendCodeCountdown = ref<number>(0)
+const sendCodeDisabled = computed(() => sendCodeCountdown.value > 0)
+const sendCodeButtonText = computed(() => {
+  if (sendCodeCountdown.value > 0) {
+    return t('auth.resendAfter', { seconds: sendCodeCountdown.value })
+  }
+  return sendCodeCountdown.value === 0 && phoneFormData.phone
+    ? t('auth.sendCode')
+    : t('auth.resendCode')
+})
+
+let sendCodeTimer: ReturnType<typeof setInterval> | null = null
 
 // ==================== Lifecycle ====================
 
@@ -411,9 +492,9 @@ onMounted(async () => {
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
     backendModeEnabled.value = settings.backend_mode_enabled
+    phoneLoginEnabled.value = settings.phone_login_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
     registrationEnabled.value = settings.registration_enabled
-    phoneLoginEnabled.value = settings.phone_login_enabled
   } catch (error) {
     console.error('Failed to load public settings:', error)
   } finally {
@@ -542,6 +623,7 @@ async function handleLogin(): Promise<void> {
 function validatePhoneForm(): boolean {
   phoneErrors.phone = ''
   phoneErrors.verifyCode = ''
+
   let isValid = true
 
   if (!phoneFormData.phone.trim()) {
@@ -552,45 +634,73 @@ function validatePhoneForm(): boolean {
     isValid = false
   }
 
-  if (!phoneFormData.verifyCode.trim()) {
+  if (!phoneFormData.verifyCode) {
     phoneErrors.verifyCode = t('auth.codeRequired')
     isValid = false
-  } else if (!/^\d{6}$/.test(phoneFormData.verifyCode.trim())) {
+  } else if (!/^\d{6}$/.test(phoneFormData.verifyCode)) {
     phoneErrors.verifyCode = t('auth.invalidCode')
+    isValid = false
+  }
+
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    errors.turnstile = t('auth.completeVerification')
     isValid = false
   }
 
   return isValid
 }
 
-async function sendPhoneCode(): Promise<void> {
+async function handleSendPhoneCode(): Promise<void> {
   phoneErrors.phone = ''
+
+  if (!phoneFormData.phone.trim()) {
+    phoneErrors.phone = t('auth.phoneRequired')
+    return
+  }
   if (!/^1[3-9]\d{9}$/.test(phoneFormData.phone.trim())) {
     phoneErrors.phone = t('auth.invalidPhone')
     return
   }
 
-  sendCodeLoading.value = true
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    errors.turnstile = t('auth.completeVerification')
+    return
+  }
+
+  isLoading.value = true
+  errorMessage.value = ''
+
   try {
-    const response = await sendPhoneLoginCode({
+    const result = await sendPhoneLoginCode({
       phone: phoneFormData.phone.trim(),
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
     })
-    appStore.showSuccess(t('auth.sendCodeSuccess'))
-    sendCodeCountdown.value = response.countdown
-    const timer = setInterval(() => {
+
+    sendCodeCountdown.value = result.countdown
+    appStore.showSuccess(t('auth.codeSentSuccess'))
+
+    // Start countdown timer
+    if (sendCodeTimer) clearInterval(sendCodeTimer)
+    sendCodeTimer = setInterval(() => {
       sendCodeCountdown.value--
       if (sendCodeCountdown.value <= 0) {
-        sendCodeCountdown.value = -1
-        clearInterval(timer)
+        if (sendCodeTimer) {
+          clearInterval(sendCodeTimer)
+          sendCodeTimer = null
+        }
       }
     }, 1000)
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { detail?: string } }; message?: string }
-    const msg = err.response?.data?.detail || err.message || t('auth.sendCodeFailed')
-    appStore.showError(msg)
+    const err = error as { message?: string; response?: { data?: { detail?: string } } }
+    if (err.response?.data?.detail) {
+      errorMessage.value = err.response.data.detail
+    } else if (err.message) {
+      errorMessage.value = err.message
+    } else {
+      errorMessage.value = t('auth.sendCodeFailed')
+    }
   } finally {
-    sendCodeLoading.value = false
+    isLoading.value = false
   }
 }
 
@@ -601,17 +711,12 @@ async function handlePhoneLogin(): Promise<void> {
     return
   }
 
-  if (turnstileEnabled.value && !turnstileToken.value) {
-    errors.turnstile = t('auth.completeVerification')
-    return
-  }
-
   isLoading.value = true
 
   try {
     const response = await authStore.loginWithPhoneCode({
       phone: phoneFormData.phone.trim(),
-      verify_code: phoneFormData.verifyCode.trim(),
+      verify_code: phoneFormData.verifyCode,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
     })
 
@@ -625,6 +730,7 @@ async function handlePhoneLogin(): Promise<void> {
     }
 
     appStore.showSuccess(t('auth.loginSuccess'))
+
     const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
     await router.push(redirectTo)
   } catch (error: unknown) {
@@ -634,12 +740,13 @@ async function handlePhoneLogin(): Promise<void> {
     }
 
     const err = error as { message?: string; response?: { data?: { detail?: string } } }
+
     if (err.response?.data?.detail) {
       errorMessage.value = err.response.data.detail
     } else if (err.message) {
       errorMessage.value = err.message
     } else {
-      errorMessage.value = t('auth.phoneLoginFailed')
+      errorMessage.value = t('auth.loginFailed')
     }
 
     appStore.showError(errorMessage.value)

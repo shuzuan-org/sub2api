@@ -89,6 +89,26 @@ func (s *userRepoStub) ExistsByEmail(ctx context.Context, email string) (bool, e
 	return s.exists, nil
 }
 
+func (s *userRepoStub) GetByPhone(ctx context.Context, phone string) (*User, error) {
+	panic("unexpected GetByPhone call")
+}
+
+func (s *userRepoStub) ExistsByPhone(ctx context.Context, phone string) (bool, error) {
+	panic("unexpected ExistsByPhone call")
+}
+
+func (s *userRepoStub) GetByReferralCode(ctx context.Context, code string) (*User, error) {
+	panic("unexpected GetByReferralCode call")
+}
+
+func (s *userRepoStub) SetReferralCode(ctx context.Context, id int64, code string) error {
+	panic("unexpected SetReferralCode call")
+}
+
+func (s *userRepoStub) SetReferredBy(ctx context.Context, id int64, referrerID int64) error {
+	panic("unexpected SetReferredBy call")
+}
+
 func (s *userRepoStub) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
 	panic("unexpected RemoveGroupFromAllowedGroups call")
 }

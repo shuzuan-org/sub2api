@@ -53,6 +53,10 @@ const (
 	FieldPhoneBoundAt = "phone_bound_at"
 	// FieldPhoneBonusGrantedAt holds the string denoting the phone_bonus_granted_at field in the database.
 	FieldPhoneBonusGrantedAt = "phone_bonus_granted_at"
+	// FieldPhone holds the string denoting the phone field in the database.
+	FieldPhone = "phone"
+	// FieldPhoneVerified holds the string denoting the phone_verified field in the database.
+	FieldPhoneVerified = "phone_verified"
 	// FieldReferralCode holds the string denoting the referral_code field in the database.
 	FieldReferralCode = "referral_code"
 	// FieldReferredBy holds the string denoting the referred_by field in the database.
@@ -75,6 +79,10 @@ const (
 	EdgeAttributeValues = "attribute_values"
 	// EdgePromoCodeUsages holds the string denoting the promo_code_usages edge name in mutations.
 	EdgePromoCodeUsages = "promo_code_usages"
+	// EdgeChannelInviteBatches holds the string denoting the channel_invite_batches edge name in mutations.
+	EdgeChannelInviteBatches = "channel_invite_batches"
+	// EdgeChannelInviteUsages holds the string denoting the channel_invite_usages edge name in mutations.
+	EdgeChannelInviteUsages = "channel_invite_usages"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
@@ -140,6 +148,20 @@ const (
 	PromoCodeUsagesInverseTable = "promo_code_usages"
 	// PromoCodeUsagesColumn is the table column denoting the promo_code_usages relation/edge.
 	PromoCodeUsagesColumn = "user_id"
+	// ChannelInviteBatchesTable is the table that holds the channel_invite_batches relation/edge.
+	ChannelInviteBatchesTable = "channel_invite_batches"
+	// ChannelInviteBatchesInverseTable is the table name for the ChannelInviteBatch entity.
+	// It exists in this package in order to avoid circular dependency with the "channelinvitebatch" package.
+	ChannelInviteBatchesInverseTable = "channel_invite_batches"
+	// ChannelInviteBatchesColumn is the table column denoting the channel_invite_batches relation/edge.
+	ChannelInviteBatchesColumn = "created_by"
+	// ChannelInviteUsagesTable is the table that holds the channel_invite_usages relation/edge.
+	ChannelInviteUsagesTable = "channel_invite_code_usages"
+	// ChannelInviteUsagesInverseTable is the table name for the ChannelInviteCodeUsage entity.
+	// It exists in this package in order to avoid circular dependency with the "channelinvitecodeusage" package.
+	ChannelInviteUsagesInverseTable = "channel_invite_code_usages"
+	// ChannelInviteUsagesColumn is the table column denoting the channel_invite_usages relation/edge.
+	ChannelInviteUsagesColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -171,6 +193,8 @@ var Columns = []string{
 	FieldPhoneNumber,
 	FieldPhoneBoundAt,
 	FieldPhoneBonusGrantedAt,
+	FieldPhone,
+	FieldPhoneVerified,
 	FieldReferralCode,
 	FieldReferredBy,
 }
@@ -235,6 +259,12 @@ var (
 	DefaultSoraStorageUsedBytes int64
 	// PhoneNumberValidator is a validator for the "phone_number" field. It is called by the builders before save.
 	PhoneNumberValidator func(string) error
+	// DefaultPhone holds the default value on creation for the "phone" field.
+	DefaultPhone string
+	// PhoneValidator is a validator for the "phone" field. It is called by the builders before save.
+	PhoneValidator func(string) error
+	// DefaultPhoneVerified holds the default value on creation for the "phone_verified" field.
+	DefaultPhoneVerified bool
 	// ReferralCodeValidator is a validator for the "referral_code" field. It is called by the builders before save.
 	ReferralCodeValidator func(string) error
 )
@@ -340,6 +370,16 @@ func ByPhoneBoundAt(opts ...sql.OrderTermOption) OrderOption {
 // ByPhoneBonusGrantedAt orders the results by the phone_bonus_granted_at field.
 func ByPhoneBonusGrantedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPhoneBonusGrantedAt, opts...).ToFunc()
+}
+
+// ByPhone orders the results by the phone field.
+func ByPhone(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhone, opts...).ToFunc()
+}
+
+// ByPhoneVerified orders the results by the phone_verified field.
+func ByPhoneVerified(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhoneVerified, opts...).ToFunc()
 }
 
 // ByReferralCode orders the results by the referral_code field.
@@ -478,6 +518,34 @@ func ByPromoCodeUsages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByChannelInviteBatchesCount orders the results by channel_invite_batches count.
+func ByChannelInviteBatchesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newChannelInviteBatchesStep(), opts...)
+	}
+}
+
+// ByChannelInviteBatches orders the results by channel_invite_batches terms.
+func ByChannelInviteBatches(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newChannelInviteBatchesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByChannelInviteUsagesCount orders the results by channel_invite_usages count.
+func ByChannelInviteUsagesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newChannelInviteUsagesStep(), opts...)
+	}
+}
+
+// ByChannelInviteUsages orders the results by channel_invite_usages terms.
+func ByChannelInviteUsages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newChannelInviteUsagesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -552,6 +620,20 @@ func newPromoCodeUsagesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PromoCodeUsagesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PromoCodeUsagesTable, PromoCodeUsagesColumn),
+	)
+}
+func newChannelInviteBatchesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ChannelInviteBatchesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteBatchesTable, ChannelInviteBatchesColumn),
+	)
+}
+func newChannelInviteUsagesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ChannelInviteUsagesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ChannelInviteUsagesTable, ChannelInviteUsagesColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

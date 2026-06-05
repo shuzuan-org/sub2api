@@ -32,11 +32,11 @@ export interface User {
   balance: number // User balance for API usage
   concurrency: number // Allowed concurrent requests
   status: 'active' | 'disabled' // Account status
+  phone: string
+  phone_verified: boolean
+  phone_number: string | null
   allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
   subscriptions?: UserSubscription[] // User's active subscriptions
-  phone_number?: string // E.164 format (e.g. +8613800138000)
-  phone_bound_at?: string
-  phone_bonus_granted_at?: string
   created_at: string
   updated_at: string
 }
@@ -64,7 +64,7 @@ export interface SendPhoneLoginCodeRequest {
   turnstile_token?: string
 }
 
-export interface PhoneLoginRequest {
+export interface PhoneCodeLoginRequest {
   phone: string
   verify_code: string
   turnstile_token?: string
@@ -126,10 +126,10 @@ export interface PublicSettings {
   purchase_subscription_url: string
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  phone_login_enabled: boolean
   linuxdo_oauth_enabled: boolean
   sora_client_enabled: boolean
   backend_mode_enabled: boolean
-  phone_login_enabled: boolean
   version: string
 }
 

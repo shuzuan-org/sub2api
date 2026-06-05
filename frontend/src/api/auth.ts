@@ -6,13 +6,13 @@
 import { apiClient } from './client'
 import type {
   LoginRequest,
-  PhoneLoginRequest,
-  SendPhoneLoginCodeRequest,
   RegisterRequest,
   AuthResponse,
   CurrentUserResponse,
   SendVerifyCodeRequest,
   SendVerifyCodeResponse,
+  SendPhoneLoginCodeRequest,
+  PhoneCodeLoginRequest,
   PublicSettings,
   TotpLoginResponse,
   TotpLogin2FARequest
@@ -249,26 +249,27 @@ export async function sendVerifyCode(
 }
 
 /**
- * Send phone login verification code via SMS
- * @param request - Phone and optional Turnstile token
+ * Send phone login verification code
+ * @param request - Phone number and optional Turnstile token
  * @returns Response with countdown seconds
  */
 export async function sendPhoneLoginCode(
   request: SendPhoneLoginCodeRequest
 ): Promise<SendVerifyCodeResponse> {
-  const { data } = await apiClient.post<SendVerifyCodeResponse>('/auth/send-phone-login-code', request)
+  const { data } = await apiClient.post<SendVerifyCodeResponse>('/auth/phone/send-code', request)
   return data
 }
 
 /**
- * Login with phone + SMS verification code
- * @param credentials - Phone, verification code, and optional Turnstile token
- * @returns Authentication response with token and user data, or 2FA required response
+ * Login with phone number and verification code
+ * @param request - Phone, verify code, and optional Turnstile token
+ * @returns Authentication response or 2FA required response
  */
-export async function loginWithPhoneCode(credentials: PhoneLoginRequest): Promise<LoginResponse> {
-  const { data } = await apiClient.post<LoginResponse>('/auth/login/phone', credentials)
+export async function loginWithPhoneCode(
+  request: PhoneCodeLoginRequest
+): Promise<LoginResponse> {
+  const { data } = await apiClient.post<LoginResponse>('/auth/login/phone-code', request)
 
-  // Only store token if 2FA is not required
   if (!isTotp2FARequired(data)) {
     setAuthToken(data.access_token)
     if (data.refresh_token) {

@@ -91,6 +91,14 @@ func (User) Fields() []ent.Field {
 			Optional().
 			Nillable(),
 
+		// 手机号登录：手机号与验证状态
+		// 唯一约束通过部分索引实现（WHERE deleted_at IS NULL AND phone IS NOT NULL AND phone <> ''）
+		field.String("phone").
+			MaxLen(32).
+			Default(""),
+		field.Bool("phone_verified").
+			Default(false),
+
 		// 邀请好友：专属邀请码（懒创建，6 位大写字母+数字）与邀请人
 		field.String("referral_code").
 			MaxLen(6).
@@ -115,6 +123,8 @@ func (User) Edges() []ent.Edge {
 		edge.To("usage_logs", UsageLog.Type),
 		edge.To("attribute_values", UserAttributeValue.Type),
 		edge.To("promo_code_usages", PromoCodeUsage.Type),
+		edge.To("channel_invite_batches", ChannelInviteBatch.Type),
+		edge.To("channel_invite_usages", ChannelInviteCodeUsage.Type),
 	}
 }
 

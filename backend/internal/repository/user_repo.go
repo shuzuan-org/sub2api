@@ -62,6 +62,8 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetBalance(userIn.Balance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
+		SetPhone(userIn.Phone).
+		SetPhoneVerified(userIn.PhoneVerified).
 		SetSoraStorageQuotaBytes(userIn.SoraStorageQuotaBytes).
 		SetNillablePhoneNumber(userIn.PhoneNumber).
 		SetNillablePhoneBoundAt(userIn.PhoneBoundAt).
@@ -148,6 +150,8 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetBalance(userIn.Balance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
+		SetPhone(userIn.Phone).
+		SetPhoneVerified(userIn.PhoneVerified).
 		SetSoraStorageQuotaBytes(userIn.SoraStorageQuotaBytes).
 		SetSoraStorageUsedBytes(userIn.SoraStorageUsedBytes).
 		SetNillablePhoneNumber(userIn.PhoneNumber).
@@ -443,6 +447,33 @@ func (r *userRepository) ReleaseSoraStorageUsageAtomic(ctx context.Context, user
 
 func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	return r.client.User.Query().Where(dbuser.EmailEQ(email)).Exist(ctx)
+}
+
+// GetByPhone 按手机号查找用户（仅匹配 phone IS NOT NULL AND phone <> ''）
+func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*service.User, error) {
+	m, err := r.client.User.Query().
+		Where(dbuser.PhoneEQ(phone), dbuser.PhoneNEQ("")).
+		Only(ctx)
+	if err != nil {
+		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+
+	out := userEntityToService(m)
+	groups, err := r.loadAllowedGroups(ctx, []int64{m.ID})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := groups[m.ID]; ok {
+		out.AllowedGroups = v
+	}
+	return out, nil
+}
+
+// ExistsByPhone 检查手机号是否已存在（仅匹配 phone IS NOT NULL AND phone <> ''）
+func (r *userRepository) ExistsByPhone(ctx context.Context, phone string) (bool, error) {
+	return r.client.User.Query().
+		Where(dbuser.PhoneEQ(phone), dbuser.PhoneNEQ("")).
+		Exist(ctx)
 }
 
 func (r *userRepository) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {

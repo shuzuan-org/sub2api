@@ -34,6 +34,10 @@ type User struct {
 	TotpEnabled         bool       // 是否启用 TOTP
 	TotpEnabledAt       *time.Time // TOTP 启用时间
 
+	// 手机号登录
+	Phone        string // 手机号（唯一约束通过部分索引实现）
+	PhoneVerified bool  // 手机号是否已验证
+
 	// 邀请好友
 	ReferralCode *string // 用户专属邀请码（懒创建，6 位大写字母+数字）
 	ReferredBy   *int64  // 邀请人 user_id

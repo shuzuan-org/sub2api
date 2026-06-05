@@ -41,7 +41,12 @@ func (m *mockUserRepo) UpdateBalance(ctx context.Context, id int64, amount float
 }
 func (m *mockUserRepo) DeductBalance(context.Context, int64, float64) error { return nil }
 func (m *mockUserRepo) UpdateConcurrency(context.Context, int64, int) error { return nil }
-func (m *mockUserRepo) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
+func (m *mockUserRepo) ExistsByEmail(context.Context, string) (bool, error)   { return false, nil }
+func (m *mockUserRepo) GetByPhone(context.Context, string) (*User, error)      { return nil, ErrUserNotFound }
+func (m *mockUserRepo) ExistsByPhone(context.Context, string) (bool, error)    { return false, nil }
+func (m *mockUserRepo) GetByReferralCode(context.Context, string) (*User, error) { return nil, ErrUserNotFound }
+func (m *mockUserRepo) SetReferralCode(context.Context, int64, string) error    { return nil }
+func (m *mockUserRepo) SetReferredBy(context.Context, int64, int64) error       { return nil }
 func (m *mockUserRepo) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	return 0, nil
 }

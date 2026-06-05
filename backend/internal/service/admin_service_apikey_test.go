@@ -62,6 +62,21 @@ func (s *userRepoStubForGroupUpdate) UpdateConcurrency(context.Context, int64, i
 func (s *userRepoStubForGroupUpdate) ExistsByEmail(context.Context, string) (bool, error) {
 	panic("unexpected")
 }
+func (s *userRepoStubForGroupUpdate) GetByPhone(context.Context, string) (*User, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) ExistsByPhone(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) GetByReferralCode(context.Context, string) (*User, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) SetReferralCode(context.Context, int64, string) error {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) SetReferredBy(context.Context, int64, int64) error {
+	panic("unexpected")
+}
 func (s *userRepoStubForGroupUpdate) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	panic("unexpected")
 }
