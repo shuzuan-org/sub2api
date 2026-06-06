@@ -71,10 +71,15 @@ type AuthService struct {
 	emailQueueService  *EmailQueueService
 	promoService       *PromoService
 	defaultSubAssigner DefaultSubscriptionAssigner
+	defaultAPIKeyProv  DefaultAPIKeyProvisioner
 }
 
 type DefaultSubscriptionAssigner interface {
 	AssignOrExtendSubscription(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, bool, error)
+}
+
+type DefaultAPIKeyProvisioner interface {
+	CreateDefaultAPIKeyForNewUser(ctx context.Context, userID int64) error
 }
 
 // NewAuthService 创建认证服务实例
@@ -90,6 +95,7 @@ func NewAuthService(
 	emailQueueService *EmailQueueService,
 	promoService *PromoService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
+	defaultAPIKeyProvisioner DefaultAPIKeyProvisioner,
 ) *AuthService {
 	return &AuthService{
 		entClient:          entClient,
@@ -103,6 +109,7 @@ func NewAuthService(
 		emailQueueService:  emailQueueService,
 		promoService:       promoService,
 		defaultSubAssigner: defaultSubAssigner,
+		defaultAPIKeyProv:  defaultAPIKeyProvisioner,
 	}
 }
 
@@ -206,6 +213,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		return "", nil, ErrServiceUnavailable
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
+	s.createDefaultAPIKey(ctx, user.ID)
 
 	// 标记邀请码为已使用（如果使用了邀请码）
 	if invitationRedeemCode != nil {
@@ -502,6 +510,7 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 			} else {
 				user = newUser
 				s.assignDefaultSubscriptions(ctx, user.ID)
+				s.createDefaultAPIKey(ctx, user.ID)
 			}
 		} else {
 			logger.LegacyPrintf("service.auth", "[Auth] Database error during oauth login: %v", err)
@@ -631,6 +640,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 					}
 					user = newUser
 					s.assignDefaultSubscriptions(ctx, user.ID)
+					s.createDefaultAPIKey(ctx, user.ID)
 				}
 			} else {
 				if err := s.userRepo.Create(ctx, newUser); err != nil {
@@ -647,6 +657,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				} else {
 					user = newUser
 					s.assignDefaultSubscriptions(ctx, user.ID)
+					s.createDefaultAPIKey(ctx, user.ID)
 					if invitationRedeemCode != nil {
 						if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
 							return nil, nil, ErrInvitationCodeInvalid
@@ -749,6 +760,15 @@ func (s *AuthService) assignDefaultSubscriptions(ctx context.Context, userID int
 		}); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to assign default subscription: user_id=%d plan_id=%d err=%v", userID, item.GroupID, err)
 		}
+	}
+}
+
+func (s *AuthService) createDefaultAPIKey(ctx context.Context, userID int64) {
+	if s.defaultAPIKeyProv == nil || userID <= 0 {
+		return
+	}
+	if err := s.defaultAPIKeyProv.CreateDefaultAPIKeyForNewUser(ctx, userID); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to create default api key: user_id=%d err=%v", userID, err)
 	}
 }
 
