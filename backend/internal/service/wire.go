@@ -462,6 +462,7 @@ var ProviderSet = wire.NewSet(
 	NewAntigravityOAuthService,
 	NewOAuthRefreshAPI,
 	NewOAuthAuthorizationService,
+	NewOAuthProfileService,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,

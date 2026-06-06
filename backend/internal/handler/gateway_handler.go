@@ -44,6 +44,7 @@ type GatewayHandler struct {
 	billingCacheService       *service.BillingCacheService
 	usageService              *service.UsageService
 	apiKeyService             *service.APIKeyService
+	oauthProfileService       *service.OAuthProfileService
 	usageRecordWorkerPool     *service.UsageRecordWorkerPool
 	errorPassthroughService   *service.ErrorPassthroughService
 	concurrencyHelper         *ConcurrencyHelper
@@ -64,6 +65,7 @@ func NewGatewayHandler(
 	billingCacheService *service.BillingCacheService,
 	usageService *service.UsageService,
 	apiKeyService *service.APIKeyService,
+	oauthProfileService *service.OAuthProfileService,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	errorPassthroughService *service.ErrorPassthroughService,
 	userMsgQueueService *service.UserMessageQueueService,
@@ -97,6 +99,7 @@ func NewGatewayHandler(
 		billingCacheService:       billingCacheService,
 		usageService:              usageService,
 		apiKeyService:             apiKeyService,
+		oauthProfileService:       oauthProfileService,
 		usageRecordWorkerPool:     usageRecordWorkerPool,
 		errorPassthroughService:   errorPassthroughService,
 		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
@@ -993,6 +996,26 @@ func (h *GatewayHandler) Group(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.GroupFromService(apiKey.Group))
+}
+
+// Profiles lists OAuth profiles available to the current OAuth user.
+// GET /v1/profiles
+func (h *GatewayHandler) Profiles(c *gin.Context) {
+	claims, ok := middleware2.GetOAuthAccessTokenClaimsFromContext(c)
+	if !ok {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", "Profiles are only available for OAuth credentials")
+		return
+	}
+	if h.oauthProfileService == nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "service_unavailable", "OAuth profile service unavailable")
+		return
+	}
+	profiles, err := h.oauthProfileService.ListProfiles(c.Request.Context(), claims.UserID)
+	if err != nil {
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to list OAuth profiles")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": profiles})
 }
 
 // parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围
