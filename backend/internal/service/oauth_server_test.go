@@ -38,17 +38,54 @@ func (s *oauthCodeRepoStub) Create(_ context.Context, code *OAuthAuthorizationCo
 	s.code = &copy
 	return nil
 }
-func (s *oauthCodeRepoStub) GetByCodeHash(_ context.Context, codeHash string) (*OAuthAuthorizationCode, error) {
-	if s.code == nil || s.code.CodeHash != codeHash {
+func (s *oauthCodeRepoStub) Consume(_ context.Context, codeHash, clientID, redirectURI string, now time.Time) (*OAuthAuthorizationCode, error) {
+	if s.code == nil || s.code.CodeHash != codeHash || s.code.ClientID != clientID || s.code.RedirectURI != redirectURI {
 		return nil, ErrOAuthInvalidCode
 	}
+	if s.code.UsedAt != nil {
+		return nil, ErrOAuthCodeUsed
+	}
+	if !s.code.ExpiresAt.After(now) {
+		return nil, ErrOAuthInvalidCode
+	}
+	s.code.UsedAt = &now
 	return s.code, nil
 }
-func (s *oauthCodeRepoStub) MarkUsed(_ context.Context, id int64, usedAt time.Time) error {
-	if s.code == nil || s.code.ID != id || s.code.UsedAt != nil {
-		return ErrOAuthCodeUsed
+
+type oauthRefreshRepoStub struct {
+	created []*OAuthRefreshToken
+}
+
+func (s *oauthRefreshRepoStub) Create(_ context.Context, token *OAuthRefreshToken) error {
+	copy := *token
+	copy.ID = int64(len(s.created) + 1)
+	s.created = append(s.created, &copy)
+	return nil
+}
+
+func (s *oauthRefreshRepoStub) Rotate(_ context.Context, tokenHash, clientID string, next *OAuthRefreshToken, now time.Time) (*OAuthRefreshToken, error) {
+	for _, token := range s.created {
+		if token.TokenHash != tokenHash || token.ClientID != clientID {
+			continue
+		}
+		if token.Status != OAuthRefreshTokenStatusActive || !token.ExpiresAt.After(now) {
+			return nil, ErrOAuthInvalidToken
+		}
+		token.Status = OAuthRefreshTokenStatusUsed
+		token.UsedAt = &now
+		next.FamilyID = token.FamilyID
+		next.UserID = token.UserID
+		next.APIKeyID = token.APIKeyID
+		next.ClientID = token.ClientID
+		next.Scopes = append([]string(nil), token.Scopes...)
+		next.ParentTokenHash = &token.TokenHash
+		s.created = append(s.created, next)
+		return token, nil
 	}
-	s.code.UsedAt = &usedAt
+	return nil, ErrOAuthInvalidToken
+}
+
+func (s *oauthRefreshRepoStub) RevokeByHash(context.Context, string, string, time.Time) error {
 	return nil
 }
 
@@ -111,14 +148,16 @@ func newOAuthAuthorizationTestService(t *testing.T) (*OAuthAuthorizationService,
 	clientRepo := &oauthClientRepoStub{client: &OAuthClient{
 		ClientID:         "external-test-client",
 		ClientSecretHash: secretHash,
+		ClientType:       OAuthClientTypeConfidential,
 		Name:             "External Test Client",
 		RedirectURIs:     []string{"http://localhost:8089/callback"},
 		Scopes:           []string{"api.read", "profile"},
 		Status:           StatusActive,
 	}}
 	codeRepo := &oauthCodeRepoStub{}
+	refreshRepo := &oauthRefreshRepoStub{}
 	userRepo := &oauthUserRepoStub{user: &User{ID: 42, Email: "u@example.com", Status: StatusActive}}
-	svc := NewOAuthAuthorizationService(clientRepo, codeRepo, userRepo, &config.Config{})
+	svc := NewOAuthAuthorizationService(clientRepo, codeRepo, refreshRepo, userRepo, nil, &config.Config{})
 	svc.cfg.JWT.Secret = "test-jwt-secret"
 	return svc, codeRepo
 }
@@ -136,12 +175,15 @@ func TestOAuthAuthorizationPreviewRejectsInvalidRedirectURI(t *testing.T) {
 
 func TestOAuthAuthorizationApprovePropagatesState(t *testing.T) {
 	svc, codeRepo := newOAuthAuthorizationTestService(t)
+	_, challenge := testPKCEPair()
 	out, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
-		ClientID:     "external-test-client",
-		RedirectURI:  "http://localhost:8089/callback",
-		ResponseType: "code",
-		Scope:        "profile api.read",
-		State:        "abc123",
+		ClientID:            "external-test-client",
+		RedirectURI:         "http://localhost:8089/callback",
+		ResponseType:        "code",
+		Scope:               "profile api.read",
+		State:               "abc123",
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
 	})
 	require.NoError(t, err)
 	require.Contains(t, out.RedirectURL, "state=abc123")
@@ -150,17 +192,47 @@ func TestOAuthAuthorizationApprovePropagatesState(t *testing.T) {
 	require.Equal(t, []string{"api.read", "profile"}, codeRepo.stored.Scopes)
 }
 
+func TestOAuthAuthorizationApproveRequiresAPIKeyForMetacodeScope(t *testing.T) {
+	svc, _ := newOAuthAuthorizationTestService(t)
+	svc.clientRepo = &oauthClientRepoStub{client: &OAuthClient{
+		ClientID:              MetacodeOAuthClientID,
+		ClientType:            OAuthClientTypePublic,
+		Name:                  "Metacode CLI",
+		RedirectURIs:          []string{"http://127.0.0.1/callback"},
+		AllowLoopbackRedirect: true,
+		Scopes:                []string{MetacodeOAuthScope},
+		Status:                StatusActive,
+	}}
+	_, challenge := testPKCEPair()
+
+	_, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
+		ClientID:            MetacodeOAuthClientID,
+		RedirectURI:         "http://127.0.0.1:39000/auth/callback",
+		ResponseType:        "code",
+		Scope:               MetacodeOAuthScope,
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+	})
+
+	require.ErrorIs(t, err, ErrOAuthInvalidRequest)
+}
+
 func TestOAuthAuthorizationCodeExchangeIsSingleUse(t *testing.T) {
 	svc, codeRepo := newOAuthAuthorizationTestService(t)
 	rawCode := "raw-code"
+	verifier, challenge := testPKCEPair()
+	_, codeHash, err := svc.hashOAuthSecret(rawCode)
+	require.NoError(t, err)
 	codeRepo.code = &OAuthAuthorizationCode{
-		ID:          1,
-		CodeHash:    HashOAuthSecret(rawCode),
-		ClientID:    "external-test-client",
-		UserID:      42,
-		RedirectURI: "http://localhost:8089/callback",
-		Scopes:      []string{"profile"},
-		ExpiresAt:   time.Now().Add(time.Minute),
+		ID:                  1,
+		CodeHash:            codeHash,
+		ClientID:            "external-test-client",
+		UserID:              42,
+		RedirectURI:         "http://localhost:8089/callback",
+		Scopes:              []string{"profile"},
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+		ExpiresAt:           time.Now().Add(time.Minute),
 	}
 	input := OAuthTokenInput{
 		GrantType:    "authorization_code",
@@ -168,6 +240,7 @@ func TestOAuthAuthorizationCodeExchangeIsSingleUse(t *testing.T) {
 		RedirectURI:  "http://localhost:8089/callback",
 		ClientID:     "external-test-client",
 		ClientSecret: "test-secret",
+		CodeVerifier: verifier,
 	}
 	out, err := svc.ExchangeAuthorizationCode(context.Background(), input)
 	require.NoError(t, err)
@@ -175,42 +248,53 @@ func TestOAuthAuthorizationCodeExchangeIsSingleUse(t *testing.T) {
 	require.True(t, strings.Count(out.AccessToken, ".") == 2)
 
 	_, err = svc.ExchangeAuthorizationCode(context.Background(), input)
-	require.ErrorIs(t, err, ErrOAuthCodeUsed)
+	require.ErrorIs(t, err, ErrOAuthInvalidCode)
 }
 
 func TestOAuthAuthorizationCodeExchangeRejectsExpiredCode(t *testing.T) {
 	svc, codeRepo := newOAuthAuthorizationTestService(t)
 	rawCode := "raw-code"
+	verifier, challenge := testPKCEPair()
+	_, codeHash, err := svc.hashOAuthSecret(rawCode)
+	require.NoError(t, err)
 	codeRepo.code = &OAuthAuthorizationCode{
-		ID:          1,
-		CodeHash:    HashOAuthSecret(rawCode),
-		ClientID:    "external-test-client",
-		UserID:      42,
-		RedirectURI: "http://localhost:8089/callback",
-		Scopes:      []string{"profile"},
-		ExpiresAt:   time.Now().Add(-time.Minute),
+		ID:                  1,
+		CodeHash:            codeHash,
+		ClientID:            "external-test-client",
+		UserID:              42,
+		RedirectURI:         "http://localhost:8089/callback",
+		Scopes:              []string{"profile"},
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+		ExpiresAt:           time.Now().Add(-time.Minute),
 	}
-	_, err := svc.ExchangeAuthorizationCode(context.Background(), OAuthTokenInput{
+	_, err = svc.ExchangeAuthorizationCode(context.Background(), OAuthTokenInput{
 		GrantType:    "authorization_code",
 		Code:         rawCode,
 		RedirectURI:  "http://localhost:8089/callback",
 		ClientID:     "external-test-client",
 		ClientSecret: "test-secret",
+		CodeVerifier: verifier,
 	})
-	require.ErrorIs(t, err, ErrOAuthCodeExpired)
+	require.ErrorIs(t, err, ErrOAuthInvalidCode)
 }
 
 func TestOAuthUserInfoUsesOAuthAccessToken(t *testing.T) {
 	svc, codeRepo := newOAuthAuthorizationTestService(t)
 	rawCode := "raw-code"
+	verifier, challenge := testPKCEPair()
+	_, codeHash, err := svc.hashOAuthSecret(rawCode)
+	require.NoError(t, err)
 	codeRepo.code = &OAuthAuthorizationCode{
-		ID:          1,
-		CodeHash:    HashOAuthSecret(rawCode),
-		ClientID:    "external-test-client",
-		UserID:      42,
-		RedirectURI: "http://localhost:8089/callback",
-		Scopes:      []string{"profile"},
-		ExpiresAt:   time.Now().Add(time.Minute),
+		ID:                  1,
+		CodeHash:            codeHash,
+		ClientID:            "external-test-client",
+		UserID:              42,
+		RedirectURI:         "http://localhost:8089/callback",
+		Scopes:              []string{"profile"},
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+		ExpiresAt:           time.Now().Add(time.Minute),
 	}
 	token, err := svc.ExchangeAuthorizationCode(context.Background(), OAuthTokenInput{
 		GrantType:    "authorization_code",
@@ -218,6 +302,7 @@ func TestOAuthUserInfoUsesOAuthAccessToken(t *testing.T) {
 		RedirectURI:  "http://localhost:8089/callback",
 		ClientID:     "external-test-client",
 		ClientSecret: "test-secret",
+		CodeVerifier: verifier,
 	})
 	require.NoError(t, err)
 
@@ -231,12 +316,7 @@ func TestOAuthUserInfoUsesOAuthAccessToken(t *testing.T) {
 
 func TestOAuthAuthorizationCodeExchangeWithPKCE(t *testing.T) {
 	svc, codeRepo := newOAuthAuthorizationTestService(t)
-	verifier := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~123"
-	challenge := ""
-	{
-		sum := sha256.Sum256([]byte(verifier))
-		challenge = base64.RawURLEncoding.EncodeToString(sum[:])
-	}
+	verifier, challenge := testPKCEPair()
 	out, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
 		ClientID:            "external-test-client",
 		RedirectURI:         "http://localhost:8089/callback",
@@ -257,7 +337,33 @@ func TestOAuthAuthorizationCodeExchangeWithPKCE(t *testing.T) {
 		CodeVerifier: "wrong-verifier-wrong-verifier-wrong-verifier-wrong",
 	})
 	require.ErrorIs(t, err, ErrOAuthInvalidPKCE)
-	require.Nil(t, codeRepo.code.UsedAt)
+	require.NotNil(t, codeRepo.code.UsedAt)
+
+	token, err := svc.ExchangeAuthorizationCode(context.Background(), OAuthTokenInput{
+		GrantType:    "authorization_code",
+		Code:         code,
+		RedirectURI:  "http://localhost:8089/callback",
+		ClientID:     "external-test-client",
+		ClientSecret: "test-secret",
+		CodeVerifier: verifier,
+	})
+	require.ErrorIs(t, err, ErrOAuthInvalidCode)
+	require.Nil(t, token)
+}
+
+func TestOAuthAuthorizationCodeExchangeWithPKCESuccess(t *testing.T) {
+	svc, _ := newOAuthAuthorizationTestService(t)
+	verifier, challenge := testPKCEPair()
+	out, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
+		ClientID:            "external-test-client",
+		RedirectURI:         "http://localhost:8089/callback",
+		ResponseType:        "code",
+		Scope:               "profile",
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+	})
+	require.NoError(t, err)
+	code := extractOAuthCodeForTest(t, out.RedirectURL)
 
 	token, err := svc.ExchangeAuthorizationCode(context.Background(), OAuthTokenInput{
 		GrantType:    "authorization_code",
@@ -269,6 +375,43 @@ func TestOAuthAuthorizationCodeExchangeWithPKCE(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, token.AccessToken)
+	require.NotEmpty(t, token.RefreshToken)
+}
+
+func TestOAuthRefreshTokenRotatesToken(t *testing.T) {
+	svc, _ := newOAuthAuthorizationTestService(t)
+	verifier, challenge := testPKCEPair()
+	out, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
+		ClientID:            "external-test-client",
+		RedirectURI:         "http://localhost:8089/callback",
+		ResponseType:        "code",
+		Scope:               "profile",
+		CodeChallenge:       challenge,
+		CodeChallengeMethod: "S256",
+	})
+	require.NoError(t, err)
+
+	token, err := svc.ExchangeToken(context.Background(), OAuthTokenInput{
+		GrantType:    "authorization_code",
+		Code:         extractOAuthCodeForTest(t, out.RedirectURL),
+		RedirectURI:  "http://localhost:8089/callback",
+		ClientID:     "external-test-client",
+		ClientSecret: "test-secret",
+		CodeVerifier: verifier,
+	})
+	require.NoError(t, err)
+
+	refreshed, err := svc.ExchangeToken(context.Background(), OAuthTokenInput{
+		GrantType:    "refresh_token",
+		ClientID:     "external-test-client",
+		ClientSecret: "test-secret",
+		RefreshToken: token.RefreshToken,
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, refreshed.AccessToken)
+	require.NotEmpty(t, refreshed.RefreshToken)
+	require.NotEqual(t, token.RefreshToken, refreshed.RefreshToken)
 }
 
 func extractOAuthCodeForTest(t *testing.T, rawURL string) string {
@@ -278,4 +421,10 @@ func extractOAuthCodeForTest(t *testing.T, rawURL string) string {
 	code := u.Query().Get("code")
 	require.NotEmpty(t, code)
 	return code
+}
+
+func testPKCEPair() (string, string) {
+	verifier := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~123"
+	sum := sha256.Sum256([]byte(verifier))
+	return verifier, base64.RawURLEncoding.EncodeToString(sum[:])
 }

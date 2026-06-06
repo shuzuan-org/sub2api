@@ -53,6 +53,7 @@ var ProviderSet = wire.NewSet(
 	NewAPIKeyRepository,
 	NewOAuthClientRepository,
 	NewOAuthAuthorizationCodeRepository,
+	NewOAuthRefreshTokenRepository,
 	NewGroupRepository,
 	NewAccountRepository,
 	NewSoraAccountRepository,         // Sora 账号扩展表仓储
@@ -81,6 +82,7 @@ var ProviderSet = wire.NewSet(
 	NewAlipayOrderRepository,
 	NewOAuthClientRepository,
 	NewOAuthAuthorizationCodeRepository,
+	NewOAuthRefreshTokenRepository,
 
 	// Cache implementations
 	NewGatewayCache,

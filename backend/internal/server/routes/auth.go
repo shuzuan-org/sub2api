@@ -99,3 +99,24 @@ func RegisterAuthRoutes(
 		authenticated.POST("/auth/revoke-all-sessions", h.Auth.RevokeAllSessions)
 	}
 }
+
+// RegisterOAuthProtocolRoutes registers the canonical OAuth protocol endpoints.
+func RegisterOAuthProtocolRoutes(
+	r *gin.Engine,
+	h *handler.Handlers,
+	redisClient *redis.Client,
+) {
+	rateLimiter := middleware.NewRateLimiter(redisClient)
+	oauth := r.Group("/oauth")
+	{
+		oauth.GET("/authorize", rateLimiter.LimitWithOptions("oauth-authorize", 10, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthAuthorize)
+		oauth.POST("/token", rateLimiter.LimitWithOptions("oauth-token", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthToken)
+		oauth.POST("/revoke", rateLimiter.LimitWithOptions("oauth-revoke", 30, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthRevoke)
+	}
+}

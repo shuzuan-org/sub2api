@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -21,9 +22,17 @@ import (
 )
 
 const (
-	OAuthAuthorizationCodeTTL = 5 * time.Minute
-	OAuthAccessTokenTTL       = time.Hour
-	OAuthTokenTypeBearer      = "Bearer"
+	OAuthAuthorizationCodeTTL      = 5 * time.Minute
+	OAuthAccessTokenTTL            = time.Hour
+	OAuthRefreshTokenTTL           = 90 * 24 * time.Hour
+	OAuthTokenTypeBearer           = "Bearer"
+	OAuthClientTypePublic          = "public"
+	OAuthClientTypeConfidential    = "confidential"
+	OAuthRefreshTokenStatusActive  = "active"
+	OAuthRefreshTokenStatusUsed    = "used"
+	OAuthRefreshTokenStatusRevoked = "revoked"
+	MetacodeOAuthClientID          = "metacode-cli"
+	MetacodeOAuthScope             = "metacode:use"
 )
 
 var (
@@ -41,15 +50,17 @@ var (
 )
 
 type OAuthClient struct {
-	ID               int64
-	ClientID         string
-	ClientSecretHash string
-	Name             string
-	RedirectURIs     []string
-	Scopes           []string
-	Status           string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                    int64
+	ClientID              string
+	ClientSecretHash      string
+	ClientType            string
+	Name                  string
+	RedirectURIs          []string
+	AllowLoopbackRedirect bool
+	Scopes                []string
+	Status                string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 func (c *OAuthClient) IsActive() bool {
@@ -59,8 +70,10 @@ func (c *OAuthClient) IsActive() bool {
 type OAuthAuthorizationCode struct {
 	ID                  int64
 	CodeHash            string
+	HMACKeyID           string
 	ClientID            string
 	UserID              int64
+	APIKeyID            *int64
 	RedirectURI         string
 	Scopes              []string
 	CodeChallenge       string
@@ -78,24 +91,51 @@ type OAuthClientRepository interface {
 
 type OAuthAuthorizationCodeRepository interface {
 	Create(ctx context.Context, code *OAuthAuthorizationCode) error
-	GetByCodeHash(ctx context.Context, codeHash string) (*OAuthAuthorizationCode, error)
-	MarkUsed(ctx context.Context, id int64, usedAt time.Time) error
+	Consume(ctx context.Context, codeHash, clientID, redirectURI string, now time.Time) (*OAuthAuthorizationCode, error)
+}
+
+type OAuthRefreshToken struct {
+	ID              int64
+	TokenHash       string
+	HMACKeyID       string
+	FamilyID        string
+	ParentTokenHash *string
+	UserID          int64
+	APIKeyID        *int64
+	ClientID        string
+	Scopes          []string
+	Status          string
+	ExpiresAt       time.Time
+	UsedAt          *time.Time
+	RevokedAt       *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type OAuthRefreshTokenRepository interface {
+	Create(ctx context.Context, token *OAuthRefreshToken) error
+	Rotate(ctx context.Context, tokenHash, clientID string, next *OAuthRefreshToken, now time.Time) (*OAuthRefreshToken, error)
+	RevokeByHash(ctx context.Context, tokenHash, clientID string, now time.Time) error
 }
 
 type OAuthAuthorizationService struct {
-	clientRepo OAuthClientRepository
-	codeRepo   OAuthAuthorizationCodeRepository
-	userRepo   UserRepository
-	cfg        *config.Config
+	clientRepo       OAuthClientRepository
+	codeRepo         OAuthAuthorizationCodeRepository
+	refreshTokenRepo OAuthRefreshTokenRepository
+	userRepo         UserRepository
+	apiKeyRepo       APIKeyRepository
+	cfg              *config.Config
 }
 
 func NewOAuthAuthorizationService(
 	clientRepo OAuthClientRepository,
 	codeRepo OAuthAuthorizationCodeRepository,
+	refreshTokenRepo OAuthRefreshTokenRepository,
 	userRepo UserRepository,
+	apiKeyRepo APIKeyRepository,
 	cfg *config.Config,
 ) *OAuthAuthorizationService {
-	return &OAuthAuthorizationService{clientRepo: clientRepo, codeRepo: codeRepo, userRepo: userRepo, cfg: cfg}
+	return &OAuthAuthorizationService{clientRepo: clientRepo, codeRepo: codeRepo, refreshTokenRepo: refreshTokenRepo, userRepo: userRepo, apiKeyRepo: apiKeyRepo, cfg: cfg}
 }
 
 type OAuthAuthorizeInput struct {
@@ -106,6 +146,7 @@ type OAuthAuthorizeInput struct {
 	State               string
 	CodeChallenge       string
 	CodeChallengeMethod string
+	APIKeyID            *int64
 }
 
 type OAuthAuthorizationPreview struct {
@@ -127,13 +168,16 @@ type OAuthTokenInput struct {
 	ClientID     string
 	ClientSecret string
 	CodeVerifier string
+	RefreshToken string
 }
 
 type OAuthTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope,omitempty"`
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	Scope        string `json:"scope,omitempty"`
+	AccountID    string `json:"account_id,omitempty"`
 }
 
 type OAuthUserInfoResponse struct {
@@ -147,6 +191,7 @@ type OAuthUserInfoResponse struct {
 
 type OAuthAccessTokenClaims struct {
 	UserID   int64    `json:"user_id"`
+	APIKeyID int64    `json:"api_key_id,omitempty"`
 	ClientID string   `json:"client_id"`
 	Scope    []string `json:"scope"`
 	Purpose  string   `json:"purpose"`
@@ -182,16 +227,30 @@ func (s *OAuthAuthorizationService) ApproveAuthorization(ctx context.Context, us
 	if !user.IsActive() {
 		return nil, ErrUserNotActive
 	}
+	if containsExact(scopes, MetacodeOAuthScope) && input.APIKeyID == nil {
+		return nil, ErrOAuthInvalidRequest
+	}
+	if input.APIKeyID != nil {
+		if err := s.validateAPIKeyBinding(ctx, userID, *input.APIKeyID); err != nil {
+			return nil, err
+		}
+	}
 
 	rawCode, err := randomTokenHex(32)
 	if err != nil {
 		return nil, fmt.Errorf("generate authorization code: %w", err)
 	}
+	keyID, codeHash, err := s.hashOAuthSecret(rawCode)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now()
 	if err := s.codeRepo.Create(ctx, &OAuthAuthorizationCode{
-		CodeHash:            HashOAuthSecret(rawCode),
+		CodeHash:            codeHash,
+		HMACKeyID:           keyID,
 		ClientID:            client.ClientID,
 		UserID:              userID,
+		APIKeyID:            input.APIKeyID,
 		RedirectURI:         input.RedirectURI,
 		Scopes:              scopes,
 		CodeChallenge:       strings.TrimSpace(input.CodeChallenge),
@@ -219,20 +278,31 @@ func (s *OAuthAuthorizationService) DenyAuthorization(ctx context.Context, input
 	})}, nil
 }
 
+func (s *OAuthAuthorizationService) ExchangeToken(ctx context.Context, input OAuthTokenInput) (*OAuthTokenResponse, error) {
+	switch strings.TrimSpace(input.GrantType) {
+	case "authorization_code":
+		return s.ExchangeAuthorizationCode(ctx, input)
+	case "refresh_token":
+		return s.RefreshAccessToken(ctx, input)
+	default:
+		return nil, ErrOAuthUnsupportedGrantType
+	}
+}
+
 func (s *OAuthAuthorizationService) ExchangeAuthorizationCode(ctx context.Context, input OAuthTokenInput) (*OAuthTokenResponse, error) {
 	if strings.TrimSpace(input.GrantType) != "authorization_code" {
 		return nil, ErrOAuthUnsupportedGrantType
 	}
 	clientID := strings.TrimSpace(input.ClientID)
 	clientSecret := input.ClientSecret
-	if clientID == "" || clientSecret == "" {
+	if clientID == "" {
 		return nil, ErrOAuthInvalidClient
 	}
 	client, err := s.clientRepo.GetByClientID(ctx, clientID)
 	if err != nil {
 		return nil, ErrOAuthInvalidClient
 	}
-	if !client.IsActive() || bcrypt.CompareHashAndPassword([]byte(client.ClientSecretHash), []byte(clientSecret)) != nil {
+	if err := validateOAuthClientTokenAuth(client, clientSecret); err != nil {
 		return nil, ErrOAuthInvalidClient
 	}
 
@@ -240,39 +310,102 @@ func (s *OAuthAuthorizationService) ExchangeAuthorizationCode(ctx context.Contex
 	if code == "" || len(code) > maxTokenLength {
 		return nil, ErrOAuthInvalidCode
 	}
-	authCode, err := s.codeRepo.GetByCodeHash(ctx, HashOAuthSecret(code))
+	_, codeHash, err := s.hashOAuthSecret(code)
+	if err != nil {
+		return nil, err
+	}
+	authCode, err := s.codeRepo.Consume(ctx, codeHash, client.ClientID, strings.TrimSpace(input.RedirectURI), time.Now())
 	if err != nil {
 		return nil, ErrOAuthInvalidCode
-	}
-	if subtle.ConstantTimeCompare([]byte(authCode.ClientID), []byte(client.ClientID)) != 1 {
-		return nil, ErrOAuthInvalidCode
-	}
-	if authCode.RedirectURI != strings.TrimSpace(input.RedirectURI) {
-		return nil, ErrOAuthInvalidRedirectURI
-	}
-	if authCode.UsedAt != nil {
-		return nil, ErrOAuthCodeUsed
 	}
 	if err := validatePKCE(authCode.CodeChallenge, authCode.CodeChallengeMethod, input.CodeVerifier); err != nil {
 		return nil, err
 	}
-	if time.Now().After(authCode.ExpiresAt) {
-		return nil, ErrOAuthCodeExpired
-	}
-	if err := s.codeRepo.MarkUsed(ctx, authCode.ID, time.Now()); err != nil {
+	refreshToken, err := s.createRefreshToken(ctx, authCode.UserID, authCode.APIKeyID, client.ClientID, authCode.Scopes, "", "")
+	if err != nil {
 		return nil, err
 	}
 
-	accessToken, err := s.generateOAuthAccessToken(authCode.UserID, client.ClientID, authCode.Scopes)
+	accessToken, err := s.generateOAuthAccessToken(authCode.UserID, authCode.APIKeyID, client.ClientID, authCode.Scopes)
 	if err != nil {
 		return nil, err
 	}
 	return &OAuthTokenResponse{
-		AccessToken: accessToken,
-		TokenType:   OAuthTokenTypeBearer,
-		ExpiresIn:   int(OAuthAccessTokenTTL.Seconds()),
-		Scope:       strings.Join(authCode.Scopes, " "),
+		AccessToken:  accessToken,
+		TokenType:    OAuthTokenTypeBearer,
+		ExpiresIn:    int(OAuthAccessTokenTTL.Seconds()),
+		RefreshToken: refreshToken,
+		Scope:        strings.Join(authCode.Scopes, " "),
+		AccountID:    fmt.Sprintf("%d", authCode.UserID),
 	}, nil
+}
+
+func (s *OAuthAuthorizationService) RefreshAccessToken(ctx context.Context, input OAuthTokenInput) (*OAuthTokenResponse, error) {
+	if strings.TrimSpace(input.GrantType) != "refresh_token" {
+		return nil, ErrOAuthUnsupportedGrantType
+	}
+	clientID := strings.TrimSpace(input.ClientID)
+	if clientID == "" {
+		return nil, ErrOAuthInvalidClient
+	}
+	client, err := s.clientRepo.GetByClientID(ctx, clientID)
+	if err != nil {
+		return nil, ErrOAuthInvalidClient
+	}
+	if err := validateOAuthClientTokenAuth(client, input.ClientSecret); err != nil {
+		return nil, ErrOAuthInvalidClient
+	}
+	rawRefreshToken := strings.TrimSpace(input.RefreshToken)
+	if rawRefreshToken == "" || len(rawRefreshToken) > maxTokenLength {
+		return nil, ErrOAuthInvalidToken
+	}
+	_, tokenHash, err := s.hashOAuthSecret(rawRefreshToken)
+	if err != nil {
+		return nil, err
+	}
+	nextRawToken, nextToken, err := s.newRefreshTokenRecord(0, nil, client.ClientID, nil, "", tokenHash)
+	if err != nil {
+		return nil, err
+	}
+	previous, err := s.refreshTokenRepo.Rotate(ctx, tokenHash, client.ClientID, nextToken, time.Now())
+	if err != nil {
+		return nil, ErrOAuthInvalidToken
+	}
+	accessToken, err := s.generateOAuthAccessToken(previous.UserID, previous.APIKeyID, previous.ClientID, previous.Scopes)
+	if err != nil {
+		return nil, err
+	}
+	return &OAuthTokenResponse{
+		AccessToken:  accessToken,
+		TokenType:    OAuthTokenTypeBearer,
+		ExpiresIn:    int(OAuthAccessTokenTTL.Seconds()),
+		RefreshToken: nextRawToken,
+		Scope:        strings.Join(previous.Scopes, " "),
+		AccountID:    fmt.Sprintf("%d", previous.UserID),
+	}, nil
+}
+
+func (s *OAuthAuthorizationService) RevokeToken(ctx context.Context, clientID, clientSecret, rawToken, tokenTypeHint string) error {
+	clientID = strings.TrimSpace(clientID)
+	rawToken = strings.TrimSpace(rawToken)
+	if clientID == "" || rawToken == "" || len(rawToken) > maxTokenLength {
+		return nil
+	}
+	client, err := s.clientRepo.GetByClientID(ctx, clientID)
+	if err != nil {
+		return nil
+	}
+	if err := validateOAuthClientTokenAuth(client, clientSecret); err != nil {
+		return nil
+	}
+	_, tokenHash, err := s.hashOAuthSecret(rawToken)
+	if err != nil {
+		return err
+	}
+	if strings.EqualFold(strings.TrimSpace(tokenTypeHint), "access_token") && strings.Count(rawToken, ".") == 2 {
+		return nil
+	}
+	return s.refreshTokenRepo.RevokeByHash(ctx, tokenHash, client.ClientID, time.Now())
 }
 
 func (s *OAuthAuthorizationService) GetUserInfo(ctx context.Context, accessToken string) (*OAuthUserInfoResponse, error) {
@@ -341,7 +474,7 @@ func (s *OAuthAuthorizationService) validateAuthorizeInput(ctx context.Context, 
 	if err != nil || !client.IsActive() {
 		return nil, nil, ErrOAuthInvalidClient
 	}
-	if !containsExact(client.RedirectURIs, redirectURI) {
+	if !isRedirectURIAllowed(client, redirectURI) {
 		return nil, nil, ErrOAuthInvalidRedirectURI
 	}
 	if err := validateCodeChallenge(input.CodeChallenge, input.CodeChallengeMethod); err != nil {
@@ -357,16 +490,46 @@ func (s *OAuthAuthorizationService) validateAuthorizeInput(ctx context.Context, 
 			return nil, nil, ErrOAuthInvalidScope
 		}
 	}
+	if input.APIKeyID != nil {
+		if err := s.validateAPIKeyBinding(ctx, 0, *input.APIKeyID); err != nil {
+			return nil, nil, err
+		}
+	}
 	return client, scopes, nil
 }
 
-func (s *OAuthAuthorizationService) generateOAuthAccessToken(userID int64, clientID string, scopes []string) (string, error) {
+func (s *OAuthAuthorizationService) validateAPIKeyBinding(ctx context.Context, userID, apiKeyID int64) error {
+	if apiKeyID <= 0 {
+		return ErrOAuthInvalidRequest
+	}
+	if s.apiKeyRepo == nil {
+		return nil
+	}
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, apiKeyID)
+	if err != nil {
+		return ErrOAuthInvalidRequest
+	}
+	if apiKey == nil || !apiKey.IsActive() || apiKey.User == nil || !apiKey.User.IsActive() {
+		return ErrOAuthInvalidRequest
+	}
+	if userID > 0 && apiKey.UserID != userID {
+		return ErrOAuthInvalidRequest
+	}
+	return nil
+}
+
+func (s *OAuthAuthorizationService) generateOAuthAccessToken(userID int64, apiKeyID *int64, clientID string, scopes []string) (string, error) {
 	if s.cfg == nil || s.cfg.JWT.Secret == "" {
 		return "", errors.New("jwt secret not configured")
+	}
+	claimAPIKeyID := int64(0)
+	if apiKeyID != nil {
+		claimAPIKeyID = *apiKeyID
 	}
 	now := time.Now()
 	claims := &OAuthAccessTokenClaims{
 		UserID:   userID,
+		APIKeyID: claimAPIKeyID,
 		ClientID: clientID,
 		Scope:    append([]string(nil), scopes...),
 		Purpose:  "oauth_access_token",
@@ -385,12 +548,12 @@ func validateCodeChallenge(challenge, method string) error {
 	challenge = strings.TrimSpace(challenge)
 	method = normalizedCodeChallengeMethod(method)
 	if challenge == "" {
-		return nil
+		return ErrOAuthInvalidPKCE
 	}
 	if len(challenge) < 43 || len(challenge) > 128 {
 		return ErrOAuthInvalidPKCE
 	}
-	if method != "S256" && method != "plain" {
+	if method != "S256" {
 		return ErrOAuthInvalidPKCE
 	}
 	for _, r := range challenge {
@@ -405,17 +568,15 @@ func validateCodeChallenge(challenge, method string) error {
 func validatePKCE(challenge, method, verifier string) error {
 	challenge = strings.TrimSpace(challenge)
 	if challenge == "" {
-		return nil
+		return ErrOAuthInvalidPKCE
 	}
 	verifier = strings.TrimSpace(verifier)
-	if err := validateCodeChallenge(verifier, "plain"); err != nil {
+	if err := validatePKCEVerifier(verifier); err != nil {
 		return ErrOAuthInvalidPKCE
 	}
 	method = normalizedCodeChallengeMethod(method)
 	var expected string
 	switch method {
-	case "plain":
-		expected = verifier
 	case "S256":
 		sum := sha256.Sum256([]byte(verifier))
 		expected = base64.RawURLEncoding.EncodeToString(sum[:])
@@ -428,17 +589,81 @@ func validatePKCE(challenge, method, verifier string) error {
 	return nil
 }
 
+func validatePKCEVerifier(verifier string) error {
+	if len(verifier) < 43 || len(verifier) > 128 {
+		return ErrOAuthInvalidPKCE
+	}
+	for _, r := range verifier {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' || r == '_' || r == '~' {
+			continue
+		}
+		return ErrOAuthInvalidPKCE
+	}
+	return nil
+}
+
 func normalizedCodeChallengeMethod(method string) string {
 	method = strings.TrimSpace(method)
 	if method == "" {
-		return "plain"
+		return ""
 	}
 	return method
 }
 
-func HashOAuthSecret(value string) string {
-	sum := sha256.Sum256([]byte(value))
-	return hex.EncodeToString(sum[:])
+func validateOAuthClientTokenAuth(client *OAuthClient, clientSecret string) error {
+	if client == nil || !client.IsActive() {
+		return ErrOAuthInvalidClient
+	}
+	switch client.ClientType {
+	case "", OAuthClientTypeConfidential:
+		if strings.TrimSpace(clientSecret) == "" || client.ClientSecretHash == "" {
+			return ErrOAuthInvalidClient
+		}
+		if bcrypt.CompareHashAndPassword([]byte(client.ClientSecretHash), []byte(clientSecret)) != nil {
+			return ErrOAuthInvalidClient
+		}
+	case OAuthClientTypePublic:
+		if strings.TrimSpace(clientSecret) != "" {
+			return ErrOAuthInvalidClient
+		}
+	default:
+		return ErrOAuthInvalidClient
+	}
+	return nil
+}
+
+func isRedirectURIAllowed(client *OAuthClient, redirectURI string) bool {
+	if containsExact(client.RedirectURIs, redirectURI) {
+		return true
+	}
+	if !client.AllowLoopbackRedirect {
+		return false
+	}
+	parsed, err := url.Parse(redirectURI)
+	if err != nil || parsed.Scheme != "http" || parsed.Path != "/auth/callback" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	if parsed.Hostname() != "127.0.0.1" && parsed.Hostname() != "localhost" {
+		return false
+	}
+	return parsed.Port() != ""
+}
+
+func (s *OAuthAuthorizationService) hashOAuthSecret(raw string) (string, string, error) {
+	key := ""
+	if s != nil && s.cfg != nil {
+		key = s.cfg.JWT.Secret
+	}
+	if key == "" {
+		return "", "", errors.New("oauth hmac key not configured")
+	}
+	return "default", HashOAuthSecretWithKey(raw, key), nil
+}
+
+func HashOAuthSecretWithKey(value, key string) string {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(value))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func HashOAuthClientSecret(secret string) (string, error) {
@@ -447,6 +672,51 @@ func HashOAuthClientSecret(secret string) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
+}
+
+func (s *OAuthAuthorizationService) createRefreshToken(ctx context.Context, userID int64, apiKeyID *int64, clientID string, scopes []string, familyID, parentTokenHash string) (string, error) {
+	rawToken, token, err := s.newRefreshTokenRecord(userID, apiKeyID, clientID, scopes, familyID, parentTokenHash)
+	if err != nil {
+		return "", err
+	}
+	if err := s.refreshTokenRepo.Create(ctx, token); err != nil {
+		return "", err
+	}
+	return rawToken, nil
+}
+
+func (s *OAuthAuthorizationService) newRefreshTokenRecord(userID int64, apiKeyID *int64, clientID string, scopes []string, familyID, parentTokenHash string) (string, *OAuthRefreshToken, error) {
+	rawToken, err := randomTokenHex(48)
+	if err != nil {
+		return "", nil, fmt.Errorf("generate refresh token: %w", err)
+	}
+	keyID, tokenHash, err := s.hashOAuthSecret(rawToken)
+	if err != nil {
+		return "", nil, err
+	}
+	if familyID == "" {
+		familyID, err = randomTokenHex(16)
+		if err != nil {
+			return "", nil, fmt.Errorf("generate refresh token family: %w", err)
+		}
+	}
+	var parent *string
+	if parentTokenHash != "" {
+		parent = &parentTokenHash
+	}
+	token := &OAuthRefreshToken{
+		TokenHash:       tokenHash,
+		HMACKeyID:       keyID,
+		FamilyID:        familyID,
+		ParentTokenHash: parent,
+		UserID:          userID,
+		APIKeyID:        apiKeyID,
+		ClientID:        clientID,
+		Scopes:          append([]string(nil), scopes...),
+		Status:          OAuthRefreshTokenStatusActive,
+		ExpiresAt:       time.Now().Add(OAuthRefreshTokenTTL),
+	}
+	return rawToken, token, nil
 }
 
 func randomTokenHex(byteLength int) (string, error) {
