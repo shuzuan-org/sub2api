@@ -4313,6 +4313,7 @@ export default {
         email: 'Email',
         backup: 'Backup',
         data: 'Sora Storage',
+        'channel-invite': 'Channel Invite',
       },
       emailTabDisabledTitle: 'Email Verification Not Enabled',
       emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',

@@ -52,6 +52,8 @@ func RegisterAuthRoutes(
 		}), h.Auth.RefreshToken)
 		// 登出接口（公开，允许未认证用户调用以撤销Refresh Token）
 		auth.POST("/logout", h.Auth.Logout)
+		auth.POST("/oauth/token", h.Auth.OAuthToken)
+		auth.GET("/oauth/userinfo", h.Auth.OAuthUserInfo)
 		// 优惠码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）
 		auth.POST("/validate-promo-code", rateLimiter.LimitWithOptions("validate-promo", 10, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
@@ -90,7 +92,31 @@ func RegisterAuthRoutes(
 	authenticated.Use(servermiddleware.BackendModeUserGuard(settingService))
 	{
 		authenticated.GET("/auth/me", h.Auth.GetCurrentUser)
+		authenticated.GET("/auth/oauth/authorize/preview", h.Auth.OAuthAuthorizePreview)
+		authenticated.POST("/auth/oauth/authorize/confirm", h.Auth.OAuthAuthorizeConfirm)
+		authenticated.POST("/auth/oauth/authorize/deny", h.Auth.OAuthAuthorizeDeny)
 		// 撤销所有会话（需要认证）
 		authenticated.POST("/auth/revoke-all-sessions", h.Auth.RevokeAllSessions)
+	}
+}
+
+// RegisterOAuthProtocolRoutes registers the canonical OAuth protocol endpoints.
+func RegisterOAuthProtocolRoutes(
+	r *gin.Engine,
+	h *handler.Handlers,
+	redisClient *redis.Client,
+) {
+	rateLimiter := middleware.NewRateLimiter(redisClient)
+	oauth := r.Group("/oauth")
+	{
+		oauth.GET("/authorize", rateLimiter.LimitWithOptions("oauth-authorize", 10, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthAuthorize)
+		oauth.POST("/token", rateLimiter.LimitWithOptions("oauth-token", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthToken)
+		oauth.POST("/revoke", rateLimiter.LimitWithOptions("oauth-revoke", 30, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthRevoke)
 	}
 }

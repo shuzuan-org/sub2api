@@ -96,6 +96,12 @@ func RegisterUserRoutes(
 			invite.GET("/summary", h.Invite.GetSummary)
 		}
 
+		// 渠道邀请码兑换
+		channelInvite := authenticated.Group("/channel-invite")
+		{
+			channelInvite.POST("/claim", h.ChannelInvite.Claim)
+		}
+
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{

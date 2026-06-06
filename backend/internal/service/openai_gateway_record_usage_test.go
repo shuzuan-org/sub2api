@@ -776,8 +776,8 @@ func TestOpenAIGatewayServiceRecordUsage_Gpt54LongContextBillsWholeSession(t *te
 	require.NoError(t, err)
 	require.NotNil(t, usageRepo.lastLog)
 
-	expectedInput := 300000 * 2.5e-6 * 2.0
-	expectedOutput := 2000 * 15e-6 * 1.5
+	expectedInput := 300000 * 2.5e-6 * USDToU * 2.0
+	expectedOutput := 2000 * 15e-6 * USDToU * 1.5
 	require.InDelta(t, expectedInput, usageRepo.lastLog.InputCost, 1e-10)
 	require.InDelta(t, expectedOutput, usageRepo.lastLog.OutputCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, usageRepo.lastLog.TotalCost, 1e-10)

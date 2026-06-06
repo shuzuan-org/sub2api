@@ -107,6 +107,7 @@ func registerRoutes(
 	v1 := r.Group("/api/v1")
 
 	// 注册各模块路由
+	routes.RegisterOAuthProtocolRoutes(r, h, redisClient)
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, redisClient, settingService)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, settingService)
 	routes.RegisterSoraClientRoutes(v1, h, jwtAuth, settingService)

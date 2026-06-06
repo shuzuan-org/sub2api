@@ -15,7 +15,11 @@ import (
 
 // NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
 func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
-	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, nil, cfg))
+}
+
+func NewAPIKeyAuthMiddlewareWithOAuth(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, oauthService *service.OAuthAuthorizationService, cfg *config.Config) APIKeyAuthMiddleware {
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, oauthService, cfg))
 }
 
 // apiKeyAuthWithSubscription API Key认证中间件（支持订阅验证）
@@ -25,7 +29,7 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 //   - 计费执行（Billing Enforcement）：过期/配额/订阅/余额检查 —— skipBilling 时整块跳过
 //
 // /v1/usage 端点只需鉴权，不需要计费执行（允许过期/配额耗尽的 Key 查询自身用量）。
-func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, oauthService *service.OAuthAuthorizationService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ── 1. 提取 API Key ──────────────────────────────────────────
 
@@ -64,11 +68,11 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			return
 		}
 
-		// ── 2. 验证 Key 存在 ─────────────────────────────────────────
+		// ── 2. 验证 Bearer 凭证 ───────────────────────────────────────
 
-		apiKey, err := apiKeyService.GetByKey(c.Request.Context(), apiKeyString)
+		apiKey, err := resolveBearerCredential(c.Request.Context(), apiKeyService, oauthService, apiKeyString)
 		if err != nil {
-			if errors.Is(err, service.ErrAPIKeyNotFound) {
+			if errors.Is(err, service.ErrAPIKeyNotFound) || errors.Is(err, service.ErrOAuthInvalidToken) {
 				AbortWithError(c, 401, "INVALID_API_KEY", "Invalid API key")
 				return
 			}
@@ -207,6 +211,42 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		c.Next()
 	}
+}
+
+func resolveBearerCredential(ctx context.Context, apiKeyService *service.APIKeyService, oauthService *service.OAuthAuthorizationService, bearer string) (*service.APIKey, error) {
+	if strings.Count(bearer, ".") == 2 {
+		if oauthService == nil {
+			return nil, service.ErrOAuthInvalidToken
+		}
+		claims, err := oauthService.ValidateOAuthAccessToken(bearer)
+		if err != nil {
+			return nil, err
+		}
+		if claims.APIKeyID <= 0 {
+			return nil, service.ErrOAuthInvalidToken
+		}
+		if !containsScope(claims.Scope, service.MetacodeOAuthScope) {
+			return nil, service.ErrOAuthInvalidToken
+		}
+		apiKey, err := apiKeyService.GetByID(ctx, claims.APIKeyID)
+		if err != nil {
+			return nil, err
+		}
+		if apiKey.UserID != claims.UserID {
+			return nil, service.ErrOAuthInvalidToken
+		}
+		return apiKey, nil
+	}
+	return apiKeyService.GetByKey(ctx, bearer)
+}
+
+func containsScope(scopes []string, target string) bool {
+	for _, scope := range scopes {
+		if scope == target {
+			return true
+		}
+	}
+	return false
 }
 
 // GetAPIKeyFromContext 从上下文中获取API key

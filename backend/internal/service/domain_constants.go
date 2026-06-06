@@ -51,6 +51,19 @@ const (
 	PromoCodeStatusDisabled = domain.PromoCodeStatusDisabled
 )
 
+// ChannelInviteBatch status constants
+const (
+	ChannelInviteBatchStatusActive   = domain.ChannelInviteBatchStatusActive
+	ChannelInviteBatchStatusDisabled = domain.ChannelInviteBatchStatusDisabled
+)
+
+// ChannelInviteCode status constants
+const (
+	ChannelInviteCodeStatusUnused  = domain.ChannelInviteCodeStatusUnused
+	ChannelInviteCodeStatusUsed    = domain.ChannelInviteCodeStatusUsed
+	ChannelInviteCodeStatusExpired = domain.ChannelInviteCodeStatusExpired
+)
+
 // Admin adjustment type constants
 const (
 	AdjustmentTypeAdminBalance     = domain.AdjustmentTypeAdminBalance     // 管理员调整余额

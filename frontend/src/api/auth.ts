@@ -395,6 +395,55 @@ export async function completeLinuxDoOAuthRegistration(
   return data
 }
 
+export interface OAuthAuthorizeParams {
+  client_id: string
+  redirect_uri: string
+  response_type: string
+  scope?: string
+  state?: string
+  code_challenge?: string
+  code_challenge_method?: string
+  api_key_id?: number
+}
+
+export interface OAuthAuthorizePreview {
+  client_id: string
+  client_name: string
+  redirect_uri: string
+  scopes: string[]
+  state?: string
+}
+
+export interface OAuthAuthorizeRedirectResponse {
+  redirect_url: string
+}
+
+export async function previewOAuthAuthorization(
+  params: OAuthAuthorizeParams
+): Promise<OAuthAuthorizePreview> {
+  const { data } = await apiClient.get<OAuthAuthorizePreview>('/auth/oauth/authorize/preview', {
+    params
+  })
+  return data
+}
+
+export async function confirmOAuthAuthorization(
+  params: OAuthAuthorizeParams
+): Promise<OAuthAuthorizeRedirectResponse> {
+  const { data } = await apiClient.post<OAuthAuthorizeRedirectResponse>(
+    '/auth/oauth/authorize/confirm',
+    params
+  )
+  return data
+}
+
+export async function denyOAuthAuthorization(
+  params: OAuthAuthorizeParams
+): Promise<OAuthAuthorizeRedirectResponse> {
+  const { data } = await apiClient.post<OAuthAuthorizeRedirectResponse>('/auth/oauth/authorize/deny', params)
+  return data
+}
+
 export const authAPI = {
   login,
   login2FA,
@@ -420,7 +469,10 @@ export const authAPI = {
   resetPassword,
   refreshToken,
   revokeAllSessions,
-  completeLinuxDoOAuthRegistration
+  completeLinuxDoOAuthRegistration,
+  previewOAuthAuthorization,
+  confirmOAuthAuthorization,
+  denyOAuthAuthorization
 }
 
 export default authAPI

@@ -90,9 +90,9 @@ func TestGetModelPricing_Gpt54UsesStaticFallbackWhenRemoteMissing(t *testing.T) 
 
 	got := svc.GetModelPricing("gpt-5.4")
 	require.NotNil(t, got)
-	require.InDelta(t, 2.5e-6, got.InputCostPerToken, 1e-12)
-	require.InDelta(t, 1.5e-5, got.OutputCostPerToken, 1e-12)
-	require.InDelta(t, 2.5e-7, got.CacheReadInputTokenCost, 1e-12)
+	require.InDelta(t, 2.5e-6*USDToU, got.InputCostPerToken, 1e-12)
+	require.InDelta(t, 1.5e-5*USDToU, got.OutputCostPerToken, 1e-12)
+	require.InDelta(t, 2.5e-7*USDToU, got.CacheReadInputTokenCost, 1e-12)
 	require.Equal(t, 272000, got.LongContextInputTokenThreshold)
 	require.InDelta(t, 2.0, got.LongContextInputCostMultiplier, 1e-12)
 	require.InDelta(t, 1.5, got.LongContextOutputCostMultiplier, 1e-12)
@@ -107,9 +107,9 @@ func TestGetModelPricing_Gpt54MiniUsesDedicatedStaticFallbackWhenRemoteMissing(t
 
 	got := svc.GetModelPricing("gpt-5.4-mini")
 	require.NotNil(t, got)
-	require.InDelta(t, 7.5e-7, got.InputCostPerToken, 1e-12)
-	require.InDelta(t, 4.5e-6, got.OutputCostPerToken, 1e-12)
-	require.InDelta(t, 7.5e-8, got.CacheReadInputTokenCost, 1e-12)
+	require.InDelta(t, 7.5e-7*USDToU, got.InputCostPerToken, 1e-12)
+	require.InDelta(t, 4.5e-6*USDToU, got.OutputCostPerToken, 1e-12)
+	require.InDelta(t, 7.5e-8*USDToU, got.CacheReadInputTokenCost, 1e-12)
 	require.Zero(t, got.LongContextInputTokenThreshold)
 }
 
@@ -122,9 +122,9 @@ func TestGetModelPricing_Gpt54NanoUsesDedicatedStaticFallbackWhenRemoteMissing(t
 
 	got := svc.GetModelPricing("gpt-5.4-nano")
 	require.NotNil(t, got)
-	require.InDelta(t, 2e-7, got.InputCostPerToken, 1e-12)
-	require.InDelta(t, 1.25e-6, got.OutputCostPerToken, 1e-12)
-	require.InDelta(t, 2e-8, got.CacheReadInputTokenCost, 1e-12)
+	require.InDelta(t, 2e-7*USDToU, got.InputCostPerToken, 1e-12)
+	require.InDelta(t, 1.25e-6*USDToU, got.OutputCostPerToken, 1e-12)
+	require.InDelta(t, 2e-8*USDToU, got.CacheReadInputTokenCost, 1e-12)
 	require.Zero(t, got.LongContextInputTokenThreshold)
 }
 

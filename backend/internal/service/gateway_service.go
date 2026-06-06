@@ -5024,7 +5024,6 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	// 避开正常 SSE 热路径（content_block_delta 等）不必要的 JSON 解析。
 	firstNonEmptyLine := true
 
-
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
@@ -6879,7 +6878,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					syntheticStatus = 529
 				case "rate_limit_error":
 					syntheticStatus = 429
-				// invalid_request_error 和其他用户侧错误：不处理，不影响账号状态
+					// invalid_request_error 和其他用户侧错误：不处理，不影响账号状态
 				}
 				if syntheticStatus != 0 {
 					s.rateLimitService.HandleUpstreamError(ctx, account, syntheticStatus, nil, []byte(dataLine))
@@ -7452,15 +7451,15 @@ type RecordUsageInput struct {
 	APIKey             *APIKey
 	User               *User
 	Account            *Account
-	Subscription       *UserSubscription   // 可选：单个订阅（向后兼容，优先使用 FIFOQueue）
-	FIFOQueue          []UserSubscription  // 可选：FIFO 分账队列（多订阅时使用）
-	InboundEndpoint    string              // 入站端点（客户端请求路径）
-	UpstreamEndpoint   string              // 上游端点（标准化后的上游路径）
-	UserAgent          string              // 请求的 User-Agent
-	IPAddress          string              // 请求的客户端 IP 地址
-	RequestPayloadHash string              // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
-	ForceCacheBilling  bool                // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
-	APIKeyService      APIKeyQuotaUpdater  // 可选：用于更新API Key配额
+	Subscription       *UserSubscription  // 可选：单个订阅（向后兼容，优先使用 FIFOQueue）
+	FIFOQueue          []UserSubscription // 可选：FIFO 分账队列（多订阅时使用）
+	InboundEndpoint    string             // 入站端点（客户端请求路径）
+	UpstreamEndpoint   string             // 上游端点（标准化后的上游路径）
+	UserAgent          string             // 请求的 User-Agent
+	IPAddress          string             // 请求的客户端 IP 地址
+	RequestPayloadHash string             // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
+	ForceCacheBilling  bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
+	APIKeyService      APIKeyQuotaUpdater // 可选：用于更新API Key配额
 }
 
 // APIKeyQuotaUpdater defines the interface for updating API Key quota and rate limit usage
@@ -7611,7 +7610,11 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 	// Redis cache 由 finalizePostUsageBilling 统一写入，此处不重复调用。
 	if p.IsSubscriptionBill {
 		if cost.TotalCost > 0 && cost.ActualCost > 0 {
-			fifoIncrementUsage(billingCtx, deps.userSubRepo, p.FIFOQueue, cost.ActualCost)
+			queue := p.FIFOQueue
+			if len(queue) == 0 && p.Subscription != nil {
+				queue = []UserSubscription{*p.Subscription}
+			}
+			fifoIncrementUsage(billingCtx, deps.userSubRepo, queue, cost.ActualCost)
 		}
 	} else {
 		if cost.ActualCost > 0 && p.User != nil {
@@ -8067,17 +8070,17 @@ type RecordUsageLongContextInput struct {
 	APIKey                *APIKey
 	User                  *User
 	Account               *Account
-	Subscription          *UserSubscription   // 可选：单个订阅（向后兼容，优先使用 FIFOQueue）
-	FIFOQueue             []UserSubscription  // 可选：FIFO 分账队列（多订阅时使用）
-	InboundEndpoint       string              // 入站端点（客户端请求路径）
-	UpstreamEndpoint      string              // 上游端点（标准化后的上游路径）
-	UserAgent             string              // 请求的 User-Agent
-	IPAddress             string              // 请求的客户端 IP 地址
-	RequestPayloadHash    string              // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
-	LongContextThreshold  int                 // 长上下文阈值（如 200000）
-	LongContextMultiplier float64             // 超出阈值部分的倍率（如 2.0）
-	ForceCacheBilling     bool                // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
-	APIKeyService         APIKeyQuotaUpdater  // API Key 配额服务（可选）
+	Subscription          *UserSubscription  // 可选：单个订阅（向后兼容，优先使用 FIFOQueue）
+	FIFOQueue             []UserSubscription // 可选：FIFO 分账队列（多订阅时使用）
+	InboundEndpoint       string             // 入站端点（客户端请求路径）
+	UpstreamEndpoint      string             // 上游端点（标准化后的上游路径）
+	UserAgent             string             // 请求的 User-Agent
+	IPAddress             string             // 请求的客户端 IP 地址
+	RequestPayloadHash    string             // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
+	LongContextThreshold  int                // 长上下文阈值（如 200000）
+	LongContextMultiplier float64            // 超出阈值部分的倍率（如 2.0）
+	ForceCacheBilling     bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
+	APIKeyService         APIKeyQuotaUpdater // API Key 配额服务（可选）
 }
 
 // RecordUsageWithLongContext 记录使用量并扣费，支持长上下文双倍计费（用于 Gemini）

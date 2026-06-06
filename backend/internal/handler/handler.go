@@ -32,6 +32,7 @@ type AdminHandlers struct {
 	ScheduledTest         *admin.ScheduledTestHandler
 	SubscriptionPlan      *admin.SubscriptionPlanHandler
 	Alipay                *admin.AlipayHandler
+	ChannelInvite         *admin.ChannelInviteHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -53,6 +54,7 @@ type Handlers struct {
 	Alipay        *AlipayHandler
 	Pricing       *PricingHandler
 	Invite        *InviteHandler
+	ChannelInvite *ChannelInviteHandler
 }
 
 // BuildInfo contains build-time information
