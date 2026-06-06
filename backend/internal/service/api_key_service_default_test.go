@@ -70,7 +70,8 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsMinimaxGroup(t *testin
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
 			{ID: 1, Name: "minimax", IsExclusive: true, Status: StatusActive},
-			{ID: minimaxID, Name: "MiniMax", IsExclusive: false, Status: StatusActive},
+			{ID: 2, Name: "default", IsExclusive: false, Status: StatusActive},
+			{ID: minimaxID, Name: "Claude MiniMax", IsExclusive: false, Status: StatusActive},
 		}},
 		nil,
 		nil,
@@ -97,12 +98,13 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_SkipsWhenUserAlreadyHasKeys
 	require.Empty(t, repo.created)
 }
 
-func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_CreatesUnboundWhenMinimaxGroupMissing(t *testing.T) {
+func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxMissing(t *testing.T) {
 	repo := &defaultAPIKeyRepoStub{}
+	fallbackID := int64(1)
 	svc := NewAPIKeyService(
 		repo,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
-		&defaultAPIKeyGroupRepoStub{groups: []Group{{ID: 1, Name: "default", Status: StatusActive}}},
+		&defaultAPIKeyGroupRepoStub{groups: []Group{{ID: fallbackID, Name: "default", Status: StatusActive}}},
 		nil,
 		nil,
 		nil,
@@ -113,6 +115,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_CreatesUnboundWhenMinimaxGr
 	require.NoError(t, err)
 	require.Len(t, repo.created, 1)
 	require.Equal(t, defaultRegistrationAPIKeyName, repo.created[0].Name)
-	require.Nil(t, repo.created[0].GroupID)
+	require.NotNil(t, repo.created[0].GroupID)
+	require.Equal(t, fallbackID, *repo.created[0].GroupID)
 	require.True(t, strings.HasPrefix(repo.created[0].Key, "sk-"))
 }

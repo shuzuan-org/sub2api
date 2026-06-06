@@ -324,7 +324,8 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 }
 
 // CreateDefaultAPIKeyForNewUser creates the initial API key for a newly registered user.
-// It binds the key to the public active group named "minimax" when that group exists.
+// It binds the key to a public active group containing "minimax", falling back to
+// the first public active group when no minimax group exists.
 func (s *APIKeyService) CreateDefaultAPIKeyForNewUser(ctx context.Context, userID int64) error {
 	if userID <= 0 {
 		return nil
@@ -362,13 +363,20 @@ func (s *APIKeyService) findDefaultMinimaxGroupID(ctx context.Context) (*int64, 
 	if err != nil {
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
+	var fallback *int64
 	for i := range groups {
 		group := groups[i]
-		if strings.EqualFold(strings.TrimSpace(group.Name), defaultMinimaxGroupName) && !group.IsExclusive {
+		if group.IsExclusive {
+			continue
+		}
+		if fallback == nil {
+			fallback = &group.ID
+		}
+		if strings.Contains(strings.ToLower(strings.TrimSpace(group.Name)), defaultMinimaxGroupName) {
 			return &group.ID, nil
 		}
 	}
-	return nil, nil
+	return fallback, nil
 }
 
 // Create 创建API Key
