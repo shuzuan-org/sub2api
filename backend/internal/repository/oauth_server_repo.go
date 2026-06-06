@@ -87,10 +87,10 @@ func (r *oauthRefreshTokenRepository) Create(ctx context.Context, token *service
 		return err
 	}
 	err = scanSingleRow(ctx, r.db, `
-	INSERT INTO oauth_refresh_tokens (token_hash, hmac_key_id, family_id, parent_token_hash, user_id, api_key_id, client_id, scopes, status, expires_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+	INSERT INTO oauth_refresh_tokens (token_hash, hmac_key_id, family_id, parent_token_hash, user_id, client_id, scopes, status, expires_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
 	RETURNING id, created_at, updated_at`,
-		[]any{token.TokenHash, token.HMACKeyID, token.FamilyID, token.ParentTokenHash, token.UserID, token.APIKeyID, token.ClientID, string(scopes), token.Status, token.ExpiresAt},
+		[]any{token.TokenHash, token.HMACKeyID, token.FamilyID, token.ParentTokenHash, token.UserID, token.ClientID, string(scopes), token.Status, token.ExpiresAt},
 		&token.ID, &token.CreatedAt, &token.UpdatedAt,
 	)
 	return err
@@ -139,7 +139,6 @@ func (r *oauthRefreshTokenRepository) Rotate(ctx context.Context, tokenHash, cli
 	}
 	next.FamilyID = current.FamilyID
 	next.UserID = current.UserID
-	next.APIKeyID = current.APIKeyID
 	next.ClientID = current.ClientID
 	next.Scopes = append([]string(nil), current.Scopes...)
 	next.ParentTokenHash = &current.TokenHash
@@ -148,10 +147,10 @@ func (r *oauthRefreshTokenRepository) Rotate(ctx context.Context, tokenHash, cli
 		return nil, err
 	}
 	if err := scanSingleRow(ctx, tx, `
-		INSERT INTO oauth_refresh_tokens (token_hash, hmac_key_id, family_id, parent_token_hash, user_id, api_key_id, client_id, scopes, status, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+		INSERT INTO oauth_refresh_tokens (token_hash, hmac_key_id, family_id, parent_token_hash, user_id, client_id, scopes, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
 		RETURNING id, created_at, updated_at`,
-		[]any{next.TokenHash, next.HMACKeyID, next.FamilyID, next.ParentTokenHash, next.UserID, next.APIKeyID, next.ClientID, string(scopes), next.Status, next.ExpiresAt},
+		[]any{next.TokenHash, next.HMACKeyID, next.FamilyID, next.ParentTokenHash, next.UserID, next.ClientID, string(scopes), next.Status, next.ExpiresAt},
 		&next.ID, &next.CreatedAt, &next.UpdatedAt,
 	); err != nil {
 		return nil, err
@@ -176,12 +175,12 @@ func selectRefreshTokenForUpdate(ctx context.Context, tx *sql.Tx, tokenHash, cli
 	var out service.OAuthRefreshToken
 	var scopesRaw []byte
 	err := scanSingleRow(ctx, tx, `
-	SELECT id, token_hash, hmac_key_id, family_id, parent_token_hash, user_id, api_key_id, client_id, scopes, status, expires_at, used_at, revoked_at, created_at, updated_at
+	SELECT id, token_hash, hmac_key_id, family_id, parent_token_hash, user_id, client_id, scopes, status, expires_at, used_at, revoked_at, created_at, updated_at
 	FROM oauth_refresh_tokens
 	WHERE token_hash = $1 AND client_id = $2
 	FOR UPDATE`,
 		[]any{tokenHash, clientID},
-		&out.ID, &out.TokenHash, &out.HMACKeyID, &out.FamilyID, &out.ParentTokenHash, &out.UserID, &out.APIKeyID, &out.ClientID, &scopesRaw, &out.Status, &out.ExpiresAt, &out.UsedAt, &out.RevokedAt, &out.CreatedAt, &out.UpdatedAt)
+		&out.ID, &out.TokenHash, &out.HMACKeyID, &out.FamilyID, &out.ParentTokenHash, &out.UserID, &out.ClientID, &scopesRaw, &out.Status, &out.ExpiresAt, &out.UsedAt, &out.RevokedAt, &out.CreatedAt, &out.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, service.ErrOAuthInvalidToken
@@ -218,10 +217,10 @@ func (r *oauthAuthorizationCodeRepository) Create(ctx context.Context, code *ser
 		return err
 	}
 	err = scanSingleRow(ctx, r.sql, `
-	INSERT INTO oauth_authorization_codes (code_hash, hmac_key_id, client_id, user_id, api_key_id, redirect_uri, scopes, code_challenge, code_challenge_method, expires_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+	INSERT INTO oauth_authorization_codes (code_hash, hmac_key_id, client_id, user_id, redirect_uri, scopes, code_challenge, code_challenge_method, expires_at)
+	VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
 	RETURNING id, created_at, updated_at`,
-		[]any{code.CodeHash, code.HMACKeyID, code.ClientID, code.UserID, code.APIKeyID, code.RedirectURI, string(scopes), code.CodeChallenge, code.CodeChallengeMethod, code.ExpiresAt},
+		[]any{code.CodeHash, code.HMACKeyID, code.ClientID, code.UserID, code.RedirectURI, string(scopes), code.CodeChallenge, code.CodeChallengeMethod, code.ExpiresAt},
 		&code.ID, &code.CreatedAt, &code.UpdatedAt,
 	)
 	return err
@@ -238,9 +237,9 @@ func (r *oauthAuthorizationCodeRepository) Consume(ctx context.Context, codeHash
 	  AND redirect_uri = $3
 	  AND expires_at > $4
 	  AND used_at IS NULL
-	RETURNING id, code_hash, hmac_key_id, client_id, user_id, api_key_id, redirect_uri, scopes, code_challenge, code_challenge_method, expires_at, used_at, created_at, updated_at`,
+	RETURNING id, code_hash, hmac_key_id, client_id, user_id, redirect_uri, scopes, code_challenge, code_challenge_method, expires_at, used_at, created_at, updated_at`,
 		[]any{codeHash, clientID, redirectURI, now},
-		&out.ID, &out.CodeHash, &out.HMACKeyID, &out.ClientID, &out.UserID, &out.APIKeyID, &out.RedirectURI, &scopesRaw, &out.CodeChallenge, &out.CodeChallengeMethod, &out.ExpiresAt, &out.UsedAt, &out.CreatedAt, &out.UpdatedAt)
+		&out.ID, &out.CodeHash, &out.HMACKeyID, &out.ClientID, &out.UserID, &out.RedirectURI, &scopesRaw, &out.CodeChallenge, &out.CodeChallengeMethod, &out.ExpiresAt, &out.UsedAt, &out.CreatedAt, &out.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, service.ErrOAuthInvalidCode

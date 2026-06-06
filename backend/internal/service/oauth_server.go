@@ -73,7 +73,6 @@ type OAuthAuthorizationCode struct {
 	HMACKeyID           string
 	ClientID            string
 	UserID              int64
-	APIKeyID            *int64
 	RedirectURI         string
 	Scopes              []string
 	CodeChallenge       string
@@ -101,7 +100,6 @@ type OAuthRefreshToken struct {
 	FamilyID        string
 	ParentTokenHash *string
 	UserID          int64
-	APIKeyID        *int64
 	ClientID        string
 	Scopes          []string
 	Status          string
@@ -118,12 +116,17 @@ type OAuthRefreshTokenRepository interface {
 	RevokeByHash(ctx context.Context, tokenHash, clientID string, now time.Time) error
 }
 
+type OAuthAccessTokenDenylist interface {
+	Revoke(ctx context.Context, jti string, expiresAt time.Time) error
+	IsRevoked(ctx context.Context, jti string) (bool, error)
+}
+
 type OAuthAuthorizationService struct {
 	clientRepo       OAuthClientRepository
 	codeRepo         OAuthAuthorizationCodeRepository
 	refreshTokenRepo OAuthRefreshTokenRepository
 	userRepo         UserRepository
-	apiKeyRepo       APIKeyRepository
+	denylist         OAuthAccessTokenDenylist
 	cfg              *config.Config
 }
 
@@ -132,10 +135,10 @@ func NewOAuthAuthorizationService(
 	codeRepo OAuthAuthorizationCodeRepository,
 	refreshTokenRepo OAuthRefreshTokenRepository,
 	userRepo UserRepository,
-	apiKeyRepo APIKeyRepository,
+	denylist OAuthAccessTokenDenylist,
 	cfg *config.Config,
 ) *OAuthAuthorizationService {
-	return &OAuthAuthorizationService{clientRepo: clientRepo, codeRepo: codeRepo, refreshTokenRepo: refreshTokenRepo, userRepo: userRepo, apiKeyRepo: apiKeyRepo, cfg: cfg}
+	return &OAuthAuthorizationService{clientRepo: clientRepo, codeRepo: codeRepo, refreshTokenRepo: refreshTokenRepo, userRepo: userRepo, denylist: denylist, cfg: cfg}
 }
 
 type OAuthAuthorizeInput struct {
@@ -146,7 +149,6 @@ type OAuthAuthorizeInput struct {
 	State               string
 	CodeChallenge       string
 	CodeChallengeMethod string
-	APIKeyID            *int64
 }
 
 type OAuthAuthorizationPreview struct {
@@ -191,7 +193,6 @@ type OAuthUserInfoResponse struct {
 
 type OAuthAccessTokenClaims struct {
 	UserID   int64    `json:"user_id"`
-	APIKeyID int64    `json:"api_key_id,omitempty"`
 	ClientID string   `json:"client_id"`
 	Scope    []string `json:"scope"`
 	Purpose  string   `json:"purpose"`
@@ -227,14 +228,6 @@ func (s *OAuthAuthorizationService) ApproveAuthorization(ctx context.Context, us
 	if !user.IsActive() {
 		return nil, ErrUserNotActive
 	}
-	if containsExact(scopes, MetacodeOAuthScope) && input.APIKeyID == nil {
-		return nil, ErrOAuthInvalidRequest
-	}
-	if input.APIKeyID != nil {
-		if err := s.validateAPIKeyBinding(ctx, userID, *input.APIKeyID); err != nil {
-			return nil, err
-		}
-	}
 
 	rawCode, err := randomTokenHex(32)
 	if err != nil {
@@ -250,7 +243,6 @@ func (s *OAuthAuthorizationService) ApproveAuthorization(ctx context.Context, us
 		HMACKeyID:           keyID,
 		ClientID:            client.ClientID,
 		UserID:              userID,
-		APIKeyID:            input.APIKeyID,
 		RedirectURI:         input.RedirectURI,
 		Scopes:              scopes,
 		CodeChallenge:       strings.TrimSpace(input.CodeChallenge),
@@ -321,12 +313,12 @@ func (s *OAuthAuthorizationService) ExchangeAuthorizationCode(ctx context.Contex
 	if err := validatePKCE(authCode.CodeChallenge, authCode.CodeChallengeMethod, input.CodeVerifier); err != nil {
 		return nil, err
 	}
-	refreshToken, err := s.createRefreshToken(ctx, authCode.UserID, authCode.APIKeyID, client.ClientID, authCode.Scopes, "", "")
+	refreshToken, err := s.createRefreshToken(ctx, authCode.UserID, client.ClientID, authCode.Scopes, "", "")
 	if err != nil {
 		return nil, err
 	}
 
-	accessToken, err := s.generateOAuthAccessToken(authCode.UserID, authCode.APIKeyID, client.ClientID, authCode.Scopes)
+	accessToken, err := s.generateOAuthAccessToken(authCode.UserID, client.ClientID, authCode.Scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +355,7 @@ func (s *OAuthAuthorizationService) RefreshAccessToken(ctx context.Context, inpu
 	if err != nil {
 		return nil, err
 	}
-	nextRawToken, nextToken, err := s.newRefreshTokenRecord(0, nil, client.ClientID, nil, "", tokenHash)
+	nextRawToken, nextToken, err := s.newRefreshTokenRecord(0, client.ClientID, nil, "", tokenHash)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +363,7 @@ func (s *OAuthAuthorizationService) RefreshAccessToken(ctx context.Context, inpu
 	if err != nil {
 		return nil, ErrOAuthInvalidToken
 	}
-	accessToken, err := s.generateOAuthAccessToken(previous.UserID, previous.APIKeyID, previous.ClientID, previous.Scopes)
+	accessToken, err := s.generateOAuthAccessToken(previous.UserID, previous.ClientID, previous.Scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -398,18 +390,35 @@ func (s *OAuthAuthorizationService) RevokeToken(ctx context.Context, clientID, c
 	if err := validateOAuthClientTokenAuth(client, clientSecret); err != nil {
 		return nil
 	}
+	if (strings.EqualFold(strings.TrimSpace(tokenTypeHint), "access_token") || strings.Count(rawToken, ".") == 2) && strings.Count(rawToken, ".") == 2 {
+		return s.revokeAccessToken(ctx, rawToken, client.ClientID)
+	}
 	_, tokenHash, err := s.hashOAuthSecret(rawToken)
 	if err != nil {
 		return err
 	}
-	if strings.EqualFold(strings.TrimSpace(tokenTypeHint), "access_token") && strings.Count(rawToken, ".") == 2 {
-		return nil
-	}
 	return s.refreshTokenRepo.RevokeByHash(ctx, tokenHash, client.ClientID, time.Now())
 }
 
+func (s *OAuthAuthorizationService) revokeAccessToken(ctx context.Context, accessToken, clientID string) error {
+	if s.denylist == nil {
+		return nil
+	}
+	claims, err := s.parseOAuthAccessToken(accessToken)
+	if err != nil {
+		return err
+	}
+	if claims.ClientID != clientID {
+		return ErrOAuthInvalidToken
+	}
+	if claims.ID == "" || claims.ExpiresAt == nil {
+		return ErrOAuthInvalidToken
+	}
+	return s.denylist.Revoke(ctx, claims.ID, claims.ExpiresAt.Time)
+}
+
 func (s *OAuthAuthorizationService) GetUserInfo(ctx context.Context, accessToken string) (*OAuthUserInfoResponse, error) {
-	claims, err := s.ValidateOAuthAccessToken(accessToken)
+	claims, err := s.ValidateOAuthAccessTokenContext(ctx, accessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -434,6 +443,27 @@ func (s *OAuthAuthorizationService) GetUserInfo(ctx context.Context, accessToken
 }
 
 func (s *OAuthAuthorizationService) ValidateOAuthAccessToken(tokenString string) (*OAuthAccessTokenClaims, error) {
+	return s.ValidateOAuthAccessTokenContext(context.Background(), tokenString)
+}
+
+func (s *OAuthAuthorizationService) ValidateOAuthAccessTokenContext(ctx context.Context, tokenString string) (*OAuthAccessTokenClaims, error) {
+	claims, err := s.parseOAuthAccessToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	if claims.ID == "" {
+		return nil, ErrOAuthInvalidToken
+	}
+	if s.denylist != nil {
+		revoked, err := s.denylist.IsRevoked(ctx, claims.ID)
+		if err != nil || revoked {
+			return nil, ErrOAuthInvalidToken
+		}
+	}
+	return claims, nil
+}
+
+func (s *OAuthAuthorizationService) parseOAuthAccessToken(tokenString string) (*OAuthAccessTokenClaims, error) {
 	if strings.TrimSpace(tokenString) == "" || len(tokenString) > maxTokenLength {
 		return nil, ErrOAuthInvalidToken
 	}
@@ -490,50 +520,25 @@ func (s *OAuthAuthorizationService) validateAuthorizeInput(ctx context.Context, 
 			return nil, nil, ErrOAuthInvalidScope
 		}
 	}
-	if input.APIKeyID != nil {
-		if err := s.validateAPIKeyBinding(ctx, 0, *input.APIKeyID); err != nil {
-			return nil, nil, err
-		}
-	}
 	return client, scopes, nil
 }
 
-func (s *OAuthAuthorizationService) validateAPIKeyBinding(ctx context.Context, userID, apiKeyID int64) error {
-	if apiKeyID <= 0 {
-		return ErrOAuthInvalidRequest
-	}
-	if s.apiKeyRepo == nil {
-		return nil
-	}
-	apiKey, err := s.apiKeyRepo.GetByID(ctx, apiKeyID)
-	if err != nil {
-		return ErrOAuthInvalidRequest
-	}
-	if apiKey == nil || !apiKey.IsActive() || apiKey.User == nil || !apiKey.User.IsActive() {
-		return ErrOAuthInvalidRequest
-	}
-	if userID > 0 && apiKey.UserID != userID {
-		return ErrOAuthInvalidRequest
-	}
-	return nil
-}
-
-func (s *OAuthAuthorizationService) generateOAuthAccessToken(userID int64, apiKeyID *int64, clientID string, scopes []string) (string, error) {
+func (s *OAuthAuthorizationService) generateOAuthAccessToken(userID int64, clientID string, scopes []string) (string, error) {
 	if s.cfg == nil || s.cfg.JWT.Secret == "" {
 		return "", errors.New("jwt secret not configured")
 	}
-	claimAPIKeyID := int64(0)
-	if apiKeyID != nil {
-		claimAPIKeyID = *apiKeyID
+	jti, err := randomTokenHex(16)
+	if err != nil {
+		return "", fmt.Errorf("generate oauth access token id: %w", err)
 	}
 	now := time.Now()
 	claims := &OAuthAccessTokenClaims{
 		UserID:   userID,
-		APIKeyID: claimAPIKeyID,
 		ClientID: clientID,
 		Scope:    append([]string(nil), scopes...),
 		Purpose:  "oauth_access_token",
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti,
 			Subject:   fmt.Sprintf("%d", userID),
 			Audience:  jwt.ClaimStrings{clientID},
 			ExpiresAt: jwt.NewNumericDate(now.Add(OAuthAccessTokenTTL)),
@@ -674,8 +679,8 @@ func HashOAuthClientSecret(secret string) (string, error) {
 	return string(hash), nil
 }
 
-func (s *OAuthAuthorizationService) createRefreshToken(ctx context.Context, userID int64, apiKeyID *int64, clientID string, scopes []string, familyID, parentTokenHash string) (string, error) {
-	rawToken, token, err := s.newRefreshTokenRecord(userID, apiKeyID, clientID, scopes, familyID, parentTokenHash)
+func (s *OAuthAuthorizationService) createRefreshToken(ctx context.Context, userID int64, clientID string, scopes []string, familyID, parentTokenHash string) (string, error) {
+	rawToken, token, err := s.newRefreshTokenRecord(userID, clientID, scopes, familyID, parentTokenHash)
 	if err != nil {
 		return "", err
 	}
@@ -685,7 +690,7 @@ func (s *OAuthAuthorizationService) createRefreshToken(ctx context.Context, user
 	return rawToken, nil
 }
 
-func (s *OAuthAuthorizationService) newRefreshTokenRecord(userID int64, apiKeyID *int64, clientID string, scopes []string, familyID, parentTokenHash string) (string, *OAuthRefreshToken, error) {
+func (s *OAuthAuthorizationService) newRefreshTokenRecord(userID int64, clientID string, scopes []string, familyID, parentTokenHash string) (string, *OAuthRefreshToken, error) {
 	rawToken, err := randomTokenHex(48)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate refresh token: %w", err)
@@ -710,7 +715,6 @@ func (s *OAuthAuthorizationService) newRefreshTokenRecord(userID int64, apiKeyID
 		FamilyID:        familyID,
 		ParentTokenHash: parent,
 		UserID:          userID,
-		APIKeyID:        apiKeyID,
 		ClientID:        clientID,
 		Scopes:          append([]string(nil), scopes...),
 		Status:          OAuthRefreshTokenStatusActive,

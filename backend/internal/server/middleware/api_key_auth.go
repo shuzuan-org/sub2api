@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -70,13 +71,33 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		// ── 2. 验证 Bearer 凭证 ───────────────────────────────────────
 
-		apiKey, err := resolveBearerCredential(c.Request.Context(), apiKeyService, oauthService, apiKeyString)
+		apiKey, claims, err := resolveBearerCredential(c, apiKeyService, oauthService, apiKeyString)
 		if err != nil {
+			if errors.Is(err, service.ErrOAuthProfileRequired) {
+				AbortWithError(c, 400, "PROFILE_REQUIRED", "OAuth profile is required")
+				return
+			}
+			if errors.Is(err, service.ErrOAuthProfileForbidden) {
+				AbortWithError(c, 403, "PROFILE_FORBIDDEN", "OAuth profile is not available")
+				return
+			}
 			if errors.Is(err, service.ErrAPIKeyNotFound) || errors.Is(err, service.ErrOAuthInvalidToken) {
 				AbortWithError(c, 401, "INVALID_API_KEY", "Invalid API key")
 				return
 			}
 			AbortWithError(c, 500, "INTERNAL_ERROR", "Failed to validate API key")
+			return
+		}
+		if claims != nil {
+			c.Set(string(ContextKeyOAuthClaims), claims)
+		}
+
+		if c.Request.URL.Path == "/v1/profiles" {
+			if claims == nil {
+				AbortWithError(c, 403, "PROFILES_REQUIRE_OAUTH", "Profiles are only available for OAuth credentials")
+				return
+			}
+			c.Next()
 			return
 		}
 
@@ -214,31 +235,47 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 	}
 }
 
-func resolveBearerCredential(ctx context.Context, apiKeyService *service.APIKeyService, oauthService *service.OAuthAuthorizationService, bearer string) (*service.APIKey, error) {
+func resolveBearerCredential(c *gin.Context, apiKeyService *service.APIKeyService, oauthService *service.OAuthAuthorizationService, bearer string) (*service.APIKey, *service.OAuthAccessTokenClaims, error) {
+	ctx := c.Request.Context()
 	if strings.Count(bearer, ".") == 2 {
 		if oauthService == nil {
-			return nil, service.ErrOAuthInvalidToken
+			return nil, nil, service.ErrOAuthInvalidToken
 		}
-		claims, err := oauthService.ValidateOAuthAccessToken(bearer)
+		claims, err := oauthService.ValidateOAuthAccessTokenContext(ctx, bearer)
 		if err != nil {
-			return nil, err
-		}
-		if claims.APIKeyID <= 0 {
-			return nil, service.ErrOAuthInvalidToken
+			return nil, nil, err
 		}
 		if !containsScope(claims.Scope, service.MetacodeOAuthScope) {
-			return nil, service.ErrOAuthInvalidToken
+			return nil, nil, service.ErrOAuthInvalidToken
 		}
-		apiKey, err := apiKeyService.GetByID(ctx, claims.APIKeyID)
+		if c.Request.URL.Path == "/v1/profiles" {
+			return nil, claims, nil
+		}
+		profileID := strings.TrimSpace(c.GetHeader("X-Metacode-Profile-ID"))
+		if profileID == "" {
+			return nil, nil, service.ErrOAuthProfileRequired
+		}
+		apiKeyID, err := strconv.ParseInt(profileID, 10, 64)
+		if err != nil || apiKeyID <= 0 {
+			return nil, nil, service.ErrOAuthProfileForbidden
+		}
+		apiKey, err := apiKeyService.GetByID(ctx, apiKeyID)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, service.ErrAPIKeyNotFound) {
+				return nil, nil, service.ErrOAuthProfileForbidden
+			}
+			return nil, nil, err
 		}
 		if apiKey.UserID != claims.UserID {
-			return nil, service.ErrOAuthInvalidToken
+			return nil, nil, service.ErrOAuthProfileForbidden
 		}
-		return apiKey, nil
+		if apiKey.Group == nil || apiKey.GroupID == nil || !apiKey.Group.IsActive() {
+			return nil, nil, service.ErrOAuthProfileForbidden
+		}
+		return apiKey, claims, nil
 	}
-	return apiKeyService.GetByKey(ctx, bearer)
+	apiKey, err := apiKeyService.GetByKey(ctx, bearer)
+	return apiKey, nil, err
 }
 
 func containsScope(scopes []string, target string) bool {
@@ -248,6 +285,15 @@ func containsScope(scopes []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func GetOAuthAccessTokenClaimsFromContext(c *gin.Context) (*service.OAuthAccessTokenClaims, bool) {
+	value, exists := c.Get(string(ContextKeyOAuthClaims))
+	if !exists {
+		return nil, false
+	}
+	claims, ok := value.(*service.OAuthAccessTokenClaims)
+	return claims, ok
 }
 
 // GetAPIKeyFromContext 从上下文中获取API key
