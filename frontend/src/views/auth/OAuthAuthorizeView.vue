@@ -93,46 +93,13 @@
           </div>
         </div>
 
-        <div
-          v-if="requiresAPIKey"
-          class="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
-        >
-          <div>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">使用配额</p>
-            <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
-              请选择本次授权要使用的 API Key 配额。
-            </p>
-          </div>
-
-          <select
-            v-if="activeAPIKeys.length > 0"
-            v-model.number="selectedAPIKeyID"
-            class="input"
-          >
-            <option
-              v-for="key in activeAPIKeys"
-              :key="key.id"
-              :value="key.id"
-            >
-              {{ formatAPIKeyLabel(key) }}
-            </option>
-          </select>
-
-          <div
-            v-else
-            class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400"
-          >
-            当前账号没有可用于授权的 active API Key。
-          </div>
-        </div>
-
         <div class="grid grid-cols-2 gap-3">
           <button class="btn btn-secondary w-full" :disabled="isSubmitting" @click="handleDeny">
             拒绝
           </button>
           <button
             class="btn btn-primary w-full"
-            :disabled="isSubmitting || (requiresAPIKey && !selectedAPIKeyID)"
+            :disabled="isSubmitting"
             @click="handleConfirm"
           >
             <Icon v-if="!isSubmitting" name="check" size="md" class="mr-2" />
@@ -150,9 +117,7 @@ import { useRoute } from 'vue-router'
 import { AuthLayout } from '@/components/layout'
 import Icon from '@/components/icons/Icon.vue'
 import { confirmOAuthAuthorization, denyOAuthAuthorization, previewOAuthAuthorization } from '@/api/auth'
-import keysAPI from '@/api/keys'
 import type { OAuthAuthorizeParams, OAuthAuthorizePreview } from '@/api/auth'
-import type { ApiKey } from '@/types'
 import { useAppStore, useAuthStore } from '@/stores'
 
 const route = useRoute()
@@ -163,11 +128,6 @@ const isLoading = ref(true)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 const preview = ref<OAuthAuthorizePreview | null>(null)
-const apiKeys = ref<ApiKey[]>([])
-const selectedAPIKeyID = ref<number | null>(null)
-
-const activeAPIKeys = computed(() => apiKeys.value.filter((key) => key.status === 'active'))
-const requiresAPIKey = computed(() => preview.value?.scopes.includes('metacode:use') ?? false)
 
 const currentUserLabel = computed(() => {
   const user = authStore.user
@@ -187,32 +147,15 @@ function getParams(): OAuthAuthorizeParams {
       ? String(route.query.code_challenge_method)
       : undefined
   }
-  if (selectedAPIKeyID.value) {
-    params.api_key_id = selectedAPIKeyID.value
-  }
   return params
-}
-
-function formatAPIKeyLabel(key: ApiKey): string {
-  const quota = key.quota > 0
-    ? `${Math.max(key.quota - key.quota_used, 0).toFixed(2)} U remaining`
-    : 'unlimited'
-  return `${key.name} - ${quota}`
 }
 
 async function loadPreview() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const [previewData, keysData] = await Promise.all([
-      previewOAuthAuthorization(getParams()),
-      keysAPI.list(1, 100, { status: 'active' })
-    ])
+    const previewData = await previewOAuthAuthorization(getParams())
     preview.value = previewData
-    apiKeys.value = keysData.items
-    if (!selectedAPIKeyID.value && activeAPIKeys.value.length > 0) {
-      selectedAPIKeyID.value = activeAPIKeys.value[0].id
-    }
   } catch (error: any) {
     errorMessage.value = error?.message || '授权请求无效'
   } finally {
