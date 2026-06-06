@@ -42,7 +42,9 @@ const (
 	apiKeyMaxErrorsPerHour = 20
 	apiKeyLastUsedMinTouch = 30 * time.Second
 	// DB 写失败后的短退避，避免请求路径持续同步重试造成写风暴与高延迟。
-	apiKeyLastUsedFailBackoff = 5 * time.Second
+	apiKeyLastUsedFailBackoff     = 5 * time.Second
+	defaultRegistrationAPIKeyName = "default"
+	defaultMinimaxGroupName       = "minimax"
 )
 
 type APIKeyRepository interface {
@@ -254,7 +256,10 @@ func (s *APIKeyService) GenerateKey() (string, error) {
 	}
 
 	// 转换为十六进制字符串并添加前缀
-	prefix := s.cfg.Default.APIKeyPrefix
+	prefix := ""
+	if s.cfg != nil {
+		prefix = s.cfg.Default.APIKeyPrefix
+	}
 	if prefix == "" {
 		prefix = "sk-"
 	}
@@ -316,6 +321,54 @@ func (s *APIKeyService) incrementAPIKeyErrorCount(ctx context.Context, userID in
 // 统一使用 is_exclusive + allowed_groups 机制
 func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group *Group) bool {
 	return user.CanBindGroup(group.ID, group.IsExclusive)
+}
+
+// CreateDefaultAPIKeyForNewUser creates the initial API key for a newly registered user.
+// It binds the key to the public active group named "minimax" when that group exists.
+func (s *APIKeyService) CreateDefaultAPIKeyForNewUser(ctx context.Context, userID int64) error {
+	if userID <= 0 {
+		return nil
+	}
+
+	count, err := s.apiKeyRepo.CountByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("count api keys: %w", err)
+	}
+	if count > 0 {
+		return nil
+	}
+
+	groupID, err := s.findDefaultMinimaxGroupID(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.Create(ctx, userID, CreateAPIKeyRequest{
+		Name:    defaultRegistrationAPIKeyName,
+		GroupID: groupID,
+	})
+	if err != nil {
+		return fmt.Errorf("create default api key: %w", err)
+	}
+	return nil
+}
+
+func (s *APIKeyService) findDefaultMinimaxGroupID(ctx context.Context) (*int64, error) {
+	if s.groupRepo == nil {
+		return nil, nil
+	}
+
+	groups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+	for i := range groups {
+		group := groups[i]
+		if strings.EqualFold(strings.TrimSpace(group.Name), defaultMinimaxGroupName) && !group.IsExclusive {
+			return &group.ID, nil
+		}
+	}
+	return nil, nil
 }
 
 // Create 创建API Key

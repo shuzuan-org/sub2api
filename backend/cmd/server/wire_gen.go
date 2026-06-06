@@ -75,7 +75,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionService := service.NewSubscriptionService(subscriptionPlanRepository, userSubscriptionRepository, userRepository, billingCacheService, client, configConfig)
 	inviteService := service.NewInviteService(client, userRepository, settingService, billingCacheService, apiKeyAuthCacheInvalidator)
 	channelInviteSvc := service.NewChannelInviteService(channelInviteRepository, userRepository, client, billingCache, apiKeyAuthCacheInvalidator)
-	authService := service.NewAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, phoneVerificationService, subscriptionService, inviteService)
+	authService := service.NewAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, phoneVerificationService, subscriptionService, apiKeyService, inviteService)
 	userService := service.ProvideUserService(userRepository, apiKeyAuthCacheInvalidator, billingCache, channelInviteSvc)
 	redeemCache := repository.NewRedeemCache(redisClient)
 	redeemService := service.NewRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService, client, apiKeyAuthCacheInvalidator)
