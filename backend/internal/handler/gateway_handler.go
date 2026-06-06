@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -976,6 +977,22 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	}
 
 	h.usageUnrestricted(c, ctx, apiKey, subject, usageData, modelStats)
+}
+
+// Group handles getting the group bound to the current API key.
+// GET /v1/group
+func (h *GatewayHandler) Group(c *gin.Context) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok {
+		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
+		return
+	}
+	if apiKey.Group == nil {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "API key is not assigned to any group")
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.GroupFromService(apiKey.Group))
 }
 
 // parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围
