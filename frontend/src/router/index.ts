@@ -84,6 +84,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/oauth/authorize',
+    name: 'OAuthAuthorize',
+    component: () => import('@/views/auth/OAuthAuthorizeView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Authorize Application'
+    }
+  },
+
+  {
     path: '/forgot-password',
     name: 'ForgotPassword',
     component: () => import('@/views/auth/ForgotPasswordView.vue'),

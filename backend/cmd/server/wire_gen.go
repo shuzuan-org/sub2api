@@ -85,7 +85,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	}
 	totpCache := repository.NewTotpCache(redisClient)
 	totpService := service.NewTotpService(userRepository, secretEncryptor, totpCache, settingService, emailService, emailQueueService)
-	authHandler := handler.NewAuthHandler(configConfig, authService, userService, settingService, promoService, redeemService, totpService)
+	oauthClientRepository := repository.NewOAuthClientRepository(client, db)
+	oauthAuthorizationCodeRepository := repository.NewOAuthAuthorizationCodeRepository(client, db)
+	oauthAuthorizationService := service.NewOAuthAuthorizationService(oauthClientRepository, oauthAuthorizationCodeRepository, userRepository, configConfig)
+	authHandler := handler.NewAuthHandler(configConfig, authService, userService, settingService, promoService, redeemService, totpService, oauthAuthorizationService)
 	userHandler := handler.NewUserHandler(userService, phoneVerificationService)
 	usageLogRepository := repository.NewUsageLogRepository(client, db)
 	usageBillingRepository := repository.NewUsageBillingRepository(client, db)

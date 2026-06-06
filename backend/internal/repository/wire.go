@@ -51,6 +51,8 @@ func ProvideSessionLimitCache(rdb *redis.Client, cfg *config.Config) service.Ses
 var ProviderSet = wire.NewSet(
 	NewUserRepository,
 	NewAPIKeyRepository,
+	NewOAuthClientRepository,
+	NewOAuthAuthorizationCodeRepository,
 	NewGroupRepository,
 	NewAccountRepository,
 	NewSoraAccountRepository,         // Sora 账号扩展表仓储
@@ -77,6 +79,8 @@ var ProviderSet = wire.NewSet(
 	NewErrorPassthroughRepository,
 	NewTLSFingerprintProfileRepository,
 	NewAlipayOrderRepository,
+	NewOAuthClientRepository,
+	NewOAuthAuthorizationCodeRepository,
 
 	// Cache implementations
 	NewGatewayCache,
