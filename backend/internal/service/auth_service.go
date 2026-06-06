@@ -70,9 +70,9 @@ type AuthService struct {
 	emailService       *EmailService
 	turnstileService   *TurnstileService
 	emailQueueService  *EmailQueueService
-	promoService         *PromoService
-	phoneVerifyService   *PhoneVerificationService
-	defaultSubAssigner   DefaultSubscriptionAssigner
+	promoService       *PromoService
+	phoneVerifyService *PhoneVerificationService
+	defaultSubAssigner DefaultSubscriptionAssigner
 	inviteService      *InviteService
 }
 
@@ -112,7 +112,6 @@ func NewAuthService(
 		inviteService:      inviteService,
 	}
 }
-
 
 // Register 用户注册，返回token和用户
 func (s *AuthService) Register(ctx context.Context, email, password string) (string, *User, error) {
