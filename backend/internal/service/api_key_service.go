@@ -44,7 +44,7 @@ const (
 	// DB 写失败后的短退避，避免请求路径持续同步重试造成写风暴与高延迟。
 	apiKeyLastUsedFailBackoff     = 5 * time.Second
 	defaultRegistrationAPIKeyName = "default"
-	defaultMinimaxGroupName       = "minimax"
+	defaultMinimaxGroupName       = "MiniMax-M2.7-Highspeed"
 )
 
 type APIKeyRepository interface {
@@ -324,7 +324,7 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 }
 
 // CreateDefaultAPIKeyForNewUser creates the initial API key for a newly registered user.
-// It binds the key to the public active group named "minimax" when that group exists.
+// It binds the key to the public active group named "MiniMax-M2.7-Highspeed" when that group exists.
 func (s *APIKeyService) CreateDefaultAPIKeyForNewUser(ctx context.Context, userID int64) error {
 	if userID <= 0 {
 		return nil

@@ -62,15 +62,15 @@ func (s *defaultAPIKeyGroupRepoStub) GetByID(_ context.Context, id int64) (*Grou
 	return nil, ErrGroupNotFound
 }
 
-func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsMinimaxGroup(t *testing.T) {
+func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsDefaultMiniMaxHighspeedGroup(t *testing.T) {
 	repo := &defaultAPIKeyRepoStub{}
-	minimaxID := int64(42)
+	defaultGroupID := int64(42)
 	svc := NewAPIKeyService(
 		repo,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
-			{ID: 1, Name: "minimax", IsExclusive: true, Status: StatusActive},
-			{ID: minimaxID, Name: "MiniMax", IsExclusive: false, Status: StatusActive},
+			{ID: 1, Name: "MiniMax-M2.7-Highspeed", IsExclusive: true, Status: StatusActive},
+			{ID: defaultGroupID, Name: "minimax-m2.7-highspeed", IsExclusive: false, Status: StatusActive},
 		}},
 		nil,
 		nil,
@@ -84,7 +84,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsMinimaxGroup(t *testin
 	require.Equal(t, int64(9), repo.created[0].UserID)
 	require.Equal(t, defaultRegistrationAPIKeyName, repo.created[0].Name)
 	require.NotNil(t, repo.created[0].GroupID)
-	require.Equal(t, minimaxID, *repo.created[0].GroupID)
+	require.Equal(t, defaultGroupID, *repo.created[0].GroupID)
 	require.True(t, strings.HasPrefix(repo.created[0].Key, "test-"))
 }
 
@@ -97,7 +97,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_SkipsWhenUserAlreadyHasKeys
 	require.Empty(t, repo.created)
 }
 
-func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_CreatesUnboundWhenMinimaxGroupMissing(t *testing.T) {
+func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_CreatesUnboundWhenDefaultGroupMissing(t *testing.T) {
 	repo := &defaultAPIKeyRepoStub{}
 	svc := NewAPIKeyService(
 		repo,
