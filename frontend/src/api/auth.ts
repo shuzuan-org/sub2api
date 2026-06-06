@@ -11,6 +11,8 @@ import type {
   CurrentUserResponse,
   SendVerifyCodeRequest,
   SendVerifyCodeResponse,
+  SendPhoneRegisterCodeRequest,
+  PhoneRegisterRequest,
   SendPhoneLoginCodeRequest,
   PhoneCodeLoginRequest,
   PublicSettings,
@@ -138,6 +140,39 @@ export async function register(userData: RegisterRequest): Promise<AuthResponse>
   const { data } = await apiClient.post<AuthResponse>('/auth/register', userData)
 
   // Store token and user data
+  setAuthToken(data.access_token)
+  if (data.refresh_token) {
+    setRefreshToken(data.refresh_token)
+  }
+  if (data.expires_in) {
+    setTokenExpiresAt(data.expires_in)
+  }
+  localStorage.setItem('auth_user', JSON.stringify(data.user))
+
+  return data
+}
+
+
+/**
+ * Send phone registration verification code
+ * @param request - Phone number and optional Turnstile token
+ * @returns Response with countdown seconds
+ */
+export async function sendPhoneRegisterCode(
+  request: SendPhoneRegisterCodeRequest
+): Promise<SendVerifyCodeResponse> {
+  const { data } = await apiClient.post<SendVerifyCodeResponse>('/auth/send-phone-register-code', request)
+  return data
+}
+
+/**
+ * Register with phone number and verification code
+ * @param request - Phone, verification code, invitation code, and optional Turnstile token
+ * @returns Authentication response with token and user data
+ */
+export async function registerWithPhoneCode(request: PhoneRegisterRequest): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/register/phone', request)
+
   setAuthToken(data.access_token)
   if (data.refresh_token) {
     setRefreshToken(data.refresh_token)
@@ -460,6 +495,8 @@ export const authAPI = {
   clearAuthToken,
   getPublicSettings,
   sendVerifyCode,
+  sendPhoneRegisterCode,
+  registerWithPhoneCode,
   sendPhoneLoginCode,
   loginWithPhoneCode,
   validatePromoCode,

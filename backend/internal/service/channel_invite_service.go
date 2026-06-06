@@ -15,12 +15,12 @@ import (
 )
 
 var (
-	ErrChannelInviteBatchNotFound = infraerrors.NotFound("CHANNEL_INVITE_BATCH_NOT_FOUND", "channel invite batch not found")
-	ErrChannelInviteCodeNotFound  = infraerrors.NotFound("CHANNEL_INVITE_CODE_NOT_FOUND", "channel invite code not found")
-	ErrChannelInviteCodeExpired   = infraerrors.BadRequest("CHANNEL_INVITE_CODE_EXPIRED", "channel invite code has expired")
-	ErrChannelInviteCodeDisabled  = infraerrors.BadRequest("CHANNEL_INVITE_CODE_DISABLED", "channel invite code is disabled")
-	ErrChannelInviteCodeMaxUsed   = infraerrors.BadRequest("CHANNEL_INVITE_CODE_MAX_USED", "channel invite code has reached maximum uses")
-	ErrChannelInviteCodeAlreadyUsed = infraerrors.Conflict("CHANNEL_INVITE_CODE_ALREADY_USED", "you have already claimed this invite code")
+	ErrChannelInviteBatchNotFound     = infraerrors.NotFound("CHANNEL_INVITE_BATCH_NOT_FOUND", "channel invite batch not found")
+	ErrChannelInviteCodeNotFound      = infraerrors.NotFound("CHANNEL_INVITE_CODE_NOT_FOUND", "channel invite code not found")
+	ErrChannelInviteCodeExpired       = infraerrors.BadRequest("CHANNEL_INVITE_CODE_EXPIRED", "channel invite code has expired")
+	ErrChannelInviteCodeDisabled      = infraerrors.BadRequest("CHANNEL_INVITE_CODE_DISABLED", "channel invite code is disabled")
+	ErrChannelInviteCodeMaxUsed       = infraerrors.BadRequest("CHANNEL_INVITE_CODE_MAX_USED", "channel invite code has reached maximum uses")
+	ErrChannelInviteCodeAlreadyUsed   = infraerrors.Conflict("CHANNEL_INVITE_CODE_ALREADY_USED", "you have already claimed this invite code")
 	ErrChannelInviteCodeBatchInactive = infraerrors.BadRequest("CHANNEL_INVITE_BATCH_INACTIVE", "channel invite batch is not active")
 )
 
@@ -154,6 +154,24 @@ func (s *ChannelInviteService) ListCodes(ctx context.Context, batchID int64, par
 // ListUsages 获取批次的使用记录
 func (s *ChannelInviteService) ListUsages(ctx context.Context, batchID int64, params pagination.PaginationParams) ([]ChannelInviteCodeUsage, *pagination.PaginationResult, error) {
 	return s.repo.ListUsagesByBatch(ctx, batchID, params)
+}
+
+// ValidateCodeForRegistration checks whether a channel invite code can be used
+// as a registration invitation code without consuming it.
+func (s *ChannelInviteService) ValidateCodeForRegistration(ctx context.Context, codeStr string) error {
+	codeStr = strings.TrimSpace(codeStr)
+	if codeStr == "" {
+		return ErrChannelInviteCodeNotFound
+	}
+
+	code, err := s.repo.GetCodeByCode(ctx, codeStr)
+	if err != nil {
+		return err
+	}
+	if code.Batch == nil || !code.Batch.IsActive() {
+		return ErrChannelInviteCodeBatchInactive
+	}
+	return s.validateCodeForClaim(code)
 }
 
 // ======================== 兑换流程 ========================

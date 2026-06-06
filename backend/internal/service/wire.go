@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/google/wire"
@@ -424,10 +425,33 @@ func ProvideUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuth
 	return svc
 }
 
+// ProvideAuthService creates AuthService with ChannelInviteService injected via setter.
+func ProvideAuthService(
+	entClient *dbent.Client,
+	userRepo UserRepository,
+	redeemRepo RedeemCodeRepository,
+	refreshTokenCache RefreshTokenCache,
+	cfg *config.Config,
+	settingService *SettingService,
+	emailService *EmailService,
+	turnstileService *TurnstileService,
+	emailQueueService *EmailQueueService,
+	promoService *PromoService,
+	phoneVerifyService *PhoneVerificationService,
+	defaultSubAssigner DefaultSubscriptionAssigner,
+	defaultAPIKeyProvisioner DefaultAPIKeyProvisioner,
+	inviteService *InviteService,
+	channelInviteSvc *ChannelInviteService,
+) *AuthService {
+	svc := NewAuthService(entClient, userRepo, redeemRepo, refreshTokenCache, cfg, settingService, emailService, turnstileService, emailQueueService, promoService, phoneVerifyService, defaultSubAssigner, defaultAPIKeyProvisioner, inviteService)
+	svc.SetChannelInviteService(channelInviteSvc)
+	return svc
+}
+
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// Core services
-	NewAuthService,
+	ProvideAuthService,
 	ProvideUserService,
 	NewAPIKeyService,
 	ProvideAPIKeyAuthCacheInvalidator,

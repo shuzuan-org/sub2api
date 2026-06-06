@@ -74,6 +74,7 @@ type AuthService struct {
 	phoneVerifyService *PhoneVerificationService
 	defaultSubAssigner DefaultSubscriptionAssigner
 	defaultAPIKeyProv  DefaultAPIKeyProvisioner
+	channelInviteSvc   *ChannelInviteService
 	inviteService      *InviteService
 }
 
@@ -120,6 +121,11 @@ func NewAuthService(
 	}
 }
 
+// SetChannelInviteService injects the channel invitation service used by registration invite codes.
+func (s *AuthService) SetChannelInviteService(svc *ChannelInviteService) {
+	s.channelInviteSvc = svc
+}
+
 // Register 用户注册，返回token和用户
 func (s *AuthService) Register(ctx context.Context, email, password string) (string, *User, error) {
 	return s.RegisterWithVerification(ctx, email, password, "", "", "", "")
@@ -140,24 +146,9 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		return "", nil, err
 	}
 
-	// 检查是否需要邀请码
-	var invitationRedeemCode *RedeemCode
-	if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-		if invitationCode == "" {
-			return "", nil, ErrInvitationCodeRequired
-		}
-		// 验证邀请码
-		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
-		if err != nil {
-			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
-			return "", nil, ErrInvitationCodeInvalid
-		}
-		// 检查类型和状态
-		if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
-			logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
-			return "", nil, ErrInvitationCodeInvalid
-		}
-		invitationRedeemCode = redeemCode
+	invitationRedeemCode, channelInvitationCode, err := s.validateRegistrationInvitationCode(ctx, invitationCode)
+	if err != nil {
+		return "", nil, err
 	}
 
 	// 检查是否需要邮件验证
@@ -245,6 +236,10 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 			// 邀请码标记失败不影响注册，只记录日志
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to mark invitation code as used for user %d: %v", user.ID, err)
 		}
+	} else if channelInvitationCode != "" && s.channelInviteSvc != nil {
+		if err := s.channelInviteSvc.ClaimCode(ctx, user.ID, channelInvitationCode); err != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] Failed to claim channel invitation code for user %d: %v", user.ID, err)
+		}
 	}
 	// 应用优惠码（如果提供且功能已启用）
 	if promoCode != "" && s.promoService != nil && s.settingService != nil && s.settingService.IsPromoCodeEnabled(ctx) {
@@ -266,6 +261,163 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	}
 
 	return token, user, nil
+}
+
+func (s *AuthService) validateRegistrationInvitationCode(ctx context.Context, invitationCode string) (*RedeemCode, string, error) {
+	if s.settingService == nil || !s.settingService.IsInvitationCodeEnabled(ctx) {
+		return nil, "", nil
+	}
+
+	invitationCode = strings.TrimSpace(invitationCode)
+	if invitationCode == "" {
+		return nil, "", ErrInvitationCodeRequired
+	}
+
+	if s.redeemRepo != nil {
+		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
+		if err == nil && redeemCode != nil {
+			if redeemCode.Type == RedeemTypeInvitation && redeemCode.Status == StatusUnused {
+				return redeemCode, "", nil
+			}
+			logger.LegacyPrintf("service.auth", "[Auth] Invitation redeem code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
+			return nil, "", ErrInvitationCodeInvalid
+		}
+	}
+
+	if s.channelInviteSvc != nil {
+		if err := s.channelInviteSvc.ValidateCodeForRegistration(ctx, invitationCode); err == nil {
+			return nil, invitationCode, nil
+		} else {
+			logger.LegacyPrintf("service.auth", "[Auth] Channel invitation code invalid: %s, error: %v", invitationCode, err)
+		}
+	}
+
+	return nil, "", ErrInvitationCodeInvalid
+}
+
+func (s *AuthService) RegisterWithPhoneVerification(ctx context.Context, phone, verifyCode, invitationCode string) (string, *User, error) {
+	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
+		return "", nil, ErrRegDisabled
+	}
+	if s.phoneVerifyService == nil {
+		return "", nil, ErrPhoneSMSNotConfigured
+	}
+
+	normalized, err := NormalizePhoneNumber(phone)
+	if err != nil {
+		return "", nil, err
+	}
+
+	invitationRedeemCode, channelInvitationCode, err := s.validateRegistrationInvitationCode(ctx, invitationCode)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if strings.TrimSpace(verifyCode) == "" {
+		return "", nil, ErrInvalidPhoneVerifyCode
+	}
+	if err := s.phoneVerifyService.VerifyCode(ctx, normalized, verifyCode); err != nil {
+		return "", nil, err
+	}
+
+	existsPhone, err := s.userRepo.ExistsByPhoneNumber(ctx, normalized)
+	if err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Database error checking phone exists: %v", err)
+		return "", nil, ErrServiceUnavailable
+	}
+	if existsPhone {
+		return "", nil, ErrPhoneNumberAlreadyBound
+	}
+
+	randomPassword, err := randomHexString(32)
+	if err != nil {
+		return "", nil, fmt.Errorf("generate phone registration password: %w", err)
+	}
+	hashedPassword, err := s.HashPassword(randomPassword)
+	if err != nil {
+		return "", nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	defaultBalance := s.cfg.Default.UserBalance
+	defaultConcurrency := s.cfg.Default.UserConcurrency
+	if s.settingService != nil {
+		defaultBalance = s.settingService.GetDefaultBalance(ctx)
+		defaultConcurrency = s.settingService.GetDefaultConcurrency(ctx)
+	}
+
+	now := time.Now()
+	emailLocal := strings.TrimPrefix(normalized, "+")
+	user := &User{
+		Email:         fmt.Sprintf("phone-%s@phone.sub2api.local", emailLocal),
+		PasswordHash:  hashedPassword,
+		Role:          RoleUser,
+		Balance:       defaultBalance,
+		Concurrency:   defaultConcurrency,
+		Status:        StatusActive,
+		Phone:         normalized,
+		PhoneVerified: true,
+		PhoneNumber:   &normalized,
+		PhoneBoundAt:  &now,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		if errors.Is(err, ErrEmailExists) || errors.Is(err, ErrPhoneNumberAlreadyBound) {
+			return "", nil, ErrPhoneNumberAlreadyBound
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Database error creating phone user: %v", err)
+		return "", nil, ErrServiceUnavailable
+	}
+	s.assignDefaultSubscriptions(ctx, user.ID)
+	s.createDefaultAPIKey(ctx, user.ID)
+
+	if invitationRedeemCode != nil {
+		if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] Failed to mark invitation code as used for phone user %d: %v", user.ID, err)
+		}
+	} else if channelInvitationCode != "" && s.channelInviteSvc != nil {
+		if err := s.channelInviteSvc.ClaimCode(ctx, user.ID, channelInvitationCode); err != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] Failed to claim channel invitation code for phone user %d: %v", user.ID, err)
+		}
+	}
+
+	updatedUser, err := s.userRepo.GetByID(ctx, user.ID)
+	if err == nil {
+		user = updatedUser
+	}
+
+	token, err := s.GenerateToken(user)
+	if err != nil {
+		return "", nil, fmt.Errorf("generate token: %w", err)
+	}
+	return token, user, nil
+}
+
+func (s *AuthService) SendPhoneRegisterCode(ctx context.Context, phone string) (*SendVerifyCodeResult, error) {
+	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
+		return nil, ErrRegDisabled
+	}
+	if s.phoneVerifyService == nil {
+		return nil, ErrPhoneSMSNotConfigured
+	}
+
+	normalized, err := NormalizePhoneNumber(phone)
+	if err != nil {
+		return nil, err
+	}
+	exists, err := s.userRepo.ExistsByPhoneNumber(ctx, normalized)
+	if err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Database error checking phone exists: %v", err)
+		return nil, ErrServiceUnavailable
+	}
+	if exists {
+		return nil, ErrPhoneNumberAlreadyBound
+	}
+
+	countdown, err := s.phoneVerifyService.SendVerifyCode(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	return &SendVerifyCodeResult{Countdown: countdown}, nil
 }
 
 // SendVerifyCodeResult 发送验证码返回结果

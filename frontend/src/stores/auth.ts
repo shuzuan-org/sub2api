@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
-import type { User, LoginRequest, RegisterRequest, AuthResponse, PhoneCodeLoginRequest } from '@/types'
+import type { User, LoginRequest, RegisterRequest, AuthResponse, PhoneCodeLoginRequest, PhoneRegisterRequest } from '@/types'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -302,6 +302,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+
+  /**
+   * Register with phone number and verification code
+   */
+  async function registerWithPhoneCode(userData: PhoneRegisterRequest): Promise<User> {
+    try {
+      const response = await authAPI.registerWithPhoneCode(userData)
+      setAuthFromResponse(response)
+      return user.value!
+    } catch (error) {
+      clearAuth()
+      throw error
+    }
+  }
+
   /**
    * 直接设置 token（用于 OAuth/SSO 回调），并加载当前用户信息。
    * 会自动读取 localStorage 中已设置的 refresh_token 和 token_expires_in
@@ -428,6 +443,7 @@ export const useAuthStore = defineStore('auth', () => {
     loginWithPhoneCode,
     login2FA,
     register,
+    registerWithPhoneCode,
     setToken,
     logout,
     checkAuth,

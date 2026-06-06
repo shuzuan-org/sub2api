@@ -59,6 +59,18 @@ export interface LoginRequest {
   turnstile_token?: string
 }
 
+export interface SendPhoneRegisterCodeRequest {
+  phone: string
+  turnstile_token?: string
+}
+
+export interface PhoneRegisterRequest {
+  phone: string
+  verify_code: string
+  invitation_code?: string
+  turnstile_token?: string
+}
+
 export interface SendPhoneLoginCodeRequest {
   phone: string
   turnstile_token?: string

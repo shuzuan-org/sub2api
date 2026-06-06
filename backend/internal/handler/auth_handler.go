@@ -24,10 +24,15 @@ type AuthHandler struct {
 	redeemService             *service.RedeemService
 	totpService               *service.TotpService
 	oauthAuthorizationService *service.OAuthAuthorizationService
+	channelInviteSvc          *service.ChannelInviteService
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, oauthAuthorizationService *service.OAuthAuthorizationService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, oauthAuthorizationService *service.OAuthAuthorizationService, channelInviteSvc ...*service.ChannelInviteService) *AuthHandler {
+	var channelInvite *service.ChannelInviteService
+	if len(channelInviteSvc) > 0 {
+		channelInvite = channelInviteSvc[0]
+	}
 	return &AuthHandler{
 		cfg:                       cfg,
 		authService:               authService,
@@ -37,6 +42,7 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userSe
 		redeemService:             redeemService,
 		totpService:               totpService,
 		oauthAuthorizationService: oauthAuthorizationService,
+		channelInviteSvc:          channelInvite,
 	}
 }
 
@@ -49,6 +55,20 @@ type RegisterRequest struct {
 	PromoCode      string `json:"promo_code"`      // 注册优惠码
 	InvitationCode string `json:"invitation_code"` // 邀请码（redeem 准入码，受 invitation_code_enabled 控制）
 	ReferralCode   string `json:"referral_code"`   // 邀请好友专属码（来自 ?invite=，与 InvitationCode 独立）
+}
+
+// SendPhoneRegisterCodeRequest 发送手机号注册验证码请求
+type SendPhoneRegisterCodeRequest struct {
+	Phone          string `json:"phone" binding:"required"`
+	TurnstileToken string `json:"turnstile_token"`
+}
+
+// PhoneRegisterRequest represents phone verification-code registration payload.
+type PhoneRegisterRequest struct {
+	Phone          string `json:"phone" binding:"required"`
+	VerifyCode     string `json:"verify_code" binding:"required,len=6"`
+	InvitationCode string `json:"invitation_code"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 // SendVerifyCodeRequest 发送验证码请求
@@ -136,6 +156,24 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	_, user, err := h.authService.RegisterWithVerification(c.Request.Context(), req.Email, req.Password, req.VerifyCode, req.PromoCode, req.InvitationCode, req.ReferralCode)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	h.respondWithTokenPair(c, user)
+}
+
+// RegisterWithPhone handles phone verification-code registration.
+// POST /api/v1/auth/register/phone
+func (h *AuthHandler) RegisterWithPhone(c *gin.Context) {
+	var req PhoneRegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	_, user, err := h.authService.RegisterWithPhoneVerification(c.Request.Context(), req.Phone, req.VerifyCode, req.InvitationCode)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -417,35 +455,38 @@ func (h *AuthHandler) ValidateInvitationCode(c *gin.Context) {
 		return
 	}
 
-	// 验证邀请码
-	redeemCode, err := h.redeemService.GetByCode(c.Request.Context(), req.Code)
-	if err != nil {
-		response.Success(c, ValidateInvitationCodeResponse{
-			Valid:     false,
-			ErrorCode: "INVITATION_CODE_NOT_FOUND",
-		})
-		return
+	if h.redeemService != nil {
+		redeemCode, err := h.redeemService.GetByCode(c.Request.Context(), req.Code)
+		if err == nil && redeemCode != nil {
+			if redeemCode.Type != service.RedeemTypeInvitation {
+				response.Success(c, ValidateInvitationCodeResponse{
+					Valid:     false,
+					ErrorCode: "INVITATION_CODE_INVALID",
+				})
+				return
+			}
+			if redeemCode.Status != service.StatusUnused {
+				response.Success(c, ValidateInvitationCodeResponse{
+					Valid:     false,
+					ErrorCode: "INVITATION_CODE_USED",
+				})
+				return
+			}
+			response.Success(c, ValidateInvitationCodeResponse{Valid: true})
+			return
+		}
 	}
 
-	// 检查类型和状态
-	if redeemCode.Type != service.RedeemTypeInvitation {
-		response.Success(c, ValidateInvitationCodeResponse{
-			Valid:     false,
-			ErrorCode: "INVITATION_CODE_INVALID",
-		})
-		return
-	}
-
-	if redeemCode.Status != service.StatusUnused {
-		response.Success(c, ValidateInvitationCodeResponse{
-			Valid:     false,
-			ErrorCode: "INVITATION_CODE_USED",
-		})
-		return
+	if h.channelInviteSvc != nil {
+		if err := h.channelInviteSvc.ValidateCodeForRegistration(c.Request.Context(), req.Code); err == nil {
+			response.Success(c, ValidateInvitationCodeResponse{Valid: true})
+			return
+		}
 	}
 
 	response.Success(c, ValidateInvitationCodeResponse{
-		Valid: true,
+		Valid:     false,
+		ErrorCode: "INVITATION_CODE_NOT_FOUND",
 	})
 }
 
@@ -640,6 +681,32 @@ func (h *AuthHandler) SendPhoneLoginCode(c *gin.Context) {
 	}
 
 	result, err := h.authService.SendPhoneLoginCode(c.Request.Context(), req.Phone)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, SendVerifyCodeResponse{
+		Message:   "Verification code sent successfully",
+		Countdown: result.Countdown,
+	})
+}
+
+// SendPhoneRegisterCode sends a phone verification code for registration.
+// POST /api/v1/auth/send-phone-register-code
+func (h *AuthHandler) SendPhoneRegisterCode(c *gin.Context) {
+	var req SendPhoneRegisterCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.authService.VerifyTurnstile(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	result, err := h.authService.SendPhoneRegisterCode(c.Request.Context(), req.Phone)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
