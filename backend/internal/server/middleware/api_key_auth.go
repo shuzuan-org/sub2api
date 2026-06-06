@@ -130,8 +130,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		// ── 5. 加载订阅（始终尝试加载用户的活跃订阅） ───────────────────────
 
-		// skipBilling: /v1/usage 只需鉴权，跳过所有计费执行
-		skipBilling := c.Request.URL.Path == "/v1/usage"
+		// skipBilling: 信息查询端点只需鉴权，不需要计费执行
+		// （允许过期/配额耗尽的 Key 查询自身用量和分组信息）。
+		skipBilling := c.Request.URL.Path == "/v1/usage" || c.Request.URL.Path == "/v1/group"
 
 		var mergedState *service.MergedSubscriptionState
 
