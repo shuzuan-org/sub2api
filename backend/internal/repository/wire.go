@@ -54,6 +54,7 @@ var ProviderSet = wire.NewSet(
 	NewOAuthClientRepository,
 	NewOAuthAuthorizationCodeRepository,
 	NewOAuthRefreshTokenRepository,
+	NewOAuthAccessTokenDenylist,
 	NewGroupRepository,
 	NewAccountRepository,
 	NewSoraAccountRepository,         // Sora 账号扩展表仓储

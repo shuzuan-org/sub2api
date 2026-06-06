@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -20,7 +19,6 @@ type oauthAuthorizeQuery struct {
 	State               string `form:"state"`
 	CodeChallenge       string `form:"code_challenge"`
 	CodeChallengeMethod string `form:"code_challenge_method"`
-	APIKeyID            *int64 `form:"api_key_id"`
 }
 
 type oauthAuthorizeConfirmRequest struct {
@@ -31,7 +29,6 @@ type oauthAuthorizeConfirmRequest struct {
 	State               string `json:"state"`
 	CodeChallenge       string `json:"code_challenge"`
 	CodeChallengeMethod string `json:"code_challenge_method"`
-	APIKeyID            *int64 `json:"api_key_id"`
 }
 
 func (h *AuthHandler) OAuthAuthorizePreview(c *gin.Context) {
@@ -52,7 +49,6 @@ func (h *AuthHandler) OAuthAuthorizePreview(c *gin.Context) {
 		State:               req.State,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
-		APIKeyID:            req.APIKeyID,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -84,7 +80,6 @@ func (h *AuthHandler) OAuthAuthorizeConfirm(c *gin.Context) {
 		State:               req.State,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
-		APIKeyID:            req.APIKeyID,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -111,7 +106,6 @@ func (h *AuthHandler) OAuthAuthorizeDeny(c *gin.Context) {
 		State:               req.State,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
-		APIKeyID:            req.APIKeyID,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -182,15 +176,6 @@ func (h *AuthHandler) OAuthAuthorize(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Invalid OAuth authorization request")
 		return
 	}
-	var apiKeyID *int64
-	if raw := strings.TrimSpace(c.Query("api_key_id")); raw != "" {
-		parsed, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || parsed <= 0 {
-			c.String(http.StatusBadRequest, "Invalid OAuth authorization request")
-			return
-		}
-		apiKeyID = &parsed
-	}
 	out, err := h.oauthAuthorizationService.PreviewAuthorization(c.Request.Context(), service.OAuthAuthorizeInput{
 		ClientID:            req.ClientID,
 		RedirectURI:         req.RedirectURI,
@@ -199,7 +184,6 @@ func (h *AuthHandler) OAuthAuthorize(c *gin.Context) {
 		State:               req.State,
 		CodeChallenge:       req.CodeChallenge,
 		CodeChallengeMethod: req.CodeChallengeMethod,
-		APIKeyID:            apiKeyID,
 	})
 	if err != nil {
 		c.String(http.StatusBadRequest, "Invalid OAuth authorization request")

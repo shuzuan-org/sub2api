@@ -75,7 +75,6 @@ func (s *oauthRefreshRepoStub) Rotate(_ context.Context, tokenHash, clientID str
 		token.UsedAt = &now
 		next.FamilyID = token.FamilyID
 		next.UserID = token.UserID
-		next.APIKeyID = token.APIKeyID
 		next.ClientID = token.ClientID
 		next.Scopes = append([]string(nil), token.Scopes...)
 		next.ParentTokenHash = &token.TokenHash
@@ -196,7 +195,7 @@ func TestOAuthAuthorizationApprovePropagatesState(t *testing.T) {
 	require.Equal(t, []string{"api.read", "profile"}, codeRepo.stored.Scopes)
 }
 
-func TestOAuthAuthorizationApproveRequiresAPIKeyForMetacodeScope(t *testing.T) {
+func TestOAuthAuthorizationApproveAllowsMetacodeScopeWithoutAPIKey(t *testing.T) {
 	svc, _ := newOAuthAuthorizationTestService(t)
 	svc.clientRepo = &oauthClientRepoStub{client: &OAuthClient{
 		ClientID:              MetacodeOAuthClientID,
@@ -209,7 +208,7 @@ func TestOAuthAuthorizationApproveRequiresAPIKeyForMetacodeScope(t *testing.T) {
 	}}
 	_, challenge := testPKCEPair()
 
-	_, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
+	out, err := svc.ApproveAuthorization(context.Background(), 42, OAuthAuthorizeInput{
 		ClientID:            MetacodeOAuthClientID,
 		RedirectURI:         "http://127.0.0.1:39000/auth/callback",
 		ResponseType:        "code",
@@ -218,7 +217,8 @@ func TestOAuthAuthorizationApproveRequiresAPIKeyForMetacodeScope(t *testing.T) {
 		CodeChallengeMethod: "S256",
 	})
 
-	require.ErrorIs(t, err, ErrOAuthInvalidRequest)
+	require.NoError(t, err)
+	require.Contains(t, out.RedirectURL, "code=")
 }
 
 func TestOAuthAuthorizationCodeExchangeIsSingleUse(t *testing.T) {
