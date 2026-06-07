@@ -88,6 +88,15 @@ func (s *userRepoStubForGroupUpdate) UpdateTotpSecret(context.Context, int64, *s
 }
 func (s *userRepoStubForGroupUpdate) EnableTotp(context.Context, int64) error  { panic("unexpected") }
 func (s *userRepoStubForGroupUpdate) DisableTotp(context.Context, int64) error { panic("unexpected") }
+func (s *userRepoStubForGroupUpdate) GetByPhoneNumber(context.Context, string) (*User, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) ExistsByPhoneNumber(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) BindPhoneAndGrantBonus(context.Context, int64, string, float64) (*User, error) {
+	panic("unexpected")
+}
 func (s *userRepoStubForGroupUpdate) ListUsersByGroupAllowed(context.Context, int64) ([]User, error) {
 	panic("unexpected")
 }

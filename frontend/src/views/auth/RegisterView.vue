@@ -486,7 +486,9 @@ onMounted(async () => {
     registrationEnabled.value = settings.registration_enabled
     emailVerifyEnabled.value = settings.email_verify_enabled
     promoCodeEnabled.value = settings.promo_code_enabled
-    invitationCodeEnabled.value = settings.invitation_code_enabled
+    // Registration requires an invite code on this deployment. The backend
+    // accepts reusable friend-referral codes as invitation access codes.
+    invitationCodeEnabled.value = true
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     siteName.value = settings.site_name || 'Sub2API'
@@ -506,13 +508,16 @@ onMounted(async () => {
       }
     }
 
-    // Read invitation code from URL (?invite=CODE). Channel invite codes are
-    // accepted by the same invitation_code field used by registration.
+    // Read invite code from URL. When the registration invitation gate is enabled,
+    // prefill the required field; referral and channel invite codes are accepted
+    // by that gate. Keep referral_code for attribution.
     const inviteParam = route.query.invite as string
     if (inviteParam) {
-      formData.invitation_code = inviteParam.trim()
+      const inviteCode = inviteParam.trim()
+      formData.referral_code = inviteCode
       if (invitationCodeEnabled.value) {
-        await validateInvitationCodeDebounced(formData.invitation_code)
+        formData.invitation_code = inviteCode
+        await validateInvitationCodeDebounced(inviteCode)
       }
     }
   } catch (error) {

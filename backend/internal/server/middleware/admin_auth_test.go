@@ -177,6 +177,14 @@ func (s *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, e
 	panic("unexpected ExistsByEmail call")
 }
 
+func (s *stubUserRepo) GetByPhone(ctx context.Context, phone string) (*service.User, error) {
+	panic("unexpected GetByPhone call")
+}
+
+func (s *stubUserRepo) ExistsByPhone(ctx context.Context, phone string) (bool, error) {
+	panic("unexpected ExistsByPhone call")
+}
+
 func (s *stubUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
 	panic("unexpected RemoveGroupFromAllowedGroups call")
 }
@@ -199,6 +207,30 @@ func (s *stubUserRepo) EnableTotp(ctx context.Context, userID int64) error {
 
 func (s *stubUserRepo) DisableTotp(ctx context.Context, userID int64) error {
 	panic("unexpected DisableTotp call")
+}
+
+func (s *stubUserRepo) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {
+	panic("unexpected GetByReferralCode call")
+}
+
+func (s *stubUserRepo) SetReferralCode(ctx context.Context, id int64, code string) error {
+	panic("unexpected SetReferralCode call")
+}
+
+func (s *stubUserRepo) SetReferredBy(ctx context.Context, id int64, referrerID int64) error {
+	panic("unexpected SetReferredBy call")
+}
+
+func (s *stubUserRepo) GetByPhoneNumber(ctx context.Context, phone string) (*service.User, error) {
+	panic("unexpected GetByPhoneNumber call")
+}
+
+func (s *stubUserRepo) ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error) {
+	panic("unexpected ExistsByPhoneNumber call")
+}
+
+func (s *stubUserRepo) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*service.User, error) {
+	panic("unexpected BindPhoneAndGrantBonus call")
 }
 
 func (s *stubUserRepo) ListUsersByGroupAllowed(ctx context.Context, groupID int64) ([]service.User, error) {

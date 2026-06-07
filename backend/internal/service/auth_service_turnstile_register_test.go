@@ -53,6 +53,7 @@ func newAuthServiceForRegisterTurnstileTest(settings map[string]string, verifier
 		turnstileService,
 		nil, // emailQueueService
 		nil, // promoService
+		nil, // phoneVerifyService
 		nil, // defaultSubAssigner
 		nil, // defaultAPIKeyProvisioner
 		nil, // inviteService

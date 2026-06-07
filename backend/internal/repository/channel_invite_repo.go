@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -234,6 +235,12 @@ func (r *channelInviteRepository) GetCodeByCodeForUpdate(ctx context.Context, co
 		WithBatch().
 		ForUpdate().
 		Only(ctx)
+	if err != nil && strings.Contains(err.Error(), "FOR UPDATE/SHARE not supported in SQLite") {
+		m, err = client.ChannelInviteCode.Query().
+			Where(channelinvitecode.CodeEQ(code)).
+			WithBatch().
+			Only(ctx)
+	}
 	if err != nil {
 		if dbent.IsNotFound(err) {
 			return nil, service.ErrChannelInviteCodeNotFound
@@ -499,13 +506,13 @@ func channelInviteCodeUsageEntityToService(m *dbent.ChannelInviteCodeUsage) *ser
 		return nil
 	}
 	u := &service.ChannelInviteCodeUsage{
-		ID:           m.ID,
-		CodeID:       m.CodeID,
-		BatchID:      m.BatchID,
-		UserID:       m.UserID,
-		BonusGranted: m.BonusGranted,
+		ID:             m.ID,
+		CodeID:         m.CodeID,
+		BatchID:        m.BatchID,
+		UserID:         m.UserID,
+		BonusGranted:   m.BonusGranted,
 		BonusGrantedAt: m.BonusGrantedAt,
-		ClaimedAt:    m.ClaimedAt,
+		ClaimedAt:      m.ClaimedAt,
 	}
 	if m.Edges.Code != nil {
 		u.Code = channelInviteCodeEntityToService(m.Edges.Code)

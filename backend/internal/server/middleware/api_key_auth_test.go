@@ -733,6 +733,10 @@ func (r *stubUserSubscriptionRepo) ResetMonthlyUsage(ctx context.Context, id int
 	return errors.New("not implemented")
 }
 
+func (r *stubUserSubscriptionRepo) GetCurrentUsage(ctx context.Context, id int64) (float64, float64, float64, error) {
+	return 0, 0, 0, errors.New("not implemented")
+}
+
 func (r *stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {
 	return errors.New("not implemented")
 }

@@ -183,6 +183,16 @@ func (r *stubUserRepoForQuota) AddGroupToAllowedGroups(context.Context, int64, i
 	return nil
 }
 
+func (r *stubUserRepoForQuota) GetByPhoneNumber(context.Context, string) (*User, error) {
+	return nil, ErrUserNotFound
+}
+func (r *stubUserRepoForQuota) ExistsByPhoneNumber(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (r *stubUserRepoForQuota) BindPhoneAndGrantBonus(context.Context, int64, string, float64) (*User, error) {
+	return nil, nil
+}
+
 func (r *stubUserRepoForQuota) ListUsersByGroupAllowed(context.Context, int64) ([]User, error) {
 	return nil, nil
 }

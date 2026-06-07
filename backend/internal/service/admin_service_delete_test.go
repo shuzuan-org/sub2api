@@ -13,15 +13,23 @@ import (
 )
 
 type userRepoStub struct {
-	user       *User
-	getErr     error
-	createErr  error
-	deleteErr  error
-	exists     bool
-	existsErr  error
-	nextID     int64
-	created    []*User
-	deletedIDs []int64
+	user              *User
+	getErr            error
+	createErr         error
+	deleteErr         error
+	exists            bool
+	existsErr         error
+	nextID            int64
+	created           []*User
+	deletedIDs        []int64
+	referralUsers     map[string]*User
+	referredByUpdates map[int64]int64
+	balanceUpdates    []balanceUpdate
+}
+
+type balanceUpdate struct {
+	id     int64
+	amount float64
 }
 
 func (s *userRepoStub) Create(ctx context.Context, user *User) error {
@@ -71,7 +79,8 @@ func (s *userRepoStub) ListWithFilters(ctx context.Context, params pagination.Pa
 }
 
 func (s *userRepoStub) UpdateBalance(ctx context.Context, id int64, amount float64) error {
-	panic("unexpected UpdateBalance call")
+	s.balanceUpdates = append(s.balanceUpdates, balanceUpdate{id: id, amount: amount})
+	return nil
 }
 
 func (s *userRepoStub) DeductBalance(ctx context.Context, id int64, amount float64) error {
@@ -98,7 +107,14 @@ func (s *userRepoStub) ExistsByPhone(ctx context.Context, phone string) (bool, e
 }
 
 func (s *userRepoStub) GetByReferralCode(ctx context.Context, code string) (*User, error) {
-	panic("unexpected GetByReferralCode call")
+	if s.referralUsers == nil {
+		return nil, ErrUserNotFound
+	}
+	u, ok := s.referralUsers[code]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	return u, nil
 }
 
 func (s *userRepoStub) SetReferralCode(ctx context.Context, id int64, code string) error {
@@ -106,7 +122,11 @@ func (s *userRepoStub) SetReferralCode(ctx context.Context, id int64, code strin
 }
 
 func (s *userRepoStub) SetReferredBy(ctx context.Context, id int64, referrerID int64) error {
-	panic("unexpected SetReferredBy call")
+	if s.referredByUpdates == nil {
+		s.referredByUpdates = make(map[int64]int64)
+	}
+	s.referredByUpdates[id] = referrerID
+	return nil
 }
 
 func (s *userRepoStub) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
@@ -135,6 +155,18 @@ func (s *userRepoStub) DisableTotp(ctx context.Context, userID int64) error {
 
 func (s *userRepoStub) ListUsersByGroupAllowed(ctx context.Context, groupID int64) ([]User, error) {
 	panic("unexpected ListUsersByGroupAllowed call")
+}
+
+func (s *userRepoStub) GetByPhoneNumber(ctx context.Context, phone string) (*User, error) {
+	panic("unexpected GetByPhoneNumber call")
+}
+
+func (s *userRepoStub) ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error) {
+	panic("unexpected ExistsByPhoneNumber call")
+}
+
+func (s *userRepoStub) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*User, error) {
+	panic("unexpected BindPhoneAndGrantBonus call")
 }
 
 type groupRepoStub struct {
