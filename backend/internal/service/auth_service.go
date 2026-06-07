@@ -196,19 +196,15 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		return "", nil, err
 	}
 
-	// 检查是否需要邀请码
+	// 如果传入邀请码/邀请链接码，则走邀请码准入逻辑；未传入则不参与邀请码逻辑。
 	var invitationRedeemCode *RedeemCode
 	referralCodeFromInvitation := ""
 	channelInvitationCode := ""
-	invitationRequired := s.inviteService != nil || (s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx))
-	if invitationRequired {
-		accessCode := strings.TrimSpace(invitationCode)
-		if accessCode == "" {
-			accessCode = strings.TrimSpace(referralCode)
-		}
-		if accessCode == "" {
-			return "", nil, ErrInvitationCodeRequired
-		}
+	accessCode := strings.TrimSpace(invitationCode)
+	if accessCode == "" {
+		accessCode = strings.TrimSpace(referralCode)
+	}
+	if accessCode != "" {
 		redeemCode, normalizedReferralCode, normalizedChannelCode, err := s.resolveInvitationAccessCode(ctx, accessCode)
 		if err != nil {
 			return "", nil, err
@@ -335,12 +331,9 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 }
 
 func (s *AuthService) validateRegistrationInvitationCode(ctx context.Context, invitationCode string) (*RedeemCode, string, error) {
-	if s.settingService == nil || !s.settingService.IsInvitationCodeEnabled(ctx) {
+	invitationCode = strings.TrimSpace(invitationCode)
+	if invitationCode == "" {
 		return nil, "", nil
-	}
-
-	if strings.TrimSpace(invitationCode) == "" {
-		return nil, "", ErrInvitationCodeRequired
 	}
 
 	redeemCode, _, channelCode, err := s.resolveInvitationAccessCode(ctx, invitationCode)

@@ -166,16 +166,20 @@ func TestAuthService_Register_DisabledByDefault(t *testing.T) {
 	require.ErrorIs(t, err, ErrRegDisabled)
 }
 
-func TestAuthService_Register_InviteServiceRequiresInvitationEvenWhenLegacyGateDisabled(t *testing.T) {
+func TestAuthService_Register_SkipsInvitationLogicWhenCodeMissing(t *testing.T) {
 	repo := &userRepoStub{nextID: 12}
 	service := newAuthService(repo, map[string]string{
-		SettingKeyRegistrationEnabled: "true",
+		SettingKeyRegistrationEnabled:   "true",
+		SettingKeyInvitationCodeEnabled: "true",
 	}, nil)
 	service.inviteService = &InviteService{}
 
-	_, _, err := service.Register(context.Background(), "user@test.com", "password")
-	require.ErrorIs(t, err, ErrInvitationCodeRequired)
-	require.Empty(t, repo.created)
+	token, user, err := service.Register(context.Background(), "user@test.com", "password")
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	require.NotNil(t, user)
+	require.Equal(t, int64(12), user.ID)
+	require.Len(t, repo.created, 1)
 }
 
 func TestAuthService_ValidateInvitationAccessCode_AcceptsReusableReferralCode(t *testing.T) {
