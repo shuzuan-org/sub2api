@@ -70,9 +70,9 @@ type AuthService struct {
 	emailService       *EmailService
 	turnstileService   *TurnstileService
 	emailQueueService  *EmailQueueService
-	promoService         *PromoService
-	phoneVerifyService   *PhoneVerificationService
-	defaultSubAssigner   DefaultSubscriptionAssigner
+	promoService       *PromoService
+	phoneVerifyService *PhoneVerificationService
+	defaultSubAssigner DefaultSubscriptionAssigner
 	inviteService      *InviteService
 }
 
@@ -118,6 +118,50 @@ func (s *AuthService) Register(ctx context.Context, email, password string) (str
 	return s.RegisterWithVerification(ctx, email, password, "", "", "", "")
 }
 
+// ValidateInvitationAccessCode validates a registration access code.
+// Friend referral codes are reusable and never marked as used; redeem-based
+// invitation codes keep the legacy single-use behavior.
+func (s *AuthService) ValidateInvitationAccessCode(ctx context.Context, code string) (bool, error) {
+	_, _, err := s.resolveInvitationAccessCode(ctx, code)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *AuthService) resolveInvitationAccessCode(ctx context.Context, code string) (*RedeemCode, string, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, "", ErrInvitationCodeInvalid
+	}
+
+	// Normal invite codes are users.referral_code values. They are reusable and
+	// must not be invalidated by the redeem-code status checks below.
+	if s.userRepo != nil {
+		referralCode := strings.ToUpper(code)
+		if _, err := s.userRepo.GetByReferralCode(ctx, referralCode); err == nil {
+			return nil, referralCode, nil
+		} else if !errors.Is(err, ErrUserNotFound) {
+			logger.LegacyPrintf("service.auth", "[Auth] Failed to check referral invitation code: %s, error: %v", referralCode, err)
+		}
+	}
+
+	if s.redeemRepo == nil {
+		return nil, "", ErrInvitationCodeInvalid
+	}
+
+	redeemCode, err := s.redeemRepo.GetByCode(ctx, code)
+	if err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", code, err)
+		return nil, "", ErrInvitationCodeInvalid
+	}
+	if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
+		logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
+		return nil, "", ErrInvitationCodeInvalid
+	}
+	return redeemCode, "", nil
+}
+
 // RegisterWithVerification 用户注册（支持邮件验证、优惠码和邀请码），返回token和用户
 func (s *AuthService) RegisterWithVerification(ctx context.Context, email, password, verifyCode, promoCode, invitationCode, referralCode string) (string, *User, error) {
 	// 检查是否开放注册（默认关闭：settingService 未配置时不允许注册）
@@ -135,22 +179,22 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 
 	// 检查是否需要邀请码
 	var invitationRedeemCode *RedeemCode
-	if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-		if invitationCode == "" {
+	referralCodeFromInvitation := ""
+	invitationRequired := s.inviteService != nil || (s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx))
+	if invitationRequired {
+		accessCode := strings.TrimSpace(invitationCode)
+		if accessCode == "" {
+			accessCode = strings.TrimSpace(referralCode)
+		}
+		if accessCode == "" {
 			return "", nil, ErrInvitationCodeRequired
 		}
-		// 验证邀请码
-		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
+		redeemCode, normalizedReferralCode, err := s.resolveInvitationAccessCode(ctx, accessCode)
 		if err != nil {
-			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
-			return "", nil, ErrInvitationCodeInvalid
-		}
-		// 检查类型和状态
-		if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
-			logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
-			return "", nil, ErrInvitationCodeInvalid
+			return "", nil, err
 		}
 		invitationRedeemCode = redeemCode
+		referralCodeFromInvitation = normalizedReferralCode
 	}
 
 	// 检查是否需要邮件验证
@@ -217,12 +261,16 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	// 邀请好友归因 + 给邀请人发放固定 U 奖励。
 	// 注意：与现有 invitation_code（redeem 准入码）完全独立；
 	// 任何失败都只记日志、绝不阻断注册。
-	if referralCode != "" && s.inviteService != nil {
+	referralCodeToAttribute := referralCodeFromInvitation
+	if referralCodeToAttribute == "" {
+		referralCodeToAttribute = strings.TrimSpace(referralCode)
+	}
+	if referralCodeToAttribute != "" && s.inviteService != nil {
 		if tx, txErr := s.entClient.Tx(ctx); txErr != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] referral tx begin failed for user %d: %v", user.ID, txErr)
 		} else {
 			txCtx := dbent.NewTxContext(ctx, tx)
-			inviterID, credited := s.inviteService.AttributeAndReward(txCtx, user.ID, referralCode)
+			inviterID, credited := s.inviteService.AttributeAndReward(txCtx, user.ID, referralCodeToAttribute)
 			if commitErr := tx.Commit(); commitErr != nil {
 				logger.LegacyPrintf("service.auth", "[Auth] referral tx commit failed for user %d: %v", user.ID, commitErr)
 			} else if credited {
@@ -585,14 +633,11 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 			// 检查是否需要邀请码
 			var invitationRedeemCode *RedeemCode
 			if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-				if invitationCode == "" {
+				if strings.TrimSpace(invitationCode) == "" {
 					return nil, nil, ErrOAuthInvitationRequired
 				}
-				redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
+				redeemCode, _, err := s.resolveInvitationAccessCode(ctx, invitationCode)
 				if err != nil {
-					return nil, nil, ErrInvitationCodeInvalid
-				}
-				if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
 					return nil, nil, ErrInvitationCodeInvalid
 				}
 				invitationRedeemCode = redeemCode

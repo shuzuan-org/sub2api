@@ -140,7 +140,9 @@ func newAuthService(repo *userRepoStub, settings map[string]string, emailCache E
 		nil,
 		nil,
 		nil, // promoService
+		nil, // phoneVerifyService
 		nil, // defaultSubAssigner
+		nil, // inviteService
 	)
 }
 
@@ -163,6 +165,56 @@ func TestAuthService_Register_DisabledByDefault(t *testing.T) {
 	require.ErrorIs(t, err, ErrRegDisabled)
 }
 
+func TestAuthService_Register_InviteServiceRequiresInvitationEvenWhenLegacyGateDisabled(t *testing.T) {
+	repo := &userRepoStub{nextID: 12}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+	}, nil)
+	service.inviteService = &InviteService{}
+
+	_, _, err := service.Register(context.Background(), "user@test.com", "password")
+	require.ErrorIs(t, err, ErrInvitationCodeRequired)
+	require.Empty(t, repo.created)
+}
+
+func TestAuthService_ValidateInvitationAccessCode_AcceptsReusableReferralCode(t *testing.T) {
+	code := "XTVT6A"
+	repo := &userRepoStub{
+		referralUsers: map[string]*User{
+			code: {ID: 9, Email: "inviter@test.com", ReferralCode: &code},
+		},
+	}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled:   "true",
+		SettingKeyInvitationCodeEnabled: "true",
+	}, nil)
+
+	valid, err := service.ValidateInvitationAccessCode(context.Background(), code)
+	require.NoError(t, err)
+	require.True(t, valid)
+}
+
+func TestAuthService_Register_InvitationGateAcceptsReferralCode(t *testing.T) {
+	code := "XTVT6A"
+	repo := &userRepoStub{
+		nextID: 11,
+		referralUsers: map[string]*User{
+			code: {ID: 9, Email: "inviter@test.com", ReferralCode: &code},
+		},
+	}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled:   "true",
+		SettingKeyInvitationCodeEnabled: "true",
+	}, nil)
+
+	token, user, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "", "", code, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	require.NotNil(t, user)
+	require.Equal(t, int64(11), user.ID)
+	require.Len(t, repo.created, 1)
+}
+
 func TestAuthService_Register_EmailVerifyEnabledButServiceNotConfigured(t *testing.T) {
 	repo := &userRepoStub{}
 	// 邮件验证开启但 emailCache 为 nil（emailService 未配置）
@@ -172,7 +224,7 @@ func TestAuthService_Register_EmailVerifyEnabledButServiceNotConfigured(t *testi
 	}, nil)
 
 	// 应返回服务不可用错误，而不是允许绕过验证
-	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "any-code", "", "")
+	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "any-code", "", "", "")
 	require.ErrorIs(t, err, ErrServiceUnavailable)
 }
 
@@ -184,7 +236,7 @@ func TestAuthService_Register_EmailVerifyRequired(t *testing.T) {
 		SettingKeyEmailVerifyEnabled:  "true",
 	}, cache)
 
-	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "", "", "")
+	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "", "", "", "")
 	require.ErrorIs(t, err, ErrEmailVerifyRequired)
 }
 
@@ -198,7 +250,7 @@ func TestAuthService_Register_EmailVerifyInvalid(t *testing.T) {
 		SettingKeyEmailVerifyEnabled:  "true",
 	}, cache)
 
-	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "wrong", "", "")
+	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "wrong", "", "", "")
 	require.ErrorIs(t, err, ErrInvalidVerifyCode)
 	require.ErrorContains(t, err, "verify code")
 }
