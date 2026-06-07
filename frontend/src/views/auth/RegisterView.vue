@@ -31,8 +31,40 @@
 
       <!-- Registration Form -->
       <form v-else @submit.prevent="handleRegister" class="space-y-5">
-        <!-- Email Input -->
-        <div>
+        <!-- Registration Mode Toggle -->
+        <div
+          v-if="phoneRegistrationEnabled"
+          class="flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+        >
+          <button
+            type="button"
+            :class="[
+              'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              registrationMode === 'email'
+                ? 'bg-white text-gray-900 shadow dark:bg-dark-600 dark:text-white'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="registrationMode = 'email'"
+          >
+            {{ t('auth.emailPasswordLogin') }}
+          </button>
+          <button
+            type="button"
+            :class="[
+              'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              registrationMode === 'phone'
+                ? 'bg-white text-gray-900 shadow dark:bg-dark-600 dark:text-white'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            ]"
+            @click="registrationMode = 'phone'"
+          >
+            {{ t('auth.phoneLogin') }}
+          </button>
+        </div>
+
+        <template v-if="registrationMode === 'email'">
+          <!-- Email Input -->
+          <div>
           <label for="email" class="input-label">
             {{ t('auth.emailLabel') }}
           </label>
@@ -58,8 +90,8 @@
           </p>
         </div>
 
-        <!-- Password Input -->
-        <div>
+          <!-- Password Input -->
+          <div>
           <label for="password" class="input-label">
             {{ t('auth.passwordLabel') }}
           </label>
@@ -95,10 +127,74 @@
           </p>
         </div>
 
-        <!-- Invitation Code Input (Required when enabled) -->
+        </template>
+
+        <template v-if="registrationMode === 'phone'">
+          <!-- Phone Input -->
+          <div>
+            <label for="register_phone" class="input-label">
+              {{ t('auth.phoneLabel') }}
+            </label>
+            <div class="relative">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                <Icon name="key" size="md" class="text-gray-400 dark:text-dark-500" />
+              </div>
+              <input
+                id="register_phone"
+                v-model="phoneFormData.phone"
+                type="tel"
+                required
+                autocomplete="tel"
+                :disabled="isLoading"
+                class="input pl-11"
+                :class="{ 'input-error': errors.phone }"
+                :placeholder="t('auth.phonePlaceholder')"
+              />
+            </div>
+            <p v-if="errors.phone" class="input-error-text">
+              {{ errors.phone }}
+            </p>
+          </div>
+
+          <!-- Phone Verify Code Input -->
+          <div>
+            <label for="register_phone_code" class="input-label">
+              {{ t('auth.verificationCode') }}
+            </label>
+            <div class="flex gap-2">
+              <input
+                id="register_phone_code"
+                v-model="phoneFormData.verifyCode"
+                type="text"
+                required
+                inputmode="numeric"
+                maxlength="6"
+                autocomplete="one-time-code"
+                :disabled="isLoading"
+                class="input"
+                :class="{ 'input-error': errors.phone_verify_code }"
+                :placeholder="t('auth.verificationCodeHint')"
+              />
+              <button
+                type="button"
+                :disabled="isLoading || sendPhoneCodeDisabled"
+                class="btn btn-secondary whitespace-nowrap"
+                @click="handleSendPhoneRegisterCode"
+              >
+                {{ sendPhoneCodeButtonText }}
+              </button>
+            </div>
+            <p v-if="errors.phone_verify_code" class="input-error-text">
+              {{ errors.phone_verify_code }}
+            </p>
+          </div>
+        </template>
+
+        <!-- Invitation Code Input (Optional when enabled) -->
         <div v-if="invitationCodeEnabled">
           <label for="invitation_code" class="input-label">
             {{ t('auth.invitationCodeLabel') }}
+            <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
           </label>
           <div class="relative">
             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
@@ -144,57 +240,6 @@
             </p>
             <p v-else-if="errors.invitation_code" class="input-error-text">
               {{ errors.invitation_code }}
-            </p>
-          </transition>
-        </div>
-
-        <!-- Promo Code Input (Optional) -->
-        <div v-if="promoCodeEnabled">
-          <label for="promo_code" class="input-label">
-            {{ t('auth.promoCodeLabel') }}
-            <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="gift" size="md" :class="promoValidation.valid ? 'text-green-500' : 'text-gray-400 dark:text-dark-500'" />
-            </div>
-            <input
-              id="promo_code"
-              v-model="formData.promo_code"
-              type="text"
-              :disabled="isLoading"
-              class="input pl-11 pr-10"
-              :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500': promoValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': promoValidation.invalid
-              }"
-              :placeholder="t('auth.promoCodePlaceholder')"
-              @input="handlePromoCodeInput"
-            />
-            <!-- Validation indicator -->
-            <div v-if="promoValidating" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-            <div v-else-if="promoValidation.valid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="checkCircle" size="md" class="text-green-500" />
-            </div>
-            <div v-else-if="promoValidation.invalid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="exclamationCircle" size="md" class="text-red-500" />
-            </div>
-          </div>
-          <!-- Promo code validation result -->
-          <transition name="fade">
-            <div v-if="promoValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
-              <Icon name="gift" size="sm" class="text-green-600 dark:text-green-400" />
-              <span class="text-sm text-green-700 dark:text-green-400">
-                {{ t('auth.promoCodeValid', { amount: promoValidation.bonusAmount?.toFixed(2) }) }}
-              </span>
-            </div>
-            <p v-else-if="promoValidation.invalid" class="input-error-text">
-              {{ promoValidation.message }}
             </p>
           </transition>
         </div>
@@ -260,7 +305,7 @@
           {{
             isLoading
               ? t('auth.processing')
-              : emailVerifyEnabled
+              : registrationMode === 'email' && emailVerifyEnabled
                 ? t('auth.continue')
                 : t('auth.createAccount')
           }}
@@ -284,7 +329,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
@@ -292,7 +337,7 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
-import { getPublicSettings, validatePromoCode, validateInvitationCode } from '@/api/auth'
+import { getPublicSettings, validateInvitationCode, sendPhoneRegisterCode } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
   isRegistrationEmailSuffixAllowed,
@@ -314,11 +359,12 @@ const isLoading = ref<boolean>(false)
 const settingsLoaded = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
+const registrationMode = ref<'email' | 'phone'>('email')
+const phoneRegistrationEnabled = ref<boolean>(false)
 
 // Public settings
 const registrationEnabled = ref<boolean>(true)
 const emailVerifyEnabled = ref<boolean>(false)
-const promoCodeEnabled = ref<boolean>(true)
 const invitationCodeEnabled = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
@@ -329,16 +375,6 @@ const registrationEmailSuffixWhitelist = ref<string[]>([])
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const turnstileToken = ref<string>('')
-
-// Promo code validation
-const promoValidating = ref<boolean>(false)
-const promoValidation = reactive({
-  valid: false,
-  invalid: false,
-  bonusAmount: null as number | null,
-  message: ''
-})
-let promoValidateTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Invitation code validation
 const invitationValidating = ref<boolean>(false)
@@ -352,17 +388,33 @@ let invitationValidateTimeout: ReturnType<typeof setTimeout> | null = null
 const formData = reactive({
   email: '',
   password: '',
-  promo_code: '',
   invitation_code: '',
   referral_code: ''
+})
+
+const phoneFormData = reactive({
+  phone: '',
+  verifyCode: ''
 })
 
 const errors = reactive({
   email: '',
   password: '',
+  phone: '',
+  phone_verify_code: '',
   turnstile: '',
   invitation_code: ''
 })
+
+const sendPhoneCodeCountdown = ref<number>(0)
+const sendPhoneCodeDisabled = computed(() => sendPhoneCodeCountdown.value > 0)
+const sendPhoneCodeButtonText = computed(() => {
+  if (sendPhoneCodeCountdown.value > 0) {
+    return t('auth.resendAfter', { seconds: sendPhoneCodeCountdown.value })
+  }
+  return t('auth.sendCode')
+})
+let sendPhoneCodeTimer: ReturnType<typeof setInterval> | null = null
 
 // ==================== Lifecycle ====================
 
@@ -371,31 +423,26 @@ onMounted(async () => {
     const settings = await getPublicSettings()
     registrationEnabled.value = settings.registration_enabled
     emailVerifyEnabled.value = settings.email_verify_enabled
-    promoCodeEnabled.value = settings.promo_code_enabled
     invitationCodeEnabled.value = settings.invitation_code_enabled
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     siteName.value = settings.site_name || 'Sub2API'
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
+    phoneRegistrationEnabled.value = settings.phone_login_enabled
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
 
-    // Read promo code from URL parameter only if promo code is enabled
-    if (promoCodeEnabled.value) {
-      const promoParam = route.query.promo as string
-      if (promoParam) {
-        formData.promo_code = promoParam
-        // Validate the promo code from URL
-        await validatePromoCodeDebounced(promoParam)
-      }
-    }
-
-    // Read referral code from URL (?invite=CODE) — independent of the
-    // redeem-based invitation_code gate; only used for friend-referral attribution.
+    // Read invite code from URL. If the invitation field is shown, prefill it and
+    // validate it; otherwise keep referral_code for attribution only.
     const inviteParam = route.query.invite as string
     if (inviteParam) {
-      formData.referral_code = inviteParam.trim()
+      const inviteCode = inviteParam.trim()
+      formData.referral_code = inviteCode
+      if (invitationCodeEnabled.value) {
+        formData.invitation_code = inviteCode
+        await validateInvitationCodeDebounced(inviteCode)
+      }
     }
   } catch (error) {
     console.error('Failed to load public settings:', error)
@@ -405,86 +452,13 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (promoValidateTimeout) {
-    clearTimeout(promoValidateTimeout)
-  }
   if (invitationValidateTimeout) {
     clearTimeout(invitationValidateTimeout)
   }
+  if (sendPhoneCodeTimer) {
+    clearInterval(sendPhoneCodeTimer)
+  }
 })
-
-// ==================== Promo Code Validation ====================
-
-function handlePromoCodeInput(): void {
-  const code = formData.promo_code.trim()
-
-  // Clear previous validation
-  promoValidation.valid = false
-  promoValidation.invalid = false
-  promoValidation.bonusAmount = null
-  promoValidation.message = ''
-
-  if (!code) {
-    promoValidating.value = false
-    return
-  }
-
-  // Debounce validation
-  if (promoValidateTimeout) {
-    clearTimeout(promoValidateTimeout)
-  }
-
-  promoValidateTimeout = setTimeout(() => {
-    validatePromoCodeDebounced(code)
-  }, 500)
-}
-
-async function validatePromoCodeDebounced(code: string): Promise<void> {
-  if (!code.trim()) return
-
-  promoValidating.value = true
-
-  try {
-    const result = await validatePromoCode(code)
-
-    if (result.valid) {
-      promoValidation.valid = true
-      promoValidation.invalid = false
-      promoValidation.bonusAmount = result.bonus_amount || 0
-      promoValidation.message = ''
-    } else {
-      promoValidation.valid = false
-      promoValidation.invalid = true
-      promoValidation.bonusAmount = null
-      // 根据错误码显示对应的翻译
-      promoValidation.message = getPromoErrorMessage(result.error_code)
-    }
-  } catch (error) {
-    console.error('Failed to validate promo code:', error)
-    promoValidation.valid = false
-    promoValidation.invalid = true
-    promoValidation.message = t('auth.promoCodeInvalid')
-  } finally {
-    promoValidating.value = false
-  }
-}
-
-function getPromoErrorMessage(errorCode?: string): string {
-  switch (errorCode) {
-    case 'PROMO_CODE_NOT_FOUND':
-      return t('auth.promoCodeNotFound')
-    case 'PROMO_CODE_EXPIRED':
-      return t('auth.promoCodeExpired')
-    case 'PROMO_CODE_DISABLED':
-      return t('auth.promoCodeDisabled')
-    case 'PROMO_CODE_MAX_USED':
-      return t('auth.promoCodeMaxUsed')
-    case 'PROMO_CODE_ALREADY_USED':
-      return t('auth.promoCodeAlreadyUsed')
-    default:
-      return t('auth.promoCodeInvalid')
-  }
-}
 
 // ==================== Invitation Code Validation ====================
 
@@ -591,38 +565,47 @@ function validateForm(): boolean {
   // Reset errors
   errors.email = ''
   errors.password = ''
+  errors.phone = ''
+  errors.phone_verify_code = ''
   errors.turnstile = ''
   errors.invitation_code = ''
 
   let isValid = true
 
-  // Email validation
-  if (!formData.email.trim()) {
-    errors.email = t('auth.emailRequired')
-    isValid = false
-  } else if (!validateEmail(formData.email)) {
-    errors.email = t('auth.invalidEmail')
-    isValid = false
-  } else if (
-    !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
-  ) {
-    errors.email = buildEmailSuffixNotAllowedMessage()
-    isValid = false
-  }
+  if (registrationMode.value === 'email') {
+    // Email validation
+    if (!formData.email.trim()) {
+      errors.email = t('auth.emailRequired')
+      isValid = false
+    } else if (!validateEmail(formData.email)) {
+      errors.email = t('auth.invalidEmail')
+      isValid = false
+    } else if (
+      !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
+    ) {
+      errors.email = buildEmailSuffixNotAllowedMessage()
+      isValid = false
+    }
 
-  // Password validation
-  if (!formData.password) {
-    errors.password = t('auth.passwordRequired')
-    isValid = false
-  } else if (formData.password.length < 6) {
-    errors.password = t('auth.passwordMinLength')
-    isValid = false
-  }
+    // Password validation
+    if (!formData.password) {
+      errors.password = t('auth.passwordRequired')
+      isValid = false
+    } else if (formData.password.length < 6) {
+      errors.password = t('auth.passwordMinLength')
+      isValid = false
+    }
+  } else {
+    if (!phoneFormData.phone.trim()) {
+      errors.phone = t('auth.phoneRequired')
+      isValid = false
+    } else if (!/^1[3-9]\d{9}$/.test(phoneFormData.phone.trim())) {
+      errors.phone = t('auth.invalidPhone')
+      isValid = false
+    }
 
-  // Invitation code validation (required when enabled)
-  if (invitationCodeEnabled.value) {
-    if (!formData.invitation_code.trim()) {
-      errors.invitation_code = t('auth.invitationCodeRequired')
+    if (!/^\d{6}$/.test(phoneFormData.verifyCode.trim())) {
+      errors.phone_verify_code = t('auth.invalidCode')
       isValid = false
     }
   }
@@ -636,6 +619,50 @@ function validateForm(): boolean {
   return isValid
 }
 
+
+function startPhoneCodeCountdown(seconds: number): void {
+  sendPhoneCodeCountdown.value = seconds
+  if (sendPhoneCodeTimer) {
+    clearInterval(sendPhoneCodeTimer)
+  }
+  sendPhoneCodeTimer = setInterval(() => {
+    if (sendPhoneCodeCountdown.value > 0) {
+      sendPhoneCodeCountdown.value--
+    } else if (sendPhoneCodeTimer) {
+      clearInterval(sendPhoneCodeTimer)
+      sendPhoneCodeTimer = null
+    }
+  }, 1000)
+}
+
+async function handleSendPhoneRegisterCode(): Promise<void> {
+  errors.phone = ''
+  errorMessage.value = ''
+
+  if (!/^1[3-9]\d{9}$/.test(phoneFormData.phone.trim())) {
+    errors.phone = t('auth.invalidPhone')
+    return
+  }
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    errors.turnstile = t('auth.completeVerification')
+    return
+  }
+
+  try {
+    const result = await sendPhoneRegisterCode({
+      phone: phoneFormData.phone.trim(),
+      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
+    })
+    startPhoneCodeCountdown(result.countdown)
+    appStore.showSuccess(t('auth.sendCodeSuccess'))
+  } catch (error: unknown) {
+    errorMessage.value = buildAuthErrorMessage(error, {
+      fallback: t('auth.sendCodeFailed')
+    })
+    appStore.showError(errorMessage.value)
+  }
+}
+
 // ==================== Form Handlers ====================
 
 async function handleRegister(): Promise<void> {
@@ -647,22 +674,10 @@ async function handleRegister(): Promise<void> {
     return
   }
 
-  // Check promo code validation status
-  if (formData.promo_code.trim()) {
-    // If promo code is being validated, wait
-    if (promoValidating.value) {
-      errorMessage.value = t('auth.promoCodeValidating')
-      return
-    }
-    // If promo code is invalid, block submission
-    if (promoValidation.invalid) {
-      errorMessage.value = t('auth.promoCodeInvalidCannotRegister')
-      return
-    }
-  }
-
-  // Check invitation code validation status (if enabled and code provided)
-  if (invitationCodeEnabled.value) {
+  // Check invitation code validation status only when a code is provided.
+  // Empty invitation code skips all invitation logic and registers normally.
+  const invitationCode = formData.invitation_code.trim()
+  if (invitationCode) {
     // If still validating, wait
     if (invitationValidating.value) {
       errorMessage.value = t('auth.invitationCodeValidating')
@@ -673,11 +688,11 @@ async function handleRegister(): Promise<void> {
       errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
       return
     }
-    // If invitation code is required but not validated yet
-    if (formData.invitation_code.trim() && !invitationValidation.valid) {
+    // If invitation code was provided but not validated yet
+    if (!invitationValidation.valid) {
       errorMessage.value = t('auth.invitationCodeValidating')
       // Trigger validation
-      await validateInvitationCodeDebounced(formData.invitation_code.trim())
+      await validateInvitationCodeDebounced(invitationCode)
       if (!invitationValidation.valid) {
         errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
         return
@@ -688,6 +703,20 @@ async function handleRegister(): Promise<void> {
   isLoading.value = true
 
   try {
+    if (registrationMode.value === 'phone') {
+      await authStore.registerWithPhoneCode({
+        phone: phoneFormData.phone.trim(),
+        verify_code: phoneFormData.verifyCode.trim(),
+        invitation_code: formData.invitation_code || undefined,
+        turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
+      })
+
+      appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
+      const redirectTo = (route.query.redirect as string) || '/dashboard'
+      await router.push(redirectTo)
+      return
+    }
+
     // If email verification is enabled, redirect to verification page
     if (emailVerifyEnabled.value) {
       // Store registration data in sessionStorage
@@ -697,7 +726,6 @@ async function handleRegister(): Promise<void> {
           email: formData.email,
           password: formData.password,
           turnstile_token: turnstileToken.value,
-          promo_code: formData.promo_code || undefined,
           invitation_code: formData.invitation_code || undefined,
           referral_code: formData.referral_code || undefined,
           redirect: (route.query.redirect as string) || undefined
@@ -714,7 +742,6 @@ async function handleRegister(): Promise<void> {
       email: formData.email,
       password: formData.password,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
-      promo_code: formData.promo_code || undefined,
       invitation_code: formData.invitation_code || undefined,
       referral_code: formData.referral_code || undefined
     })
