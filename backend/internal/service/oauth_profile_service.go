@@ -102,7 +102,8 @@ func isAPIKeyUsableOAuthProfileForList(key *APIKey) bool {
 		!key.IsQuotaExhausted() &&
 		key.GroupID != nil &&
 		key.Group != nil &&
-		key.Group.IsActive()
+		key.Group.IsActive() &&
+		key.Group.Platform == PlatformAnthropic
 }
 
 func isAPIKeyUsableOAuthProfile(key *APIKey) bool {
@@ -114,7 +115,8 @@ func isAPIKeyUsableOAuthProfile(key *APIKey) bool {
 		!key.IsQuotaExhausted() &&
 		key.GroupID != nil &&
 		key.Group != nil &&
-		key.Group.IsActive()
+		key.Group.IsActive() &&
+		key.Group.Platform == PlatformAnthropic
 }
 
 func oauthProfileDisplayName(key *APIKey) string {
