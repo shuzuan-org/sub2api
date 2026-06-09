@@ -88,6 +88,89 @@ func (s *oauthRefreshRepoStub) RevokeByHash(context.Context, string, string, tim
 	return nil
 }
 
+type oauthDeviceRepoStub struct {
+	sessions []*OAuthDeviceAuthorization
+}
+
+func (s *oauthDeviceRepoStub) Create(_ context.Context, session *OAuthDeviceAuthorization) error {
+	copy := *session
+	copy.ID = int64(len(s.sessions) + 1)
+	s.sessions = append(s.sessions, &copy)
+	return nil
+}
+
+func (s *oauthDeviceRepoStub) GetByUserCodeHash(_ context.Context, userCodeHash string) (*OAuthDeviceAuthorization, error) {
+	for _, session := range s.sessions {
+		if session.UserCodeHash == userCodeHash {
+			return session, nil
+		}
+	}
+	return nil, ErrOAuthInvalidUserCode
+}
+
+func (s *oauthDeviceRepoStub) Approve(_ context.Context, userCodeHash string, userID int64, now time.Time) (*OAuthDeviceAuthorization, error) {
+	session, err := s.GetByUserCodeHash(context.Background(), userCodeHash)
+	if err != nil || session.Status != OAuthDeviceStatusPending || !session.ExpiresAt.After(now) {
+		return nil, ErrOAuthInvalidUserCode
+	}
+	session.Status = OAuthDeviceStatusApproved
+	session.UserID = &userID
+	session.ApprovedAt = &now
+	return session, nil
+}
+
+func (s *oauthDeviceRepoStub) Deny(_ context.Context, userCodeHash string, userID int64, now time.Time) (*OAuthDeviceAuthorization, error) {
+	session, err := s.GetByUserCodeHash(context.Background(), userCodeHash)
+	if err != nil || session.Status != OAuthDeviceStatusPending || !session.ExpiresAt.After(now) {
+		return nil, ErrOAuthInvalidUserCode
+	}
+	session.Status = OAuthDeviceStatusDenied
+	session.UserID = &userID
+	session.DeniedAt = &now
+	return session, nil
+}
+
+func (s *oauthDeviceRepoStub) GetByDeviceCodeHash(_ context.Context, deviceCodeHash, clientID string) (*OAuthDeviceAuthorization, error) {
+	for _, session := range s.sessions {
+		if session.DeviceCodeHash == deviceCodeHash && session.ClientID == clientID {
+			return session, nil
+		}
+	}
+	return nil, ErrOAuthInvalidToken
+}
+
+func (s *oauthDeviceRepoStub) MarkPolled(_ context.Context, id int64, now time.Time) error {
+	for _, session := range s.sessions {
+		if session.ID == id {
+			session.LastPollAt = &now
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *oauthDeviceRepoStub) Cancel(_ context.Context, deviceCodeHash, clientID string, now time.Time) error {
+	session, err := s.GetByDeviceCodeHash(context.Background(), deviceCodeHash, clientID)
+	if err == nil && session.Status == OAuthDeviceStatusPending && session.ExpiresAt.After(now) {
+		session.Status = OAuthDeviceStatusCancelled
+		session.CancelledAt = &now
+	}
+	return nil
+}
+
+func (s *oauthDeviceRepoStub) ConsumeApproved(_ context.Context, deviceCodeHash, clientID string, now time.Time) (*OAuthDeviceAuthorization, error) {
+	session, err := s.GetByDeviceCodeHash(context.Background(), deviceCodeHash, clientID)
+	if err != nil || session.Status != OAuthDeviceStatusApproved || !session.ExpiresAt.After(now) {
+		return nil, ErrOAuthInvalidToken
+	}
+	copy := *session
+	session.Status = OAuthDeviceStatusUsed
+	session.UsedAt = &now
+	copy.Status = OAuthDeviceStatusUsed
+	copy.UsedAt = &now
+	return &copy, nil
+}
+
 type oauthUserRepoStub struct {
 	user *User
 }
@@ -416,6 +499,73 @@ func TestOAuthRefreshTokenRotatesToken(t *testing.T) {
 	require.NotEmpty(t, refreshed.AccessToken)
 	require.NotEmpty(t, refreshed.RefreshToken)
 	require.NotEqual(t, token.RefreshToken, refreshed.RefreshToken)
+}
+
+func TestOAuthDeviceAuthorizationFlow(t *testing.T) {
+	secretHash, err := HashOAuthClientSecret("test-secret")
+	require.NoError(t, err)
+	clientRepo := &oauthClientRepoStub{client: &OAuthClient{
+		ClientID:         "device-client",
+		ClientSecretHash: secretHash,
+		ClientType:       OAuthClientTypeConfidential,
+		Name:             "Device Client",
+		Scopes:           []string{"profile"},
+		Status:           StatusActive,
+	}}
+	deviceRepo := &oauthDeviceRepoStub{}
+	refreshRepo := &oauthRefreshRepoStub{}
+	userRepo := &oauthUserRepoStub{user: &User{ID: 42, Email: "u@example.com", Status: StatusActive}}
+	svc := NewOAuthAuthorizationService(clientRepo, &oauthCodeRepoStub{}, refreshRepo, userRepo, nil, &config.Config{}, deviceRepo)
+	svc.cfg.JWT.Secret = "test-jwt-secret"
+
+	device, err := svc.CreateDeviceAuthorization(context.Background(), OAuthDeviceAuthorizationInput{
+		ClientID:        "device-client",
+		ClientSecret:    "test-secret",
+		Scope:           "profile",
+		DeviceName:      "host-1",
+		VerificationURI: "https://example.com/device",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, device.DeviceCode)
+	require.NotEmpty(t, device.UserCode)
+	require.Equal(t, int(OAuthDeviceAuthorizationPoll.Seconds()), device.Interval)
+	require.Len(t, deviceRepo.sessions, 1)
+	require.Equal(t, OAuthDeviceStatusPending, deviceRepo.sessions[0].Status)
+
+	preview, err := svc.PreviewDeviceAuthorization(context.Background(), device.UserCode)
+	require.NoError(t, err)
+	require.Equal(t, "Device Client", preview.ClientName)
+	require.Equal(t, []string{"profile"}, preview.Scopes)
+	require.Equal(t, "host-1", preview.DeviceName)
+
+	_, err = svc.ExchangeDeviceCode(context.Background(), OAuthTokenInput{
+		GrantType:    OAuthDeviceCodeGrantType,
+		ClientID:     "device-client",
+		ClientSecret: "test-secret",
+		DeviceCode:   device.DeviceCode,
+	})
+	require.ErrorIs(t, err, ErrOAuthAuthorizationPending)
+	deviceRepo.sessions[0].LastPollAt = nil
+
+	require.NoError(t, svc.ApproveDeviceAuthorization(context.Background(), 42, device.UserCode))
+	token, err := svc.ExchangeDeviceCode(context.Background(), OAuthTokenInput{
+		GrantType:    OAuthDeviceCodeGrantType,
+		ClientID:     "device-client",
+		ClientSecret: "test-secret",
+		DeviceCode:   device.DeviceCode,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, token.AccessToken)
+	require.NotEmpty(t, token.RefreshToken)
+	require.Equal(t, OAuthDeviceStatusUsed, deviceRepo.sessions[0].Status)
+
+	_, err = svc.ExchangeDeviceCode(context.Background(), OAuthTokenInput{
+		GrantType:    OAuthDeviceCodeGrantType,
+		ClientID:     "device-client",
+		ClientSecret: "test-secret",
+		DeviceCode:   device.DeviceCode,
+	})
+	require.ErrorIs(t, err, ErrOAuthInvalidToken)
 }
 
 func extractOAuthCodeForTest(t *testing.T, rawURL string) string {

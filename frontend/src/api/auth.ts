@@ -478,6 +478,40 @@ export async function denyOAuthAuthorization(
   return data
 }
 
+export interface OAuthDeviceAuthorizationPreview {
+  user_code: string
+  client_id: string
+  client_name: string
+  scopes: string[]
+  device_name?: string
+  cli_version?: string
+  platform?: string
+  expires_at: string
+}
+
+export async function previewOAuthDeviceAuthorization(
+  userCode: string
+): Promise<OAuthDeviceAuthorizationPreview> {
+  const { data } = await apiClient.post<OAuthDeviceAuthorizationPreview>('/auth/oauth/device/preview', {
+    user_code: userCode
+  })
+  return data
+}
+
+export async function confirmOAuthDeviceAuthorization(userCode: string): Promise<{ approved: boolean }> {
+  const { data } = await apiClient.post<{ approved: boolean }>('/auth/oauth/device/confirm', {
+    user_code: userCode
+  })
+  return data
+}
+
+export async function denyOAuthDeviceAuthorization(userCode: string): Promise<{ denied: boolean }> {
+  const { data } = await apiClient.post<{ denied: boolean }>('/auth/oauth/device/deny', {
+    user_code: userCode
+  })
+  return data
+}
+
 export const authAPI = {
   login,
   login2FA,
@@ -508,7 +542,10 @@ export const authAPI = {
   completeLinuxDoOAuthRegistration,
   previewOAuthAuthorization,
   confirmOAuthAuthorization,
-  denyOAuthAuthorization
+  denyOAuthAuthorization,
+  previewOAuthDeviceAuthorization,
+  confirmOAuthDeviceAuthorization,
+  denyOAuthDeviceAuthorization
 }
 
 export default authAPI

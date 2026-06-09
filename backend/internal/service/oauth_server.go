@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/url"
 	"sort"
 	"strings"
@@ -23,16 +24,24 @@ import (
 
 const (
 	OAuthAuthorizationCodeTTL      = 5 * time.Minute
+	OAuthDeviceAuthorizationTTL    = 15 * time.Minute
+	OAuthDeviceAuthorizationPoll   = 5 * time.Second
 	OAuthAccessTokenTTL            = time.Hour
 	OAuthRefreshTokenTTL           = 90 * 24 * time.Hour
 	OAuthTokenTypeBearer           = "Bearer"
 	OAuthClientTypePublic          = "public"
 	OAuthClientTypeConfidential    = "confidential"
+	OAuthDeviceStatusPending       = "pending"
+	OAuthDeviceStatusApproved      = "approved"
+	OAuthDeviceStatusDenied        = "denied"
+	OAuthDeviceStatusCancelled     = "cancelled"
+	OAuthDeviceStatusUsed          = "used"
 	OAuthRefreshTokenStatusActive  = "active"
 	OAuthRefreshTokenStatusUsed    = "used"
 	OAuthRefreshTokenStatusRevoked = "revoked"
 	MetacodeOAuthClientID          = "metacode-cli"
 	MetacodeOAuthScope             = "metacode:use"
+	OAuthDeviceCodeGrantType       = "urn:ietf:params:oauth:grant-type:device_code"
 )
 
 var (
@@ -45,6 +54,11 @@ var (
 	ErrOAuthInvalidCode          = infraerrors.BadRequest("OAUTH_INVALID_CODE", "invalid authorization code")
 	ErrOAuthInvalidToken         = infraerrors.Unauthorized("OAUTH_INVALID_TOKEN", "invalid oauth access token")
 	ErrOAuthInvalidPKCE          = infraerrors.BadRequest("OAUTH_INVALID_PKCE", "invalid PKCE verifier")
+	ErrOAuthAuthorizationPending = infraerrors.BadRequest("OAUTH_AUTHORIZATION_PENDING", "authorization pending")
+	ErrOAuthSlowDown             = infraerrors.BadRequest("OAUTH_SLOW_DOWN", "slow down")
+	ErrOAuthAccessDenied         = infraerrors.BadRequest("OAUTH_ACCESS_DENIED", "access denied")
+	ErrOAuthExpiredToken         = infraerrors.BadRequest("OAUTH_EXPIRED_TOKEN", "expired token")
+	ErrOAuthInvalidUserCode      = infraerrors.BadRequest("OAUTH_INVALID_USER_CODE", "invalid user code")
 	ErrOAuthCodeExpired          = infraerrors.BadRequest("OAUTH_CODE_EXPIRED", "authorization code has expired")
 	ErrOAuthCodeUsed             = infraerrors.BadRequest("OAUTH_CODE_USED", "authorization code has already been used")
 )
@@ -93,6 +107,39 @@ type OAuthAuthorizationCodeRepository interface {
 	Consume(ctx context.Context, codeHash, clientID, redirectURI string, now time.Time) (*OAuthAuthorizationCode, error)
 }
 
+type OAuthDeviceAuthorization struct {
+	ID             int64
+	DeviceCodeHash string
+	UserCodeHash   string
+	ClientID       string
+	UserID         *int64
+	Scopes         []string
+	Status         string
+	DeviceName     string
+	CLIVersion     string
+	Platform       string
+	ExpiresAt      time.Time
+	Interval       time.Duration
+	LastPollAt     *time.Time
+	ApprovedAt     *time.Time
+	DeniedAt       *time.Time
+	CancelledAt    *time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type OAuthDeviceAuthorizationRepository interface {
+	Create(ctx context.Context, session *OAuthDeviceAuthorization) error
+	GetByUserCodeHash(ctx context.Context, userCodeHash string) (*OAuthDeviceAuthorization, error)
+	Approve(ctx context.Context, userCodeHash string, userID int64, now time.Time) (*OAuthDeviceAuthorization, error)
+	Deny(ctx context.Context, userCodeHash string, userID int64, now time.Time) (*OAuthDeviceAuthorization, error)
+	GetByDeviceCodeHash(ctx context.Context, deviceCodeHash, clientID string) (*OAuthDeviceAuthorization, error)
+	MarkPolled(ctx context.Context, id int64, now time.Time) error
+	Cancel(ctx context.Context, deviceCodeHash, clientID string, now time.Time) error
+	ConsumeApproved(ctx context.Context, deviceCodeHash, clientID string, now time.Time) (*OAuthDeviceAuthorization, error)
+}
+
 type OAuthRefreshToken struct {
 	ID              int64
 	TokenHash       string
@@ -124,6 +171,7 @@ type OAuthAccessTokenDenylist interface {
 type OAuthAuthorizationService struct {
 	clientRepo       OAuthClientRepository
 	codeRepo         OAuthAuthorizationCodeRepository
+	deviceRepo       OAuthDeviceAuthorizationRepository
 	refreshTokenRepo OAuthRefreshTokenRepository
 	userRepo         UserRepository
 	denylist         OAuthAccessTokenDenylist
@@ -137,8 +185,25 @@ func NewOAuthAuthorizationService(
 	userRepo UserRepository,
 	denylist OAuthAccessTokenDenylist,
 	cfg *config.Config,
+	deviceRepo ...OAuthDeviceAuthorizationRepository,
 ) *OAuthAuthorizationService {
-	return &OAuthAuthorizationService{clientRepo: clientRepo, codeRepo: codeRepo, refreshTokenRepo: refreshTokenRepo, userRepo: userRepo, denylist: denylist, cfg: cfg}
+	var repo OAuthDeviceAuthorizationRepository
+	if len(deviceRepo) > 0 {
+		repo = deviceRepo[0]
+	}
+	return &OAuthAuthorizationService{clientRepo: clientRepo, codeRepo: codeRepo, deviceRepo: repo, refreshTokenRepo: refreshTokenRepo, userRepo: userRepo, denylist: denylist, cfg: cfg}
+}
+
+func ProvideOAuthAuthorizationService(
+	clientRepo OAuthClientRepository,
+	codeRepo OAuthAuthorizationCodeRepository,
+	deviceRepo OAuthDeviceAuthorizationRepository,
+	refreshTokenRepo OAuthRefreshTokenRepository,
+	userRepo UserRepository,
+	denylist OAuthAccessTokenDenylist,
+	cfg *config.Config,
+) *OAuthAuthorizationService {
+	return NewOAuthAuthorizationService(clientRepo, codeRepo, refreshTokenRepo, userRepo, denylist, cfg, deviceRepo)
 }
 
 type OAuthAuthorizeInput struct {
@@ -171,6 +236,38 @@ type OAuthTokenInput struct {
 	ClientSecret string
 	CodeVerifier string
 	RefreshToken string
+	DeviceCode   string
+}
+
+type OAuthDeviceAuthorizationInput struct {
+	ClientID        string
+	ClientSecret    string
+	Scope           string
+	DeviceName      string
+	CLIVersion      string
+	Platform        string
+	VerificationURI string
+}
+
+type OAuthDeviceAuthorizationResponse struct {
+	DeviceCode      string `json:"device_code"`
+	UserCode        string `json:"user_code"`
+	VerificationURI string `json:"verification_uri"`
+	ExpiresIn       int    `json:"expires_in"`
+	ExpiresAt       string `json:"expires_at"`
+	Interval        int    `json:"interval"`
+}
+
+type OAuthDeviceAuthorizationPreview struct {
+	UserCode    string   `json:"user_code"`
+	ClientID    string   `json:"client_id"`
+	ClientName  string   `json:"client_name"`
+	Scopes      []string `json:"scopes"`
+	DeviceName  string   `json:"device_name,omitempty"`
+	CLIVersion  string   `json:"cli_version,omitempty"`
+	Platform    string   `json:"platform,omitempty"`
+	ExpiresAt   string   `json:"expires_at"`
+	AlreadyDone bool     `json:"already_done,omitempty"`
 }
 
 type OAuthTokenResponse struct {
@@ -270,15 +367,236 @@ func (s *OAuthAuthorizationService) DenyAuthorization(ctx context.Context, input
 	})}, nil
 }
 
+func (s *OAuthAuthorizationService) CreateDeviceAuthorization(ctx context.Context, input OAuthDeviceAuthorizationInput) (*OAuthDeviceAuthorizationResponse, error) {
+	if s.deviceRepo == nil {
+		return nil, ErrOAuthInvalidRequest
+	}
+	client, scopes, err := s.validateClientAndScopes(ctx, input.ClientID, input.Scope)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateOAuthClientTokenAuth(client, input.ClientSecret); err != nil {
+		return nil, ErrOAuthInvalidClient
+	}
+	verificationURI := strings.TrimSpace(input.VerificationURI)
+	if verificationURI == "" {
+		return nil, ErrOAuthInvalidRequest
+	}
+	rawDeviceCode, err := randomTokenHex(32)
+	if err != nil {
+		return nil, fmt.Errorf("generate device code: %w", err)
+	}
+	now := time.Now()
+	var rawUserCode string
+	for attempt := 0; attempt < 5; attempt++ {
+		rawUserCode, err = randomUserCode()
+		if err != nil {
+			return nil, fmt.Errorf("generate user code: %w", err)
+		}
+		session := &OAuthDeviceAuthorization{
+			DeviceCodeHash: oauthSHA256Hex(rawDeviceCode),
+			UserCodeHash:   oauthSHA256Hex(normalizeDeviceUserCode(rawUserCode)),
+			ClientID:       client.ClientID,
+			Scopes:         scopes,
+			Status:         OAuthDeviceStatusPending,
+			DeviceName:     strings.TrimSpace(input.DeviceName),
+			CLIVersion:     strings.TrimSpace(input.CLIVersion),
+			Platform:       strings.TrimSpace(input.Platform),
+			ExpiresAt:      now.Add(OAuthDeviceAuthorizationTTL),
+			Interval:       OAuthDeviceAuthorizationPoll,
+		}
+		if err := s.deviceRepo.Create(ctx, session); err == nil {
+			return &OAuthDeviceAuthorizationResponse{
+				DeviceCode:      rawDeviceCode,
+				UserCode:        rawUserCode,
+				VerificationURI: verificationURI,
+				ExpiresIn:       int(OAuthDeviceAuthorizationTTL.Seconds()),
+				ExpiresAt:       session.ExpiresAt.Format(time.RFC3339),
+				Interval:        int(OAuthDeviceAuthorizationPoll.Seconds()),
+			}, nil
+		} else if attempt == 4 {
+			return nil, err
+		}
+	}
+	return nil, ErrOAuthInvalidRequest
+}
+
+func (s *OAuthAuthorizationService) PreviewDeviceAuthorization(ctx context.Context, userCode string) (*OAuthDeviceAuthorizationPreview, error) {
+	if s.deviceRepo == nil {
+		return nil, ErrOAuthInvalidRequest
+	}
+	normalized := normalizeDeviceUserCode(userCode)
+	if !isValidDeviceUserCode(normalized) {
+		return nil, ErrOAuthInvalidUserCode
+	}
+	session, err := s.deviceRepo.GetByUserCodeHash(ctx, oauthSHA256Hex(normalized))
+	if err != nil {
+		return nil, ErrOAuthInvalidUserCode
+	}
+	if !session.ExpiresAt.After(time.Now()) {
+		return nil, ErrOAuthExpiredToken
+	}
+	if session.Status != OAuthDeviceStatusPending {
+		return nil, ErrOAuthInvalidUserCode
+	}
+	client, err := s.clientRepo.GetByClientID(ctx, session.ClientID)
+	if err != nil || !client.IsActive() {
+		return nil, ErrOAuthInvalidClient
+	}
+	return &OAuthDeviceAuthorizationPreview{
+		UserCode:   normalized,
+		ClientID:   client.ClientID,
+		ClientName: client.Name,
+		Scopes:     append([]string(nil), session.Scopes...),
+		DeviceName: session.DeviceName,
+		CLIVersion: session.CLIVersion,
+		Platform:   session.Platform,
+		ExpiresAt:  session.ExpiresAt.Format(time.RFC3339),
+	}, nil
+}
+
+func (s *OAuthAuthorizationService) ApproveDeviceAuthorization(ctx context.Context, userID int64, userCode string) error {
+	return s.completeDeviceAuthorization(ctx, userID, userCode, true)
+}
+
+func (s *OAuthAuthorizationService) DenyDeviceAuthorization(ctx context.Context, userID int64, userCode string) error {
+	return s.completeDeviceAuthorization(ctx, userID, userCode, false)
+}
+
+func (s *OAuthAuthorizationService) completeDeviceAuthorization(ctx context.Context, userID int64, userCode string, approve bool) error {
+	if s.deviceRepo == nil || userID <= 0 {
+		return ErrOAuthInvalidRequest
+	}
+	normalized := normalizeDeviceUserCode(userCode)
+	if !isValidDeviceUserCode(normalized) {
+		return ErrOAuthInvalidUserCode
+	}
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user == nil || !user.IsActive() {
+		return ErrUserNotActive
+	}
+	now := time.Now()
+	var session *OAuthDeviceAuthorization
+	if approve {
+		session, err = s.deviceRepo.Approve(ctx, oauthSHA256Hex(normalized), userID, now)
+	} else {
+		session, err = s.deviceRepo.Deny(ctx, oauthSHA256Hex(normalized), userID, now)
+	}
+	if err != nil {
+		return ErrOAuthInvalidUserCode
+	}
+	if !session.ExpiresAt.After(now) {
+		return ErrOAuthExpiredToken
+	}
+	return nil
+}
+
+func (s *OAuthAuthorizationService) CancelDeviceAuthorization(ctx context.Context, clientID, clientSecret, deviceCode string) error {
+	if s.deviceRepo == nil {
+		return ErrOAuthInvalidRequest
+	}
+	client, err := s.clientRepo.GetByClientID(ctx, strings.TrimSpace(clientID))
+	if err != nil || !client.IsActive() {
+		return ErrOAuthInvalidClient
+	}
+	if err := validateOAuthClientTokenAuth(client, clientSecret); err != nil {
+		return ErrOAuthInvalidClient
+	}
+	deviceCode = strings.TrimSpace(deviceCode)
+	if deviceCode == "" || len(deviceCode) > maxTokenLength {
+		return ErrOAuthInvalidToken
+	}
+	return s.deviceRepo.Cancel(ctx, oauthSHA256Hex(deviceCode), client.ClientID, time.Now())
+}
+
 func (s *OAuthAuthorizationService) ExchangeToken(ctx context.Context, input OAuthTokenInput) (*OAuthTokenResponse, error) {
 	switch strings.TrimSpace(input.GrantType) {
 	case "authorization_code":
 		return s.ExchangeAuthorizationCode(ctx, input)
 	case "refresh_token":
 		return s.RefreshAccessToken(ctx, input)
+	case OAuthDeviceCodeGrantType:
+		return s.ExchangeDeviceCode(ctx, input)
 	default:
 		return nil, ErrOAuthUnsupportedGrantType
 	}
+}
+
+func (s *OAuthAuthorizationService) ExchangeDeviceCode(ctx context.Context, input OAuthTokenInput) (*OAuthTokenResponse, error) {
+	if s.deviceRepo == nil {
+		return nil, ErrOAuthInvalidRequest
+	}
+	clientID := strings.TrimSpace(input.ClientID)
+	if clientID == "" {
+		return nil, ErrOAuthInvalidClient
+	}
+	client, err := s.clientRepo.GetByClientID(ctx, clientID)
+	if err != nil {
+		return nil, ErrOAuthInvalidClient
+	}
+	if err := validateOAuthClientTokenAuth(client, input.ClientSecret); err != nil {
+		return nil, ErrOAuthInvalidClient
+	}
+	deviceCode := strings.TrimSpace(input.DeviceCode)
+	if deviceCode == "" || len(deviceCode) > maxTokenLength {
+		return nil, ErrOAuthInvalidToken
+	}
+	now := time.Now()
+	session, err := s.deviceRepo.GetByDeviceCodeHash(ctx, oauthSHA256Hex(deviceCode), client.ClientID)
+	if err != nil {
+		return nil, ErrOAuthInvalidToken
+	}
+	if !session.ExpiresAt.After(now) {
+		return nil, ErrOAuthExpiredToken
+	}
+	if session.LastPollAt != nil && now.Sub(*session.LastPollAt) < session.Interval {
+		return nil, ErrOAuthSlowDown
+	}
+	switch session.Status {
+	case OAuthDeviceStatusPending:
+		_ = s.deviceRepo.MarkPolled(ctx, session.ID, now)
+		return nil, ErrOAuthAuthorizationPending
+	case OAuthDeviceStatusDenied:
+		return nil, ErrOAuthAccessDenied
+	case OAuthDeviceStatusCancelled:
+		return nil, ErrOAuthAccessDenied
+	case OAuthDeviceStatusApproved:
+		session, err = s.deviceRepo.ConsumeApproved(ctx, oauthSHA256Hex(deviceCode), client.ClientID, now)
+		if err != nil {
+			return nil, ErrOAuthInvalidToken
+		}
+	default:
+		return nil, ErrOAuthInvalidToken
+	}
+	if session.UserID == nil || *session.UserID <= 0 {
+		return nil, ErrOAuthInvalidToken
+	}
+	user, err := s.userRepo.GetByID(ctx, *session.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || !user.IsActive() {
+		return nil, ErrUserNotActive
+	}
+	refreshToken, err := s.createRefreshToken(ctx, *session.UserID, client.ClientID, session.Scopes, "", "")
+	if err != nil {
+		return nil, err
+	}
+	accessToken, err := s.generateOAuthAccessToken(*session.UserID, client.ClientID, session.Scopes)
+	if err != nil {
+		return nil, err
+	}
+	return &OAuthTokenResponse{
+		AccessToken:  accessToken,
+		TokenType:    OAuthTokenTypeBearer,
+		ExpiresIn:    int(OAuthAccessTokenTTL.Seconds()),
+		RefreshToken: refreshToken,
+		Scope:        strings.Join(session.Scopes, " "),
+		AccountID:    fmt.Sprintf("%d", *session.UserID),
+	}, nil
 }
 
 func (s *OAuthAuthorizationService) ExchangeAuthorizationCode(ctx context.Context, input OAuthTokenInput) (*OAuthTokenResponse, error) {
@@ -500,9 +818,9 @@ func (s *OAuthAuthorizationService) validateAuthorizeInput(ctx context.Context, 
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.Fragment != "" {
 		return nil, nil, ErrOAuthInvalidRedirectURI
 	}
-	client, err := s.clientRepo.GetByClientID(ctx, clientID)
-	if err != nil || !client.IsActive() {
-		return nil, nil, ErrOAuthInvalidClient
+	client, err := s.getActiveOAuthClient(ctx, clientID)
+	if err != nil {
+		return nil, nil, err
 	}
 	if !isRedirectURIAllowed(client, redirectURI) {
 		return nil, nil, ErrOAuthInvalidRedirectURI
@@ -510,17 +828,49 @@ func (s *OAuthAuthorizationService) validateAuthorizeInput(ctx context.Context, 
 	if err := validateCodeChallenge(input.CodeChallenge, input.CodeChallengeMethod); err != nil {
 		return nil, nil, err
 	}
-	scopes := normalizeScopes(input.Scope)
+	scopes, err := validateOAuthScopes(client, input.Scope)
+	if err != nil {
+		return nil, nil, err
+	}
+	return client, scopes, nil
+}
+
+func (s *OAuthAuthorizationService) validateClientAndScopes(ctx context.Context, clientID, scope string) (*OAuthClient, []string, error) {
+	client, err := s.getActiveOAuthClient(ctx, clientID)
+	if err != nil {
+		return nil, nil, err
+	}
+	scopes, err := validateOAuthScopes(client, scope)
+	if err != nil {
+		return nil, nil, err
+	}
+	return client, scopes, nil
+}
+
+func (s *OAuthAuthorizationService) getActiveOAuthClient(ctx context.Context, clientID string) (*OAuthClient, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		return nil, ErrOAuthInvalidClient
+	}
+	client, err := s.clientRepo.GetByClientID(ctx, clientID)
+	if err != nil || !client.IsActive() {
+		return nil, ErrOAuthInvalidClient
+	}
+	return client, nil
+}
+
+func validateOAuthScopes(client *OAuthClient, rawScope string) ([]string, error) {
+	scopes := normalizeScopes(rawScope)
 	if len(scopes) == 0 {
 		scopes = append([]string(nil), client.Scopes...)
 		sort.Strings(scopes)
 	}
 	for _, scope := range scopes {
 		if !containsExact(client.Scopes, scope) {
-			return nil, nil, ErrOAuthInvalidScope
+			return nil, ErrOAuthInvalidScope
 		}
 	}
-	return client, scopes, nil
+	return scopes, nil
 }
 
 func (s *OAuthAuthorizationService) generateOAuthAccessToken(userID int64, clientID string, scopes []string) (string, error) {
@@ -729,6 +1079,54 @@ func randomTokenHex(byteLength int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func randomUserCode() (string, error) {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	var b strings.Builder
+	b.Grow(9)
+	max := big.NewInt(int64(len(alphabet)))
+	for i := 0; i < 8; i++ {
+		n, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		if i == 4 {
+			b.WriteByte('-')
+		}
+		b.WriteByte(alphabet[n.Int64()])
+	}
+	return b.String(), nil
+}
+
+func normalizeDeviceUserCode(code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	code = strings.ReplaceAll(code, " ", "")
+	if len(code) == 8 {
+		return code[:4] + "-" + code[4:]
+	}
+	return code
+}
+
+func isValidDeviceUserCode(code string) bool {
+	if len(code) != 9 || code[4] != '-' {
+		return false
+	}
+	for i, r := range code {
+		if i == 4 {
+			continue
+		}
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func oauthSHA256Hex(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func normalizeScopes(raw string) []string {

@@ -485,7 +485,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
 	NewOAuthRefreshAPI,
-	NewOAuthAuthorizationService,
+	ProvideOAuthAuthorizationService,
 	NewOAuthProfileService,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,

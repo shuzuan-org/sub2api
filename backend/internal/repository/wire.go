@@ -53,6 +53,7 @@ var ProviderSet = wire.NewSet(
 	NewAPIKeyRepository,
 	NewOAuthClientRepository,
 	NewOAuthAuthorizationCodeRepository,
+	NewOAuthDeviceAuthorizationRepository,
 	NewOAuthRefreshTokenRepository,
 	NewOAuthAccessTokenDenylist,
 	NewGroupRepository,
@@ -83,6 +84,7 @@ var ProviderSet = wire.NewSet(
 	NewAlipayOrderRepository,
 	NewOAuthClientRepository,
 	NewOAuthAuthorizationCodeRepository,
+	NewOAuthDeviceAuthorizationRepository,
 	NewOAuthRefreshTokenRepository,
 
 	// Cache implementations
