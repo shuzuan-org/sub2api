@@ -100,7 +100,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Authorize Device'
+      title: '授权设备'
     }
   },
 
