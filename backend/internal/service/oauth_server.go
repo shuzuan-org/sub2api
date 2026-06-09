@@ -254,7 +254,7 @@ type OAuthDeviceAuthorizationResponse struct {
 	UserCode        string `json:"user_code"`
 	VerificationURI string `json:"verification_uri"`
 	ExpiresIn       int    `json:"expires_in"`
-	ExpiresAt       string `json:"expires_at"`
+	ExpiresAt       int64  `json:"expires_at"`
 	Interval        int    `json:"interval"`
 }
 
@@ -411,7 +411,7 @@ func (s *OAuthAuthorizationService) CreateDeviceAuthorization(ctx context.Contex
 				UserCode:        rawUserCode,
 				VerificationURI: verificationURI,
 				ExpiresIn:       int(OAuthDeviceAuthorizationTTL.Seconds()),
-				ExpiresAt:       session.ExpiresAt.Format(time.RFC3339),
+				ExpiresAt:       session.ExpiresAt.Unix(),
 				Interval:        int(OAuthDeviceAuthorizationPoll.Seconds()),
 			}, nil
 		} else if attempt == 4 {
