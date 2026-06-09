@@ -363,19 +363,5 @@ func writeOAuthError(c *gin.Context, err error) {
 }
 
 func (h *AuthHandler) deviceVerificationURI(c *gin.Context) string {
-	base := ""
-	if h != nil && h.settingSvc != nil {
-		base = strings.TrimSpace(h.settingSvc.GetFrontendURL(c.Request.Context()))
-	}
-	if base == "" && h != nil && h.cfg != nil {
-		base = strings.TrimSpace(h.cfg.Server.FrontendURL)
-	}
-	if base == "" {
-		scheme := "http"
-		if isRequestHTTPS(c) {
-			scheme = "https"
-		}
-		base = scheme + "://" + c.Request.Host
-	}
-	return strings.TrimRight(base, "/") + "/device"
+	return "https://napi.metask-ai.com/device"
 }
