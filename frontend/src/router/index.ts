@@ -93,6 +93,16 @@ const routes: RouteRecordRaw[] = [
       title: 'Authorize Application'
     }
   },
+  {
+    path: '/device',
+    name: 'OAuthDevice',
+    component: () => import('@/views/auth/OAuthDeviceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Authorize Device'
+    }
+  },
 
   {
     path: '/forgot-password',
@@ -508,7 +518,7 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/pricing']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/pricing', '/device']
 
 router.beforeEach((to, _from, next) => {
   // 开始导航加载状态
