@@ -528,6 +528,7 @@ func TestOAuthDeviceAuthorizationFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, device.DeviceCode)
 	require.NotEmpty(t, device.UserCode)
+	require.Equal(t, deviceRepo.sessions[0].ExpiresAt.Unix(), device.ExpiresAt)
 	require.Equal(t, int(OAuthDeviceAuthorizationPoll.Seconds()), device.Interval)
 	require.Len(t, deviceRepo.sessions, 1)
 	require.Equal(t, OAuthDeviceStatusPending, deviceRepo.sessions[0].Status)
