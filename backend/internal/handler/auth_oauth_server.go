@@ -31,6 +31,10 @@ type oauthAuthorizeConfirmRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method"`
 }
 
+type oauthDeviceCodeRequest struct {
+	UserCode string `json:"user_code" binding:"required"`
+}
+
 func (h *AuthHandler) OAuthAuthorizePreview(c *gin.Context) {
 	if h.oauthAuthorizationService == nil {
 		response.Error(c, http.StatusServiceUnavailable, "OAuth authorization service unavailable")
@@ -136,6 +140,7 @@ func (h *AuthHandler) OAuthToken(c *gin.Context) {
 		ClientSecret: clientSecret,
 		CodeVerifier: c.PostForm("code_verifier"),
 		RefreshToken: c.PostForm("refresh_token"),
+		DeviceCode:   c.PostForm("device_code"),
 	})
 	if err != nil {
 		writeOAuthError(c, err)
@@ -164,6 +169,120 @@ func (h *AuthHandler) OAuthRevoke(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+func (h *AuthHandler) OAuthDeviceAuthorization(c *gin.Context) {
+	if h.oauthAuthorizationService == nil {
+		writeOAuthError(c, service.ErrOAuthInvalidRequest)
+		return
+	}
+	if err := c.Request.ParseForm(); err != nil {
+		writeOAuthError(c, service.ErrOAuthInvalidRequest)
+		return
+	}
+	clientID, clientSecret, ok := c.Request.BasicAuth()
+	if !ok {
+		clientID = strings.TrimSpace(c.PostForm("client_id"))
+		clientSecret = c.PostForm("client_secret")
+	}
+	out, err := h.oauthAuthorizationService.CreateDeviceAuthorization(c.Request.Context(), service.OAuthDeviceAuthorizationInput{
+		ClientID:        clientID,
+		ClientSecret:    clientSecret,
+		Scope:           c.PostForm("scope"),
+		DeviceName:      c.PostForm("device_name"),
+		CLIVersion:      c.PostForm("cli_version"),
+		Platform:        c.PostForm("platform"),
+		VerificationURI: h.deviceVerificationURI(c),
+	})
+	if err != nil {
+		writeOAuthError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (h *AuthHandler) OAuthDeviceCancel(c *gin.Context) {
+	if h.oauthAuthorizationService == nil {
+		writeOAuthError(c, service.ErrOAuthInvalidRequest)
+		return
+	}
+	if err := c.Request.ParseForm(); err != nil {
+		writeOAuthError(c, service.ErrOAuthInvalidRequest)
+		return
+	}
+	clientID := strings.TrimSpace(c.PostForm("client_id"))
+	clientSecret := c.PostForm("client_secret")
+	if basicClientID, basicClientSecret, ok := c.Request.BasicAuth(); ok {
+		clientID = strings.TrimSpace(basicClientID)
+		clientSecret = basicClientSecret
+	}
+	if err := h.oauthAuthorizationService.CancelDeviceAuthorization(c.Request.Context(), clientID, clientSecret, c.PostForm("device_code")); err != nil {
+		writeOAuthError(c, err)
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func (h *AuthHandler) OAuthDevicePreview(c *gin.Context) {
+	if h.oauthAuthorizationService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "OAuth authorization service unavailable")
+		return
+	}
+	var req oauthDeviceCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	out, err := h.oauthAuthorizationService.PreviewDeviceAuthorization(c.Request.Context(), req.UserCode)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *AuthHandler) OAuthDeviceConfirm(c *gin.Context) {
+	if h.oauthAuthorizationService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "OAuth authorization service unavailable")
+		return
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var req oauthDeviceCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.oauthAuthorizationService.ApproveDeviceAuthorization(c.Request.Context(), subject.UserID, req.UserCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"approved": true})
+}
+
+func (h *AuthHandler) OAuthDeviceDeny(c *gin.Context) {
+	if h.oauthAuthorizationService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "OAuth authorization service unavailable")
+		return
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var req oauthDeviceCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.oauthAuthorizationService.DenyDeviceAuthorization(c.Request.Context(), subject.UserID, req.UserCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"denied": true})
 }
 
 func (h *AuthHandler) OAuthAuthorize(c *gin.Context) {
@@ -226,6 +345,14 @@ func writeOAuthError(c *gin.Context, err error) {
 		code = "invalid_scope"
 	case errors.Is(err, service.ErrOAuthInvalidCode), errors.Is(err, service.ErrOAuthCodeExpired), errors.Is(err, service.ErrOAuthCodeUsed), errors.Is(err, service.ErrOAuthInvalidToken), errors.Is(err, service.ErrOAuthInvalidPKCE):
 		code = "invalid_grant"
+	case errors.Is(err, service.ErrOAuthAuthorizationPending):
+		code = "authorization_pending"
+	case errors.Is(err, service.ErrOAuthSlowDown):
+		code = "slow_down"
+	case errors.Is(err, service.ErrOAuthAccessDenied):
+		code = "access_denied"
+	case errors.Is(err, service.ErrOAuthExpiredToken):
+		code = "expired_token"
 	default:
 		code = "invalid_request"
 	}
@@ -233,4 +360,22 @@ func writeOAuthError(c *gin.Context, err error) {
 		"error":             code,
 		"error_description": err.Error(),
 	})
+}
+
+func (h *AuthHandler) deviceVerificationURI(c *gin.Context) string {
+	base := ""
+	if h != nil && h.settingSvc != nil {
+		base = strings.TrimSpace(h.settingSvc.GetFrontendURL(c.Request.Context()))
+	}
+	if base == "" && h != nil && h.cfg != nil {
+		base = strings.TrimSpace(h.cfg.Server.FrontendURL)
+	}
+	if base == "" {
+		scheme := "http"
+		if isRequestHTTPS(c) {
+			scheme = "https"
+		}
+		base = scheme + "://" + c.Request.Host
+	}
+	return strings.TrimRight(base, "/") + "/device"
 }

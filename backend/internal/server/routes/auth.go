@@ -95,6 +95,15 @@ func RegisterAuthRoutes(
 		authenticated.GET("/auth/oauth/authorize/preview", h.Auth.OAuthAuthorizePreview)
 		authenticated.POST("/auth/oauth/authorize/confirm", h.Auth.OAuthAuthorizeConfirm)
 		authenticated.POST("/auth/oauth/authorize/deny", h.Auth.OAuthAuthorizeDeny)
+		authenticated.POST("/auth/oauth/device/preview", rateLimiter.LimitWithOptions("oauth-device-preview", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthDevicePreview)
+		authenticated.POST("/auth/oauth/device/confirm", rateLimiter.LimitWithOptions("oauth-device-confirm", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthDeviceConfirm)
+		authenticated.POST("/auth/oauth/device/deny", rateLimiter.LimitWithOptions("oauth-device-deny", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthDeviceDeny)
 		// 撤销所有会话（需要认证）
 		authenticated.POST("/auth/revoke-all-sessions", h.Auth.RevokeAllSessions)
 	}
@@ -112,11 +121,17 @@ func RegisterOAuthProtocolRoutes(
 		oauth.GET("/authorize", rateLimiter.LimitWithOptions("oauth-authorize", 10, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.OAuthAuthorize)
+		oauth.POST("/device_authorization", rateLimiter.LimitWithOptions("oauth-device-authorization", 20, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthDeviceAuthorization)
 		oauth.POST("/token", rateLimiter.LimitWithOptions("oauth-token", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.OAuthToken)
 		oauth.POST("/revoke", rateLimiter.LimitWithOptions("oauth-revoke", 30, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.OAuthRevoke)
+		oauth.POST("/device_authorization/cancel", rateLimiter.LimitWithOptions("oauth-device-cancel", 30, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.OAuthDeviceCancel)
 	}
 }
