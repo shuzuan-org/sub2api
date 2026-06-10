@@ -71,6 +71,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsMinimaxGroup(t *testin
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
 			{ID: 1, Name: "minimax", IsExclusive: true, Status: StatusActive},
 			{ID: 3, Name: "OpenAI MiniMax", Platform: PlatformOpenAI, IsExclusive: false, Status: StatusActive},
+			{ID: 4, Name: "DeepSeek MiniMax", Platform: PlatformDeepSeek, IsExclusive: false, Status: StatusActive},
 			{ID: 2, Name: "default", IsExclusive: false, Status: StatusActive},
 			{ID: minimaxID, Name: "Claude MiniMax", IsExclusive: false, Status: StatusActive},
 		}},
@@ -107,6 +108,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxM
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
 			{ID: 1, Name: "openai-default", Platform: PlatformOpenAI, Status: StatusActive},
+			{ID: 3, Name: "deepseek-default", Platform: PlatformDeepSeek, Status: StatusActive},
 			{ID: fallbackID, Name: "default", Platform: PlatformAnthropic, Status: StatusActive},
 		}},
 		nil,
@@ -124,15 +126,17 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxM
 	require.True(t, strings.HasPrefix(repo.created[0].Key, "sk-"))
 }
 
-func TestAPIKeyService_GetAvailableGroups_HidesOpenAIRelatedGroups(t *testing.T) {
+func TestAPIKeyService_GetAvailableGroups_HidesOpenAIAndDeepSeekRelatedGroups(t *testing.T) {
 	svc := NewAPIKeyService(
 		nil,
-		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive, AllowedGroups: []int64{3, 4}}},
+		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive, AllowedGroups: []int64{3, 4, 5}}},
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
 			{ID: 1, Name: "default", Platform: PlatformAnthropic, Status: StatusActive},
 			{ID: 2, Name: "openai-public", Platform: PlatformAnthropic, Status: StatusActive},
 			{ID: 3, Name: "private", Platform: PlatformOpenAI, IsExclusive: true, Status: StatusActive},
 			{ID: 4, Name: "exclusive", Platform: PlatformAnthropic, IsExclusive: true, Status: StatusActive},
+			{ID: 5, Name: "deepseek-private", Platform: PlatformDeepSeek, IsExclusive: true, Status: StatusActive},
+			{ID: 6, Name: "DeepSeek Public", Platform: PlatformAnthropic, Status: StatusActive},
 		}},
 		nil,
 		nil,
