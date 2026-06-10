@@ -439,6 +439,9 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 			for key, value := range m {
 				newItem[key] = value
 			}
+			if name, ok := newItem["name"].(string); ok && strings.TrimSpace(name) == "" {
+				delete(newItem, "name")
+			}
 			if id, ok := newItem["id"].(string); ok && strings.HasPrefix(id, "call_") {
 				newItem["id"] = fixCallIDPrefix(id)
 			}
@@ -458,6 +461,14 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 				newItem[key] = value
 			}
 			copied = true
+		}
+
+		// Some Responses clients emit name:"" on continuation/input items.
+		// The upstream Codex endpoint rejects present-but-empty names while
+		// accepting the field as omitted for item types that do not need it.
+		if name, ok := m["name"].(string); ok && strings.TrimSpace(name) == "" {
+			ensureCopy()
+			delete(newItem, "name")
 		}
 
 		if isCodexToolCallItemType(typ) {
@@ -542,11 +553,16 @@ func normalizeCodexTools(reqBody map[string]any) bool {
 			continue
 		}
 
-		if _, ok := toolMap["name"]; !ok {
-			if name, ok := function["name"].(string); ok && strings.TrimSpace(name) != "" {
+		if name, ok := function["name"].(string); ok && strings.TrimSpace(name) != "" {
+			if topLevelName, ok := toolMap["name"].(string); !ok || strings.TrimSpace(topLevelName) == "" {
 				toolMap["name"] = name
 				modified = true
 			}
+		}
+		if name, ok := toolMap["name"].(string); !ok || strings.TrimSpace(name) == "" {
+			// Drop invalid function tools before they reach the upstream schema.
+			modified = true
+			continue
 		}
 		if _, ok := toolMap["description"]; !ok {
 			if desc, ok := function["description"].(string); ok && strings.TrimSpace(desc) != "" {

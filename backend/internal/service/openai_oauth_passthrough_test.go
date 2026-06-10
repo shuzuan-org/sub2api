@@ -1052,3 +1052,16 @@ func TestOpenAIGatewayService_OAuthPassthrough_AllowTimeoutHeadersWhenConfigured
 	require.Equal(t, "120000", upstream.lastReq.Header.Get("x-stainless-timeout"))
 	require.Empty(t, upstream.lastReq.Header.Get("X-Test"))
 }
+
+func TestNormalizeOpenAIPassthroughOAuthBody_RemovesEmptyInputNames(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.2","stream":false,"input":[{"type":"message","role":"user","content":"hi","name":""},{"type":"item_reference","id":"call_1","name":"   "},{"type":"message","role":"assistant","content":"ok","name":"assistant_name"}]}`)
+
+	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.False(t, gjson.GetBytes(normalized, "input.0.name").Exists())
+	require.False(t, gjson.GetBytes(normalized, "input.1.name").Exists())
+	require.Equal(t, "assistant_name", gjson.GetBytes(normalized, "input.2.name").String())
+	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
+	require.False(t, gjson.GetBytes(normalized, "store").Bool())
+}

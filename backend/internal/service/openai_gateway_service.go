@@ -4597,6 +4597,7 @@ func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, p
 
 // normalizeOpenAIPassthroughOAuthBody 将透传 OAuth 请求体收敛为旧链路关键行为：
 // 1) store=false 2) 非 compact 保持 stream=true；compact 强制 stream=false
+// 3) 移除 input 数组项中空字符串 name，避免上游 schema 拒绝 name:""。
 func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, bool, error) {
 	if len(body) == 0 {
 		return body, false, nil
@@ -4604,6 +4605,23 @@ func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 
 	normalized := body
 	changed := false
+
+	var inputItems []map[string]any
+	if err := json.Unmarshal([]byte(gjson.GetBytes(normalized, "input").Raw), &inputItems); err == nil {
+		for i := range inputItems {
+			if name, ok := inputItems[i]["name"].(string); ok && strings.TrimSpace(name) == "" {
+				delete(inputItems[i], "name")
+				changed = true
+			}
+		}
+		if changed {
+			next, err := sjson.SetBytes(normalized, "input", inputItems)
+			if err != nil {
+				return body, false, fmt.Errorf("normalize passthrough body input empty name: %w", err)
+			}
+			normalized = next
+		}
+	}
 
 	if compact {
 		if store := gjson.GetBytes(normalized, "store"); store.Exists() {
