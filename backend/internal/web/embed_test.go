@@ -5,6 +5,7 @@ package web
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +19,24 @@ import (
 
 func init() {
 	gin.SetMode(gin.TestMode)
+}
+
+func compressedAssetRequestPath(t *testing.T) string {
+	t.Helper()
+
+	var requestPath string
+	err := fs.WalkDir(frontendFS, "dist", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || requestPath != "" {
+			return err
+		}
+		if strings.HasPrefix(path, "dist/assets/") && strings.HasSuffix(path, ".gz") {
+			requestPath = "/" + strings.TrimSuffix(strings.TrimPrefix(path, "dist/"), ".gz")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, requestPath, "expected at least one pre-compressed asset in embedded frontend dist")
+	return requestPath
 }
 
 func TestInjectSiteTitle(t *testing.T) {
@@ -539,6 +558,30 @@ func TestFrontendServer_Middleware(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Header().Get("Content-Type"), "image/png")
+		assert.Equal(t, staticAssetCacheControl, w.Header().Get("Cache-Control"))
+	})
+
+	t.Run("serves_gzip_static_files", func(t *testing.T) {
+		provider := &mockSettingsProvider{
+			settings: map[string]string{"test": "value"},
+		}
+
+		server, err := NewFrontendServer(provider)
+		require.NoError(t, err)
+
+		router := gin.New()
+		router.Use(server.Middleware())
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, compressedAssetRequestPath(t), nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotEmpty(t, w.Header().Get("Content-Type"))
+		assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+		assert.Equal(t, "Accept-Encoding", w.Header().Get("Vary"))
+		assert.Equal(t, staticAssetCacheControl, w.Header().Get("Cache-Control"))
 	})
 }
 
@@ -593,6 +636,25 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Header().Get("Content-Type"), "image/png")
+		assert.Equal(t, staticAssetCacheControl, w.Header().Get("Cache-Control"))
+	})
+
+	t.Run("serves_gzip_static_files", func(t *testing.T) {
+		middleware := ServeEmbeddedFrontend()
+
+		router := gin.New()
+		router.Use(middleware)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, compressedAssetRequestPath(t), nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotEmpty(t, w.Header().Get("Content-Type"))
+		assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+		assert.Equal(t, "Accept-Encoding", w.Header().Get("Vary"))
+		assert.Equal(t, staticAssetCacheControl, w.Header().Get("Cache-Control"))
 	})
 
 	t.Run("serves_index_html_for_root", func(t *testing.T) {
