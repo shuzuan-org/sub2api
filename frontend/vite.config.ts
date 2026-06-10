@@ -1,6 +1,7 @@
-import { defineConfig, loadEnv, Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
+import { gzipSync } from 'zlib'
 import { resolve } from 'path'
 
 /**
@@ -26,9 +27,42 @@ function injectPublicSettings(backendUrl: string): Plugin {
             }
           }
         } catch (e) {
-          console.warn('[vite] 无法获取公开配置，将回退到 API 调用:', (e as Error).message)
+          console.warn(
+            '[vite] 无法获取公开配置，将回退到 API 调用:',
+            (e as Error).message
+          )
         }
         return html
+      }
+    }
+  }
+}
+
+/**
+ * Emit gzip sidecar files for compressible production assets.
+ * The embedded Go server can serve these directly when the outer proxy does not
+ * compress upstream responses.
+ */
+function gzipStaticAssets(): Plugin {
+  const compressible = /\.(?:js|mjs|css|html|svg|json|txt|xml)$/i
+
+  return {
+    name: 'gzip-static-assets',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      for (const [fileName, item] of Object.entries(bundle)) {
+        if (!compressible.test(fileName) || fileName.endsWith('.gz')) {
+          continue
+        }
+
+        const source = item.type === 'asset' ? item.source : item.code
+        const input = Buffer.from(source as string | Uint8Array)
+
+        this.emitFile({
+          type: 'asset',
+          fileName: `${fileName}.gz`,
+          source: gzipSync(input, { level: 9 })
+        })
       }
     }
   }
@@ -47,66 +81,67 @@ export default defineConfig(({ mode }) => {
         typescript: true,
         vueTsc: true
       }),
-      injectPublicSettings(backendUrl)
+      injectPublicSettings(backendUrl),
+      gzipStaticAssets()
     ],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-      // 使用 vue-i18n 运行时版本，避免 CSP unsafe-eval 问题
-      'vue-i18n': 'vue-i18n/dist/vue-i18n.runtime.esm-bundler.js'
-    }
-  },
-  define: {
-    // 启用 vue-i18n JIT 编译，在 CSP 环境下处理消息插值
-    // JIT 编译器生成 AST 对象而非 JS 代码，无需 unsafe-eval
-    __INTLIFY_JIT_COMPILATION__: true
-  },
-  build: {
-    outDir: '../backend/internal/web/dist',
-    emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        /**
-         * 手动分包配置
-         * 分离第三方库并按功能合并应用代码，避免循环依赖
-         */
-        manualChunks(id: string) {
-          if (id.includes('node_modules')) {
-            // Vue 核心库
-            if (
-              id.includes('/vue/') ||
-              id.includes('/vue-router/') ||
-              id.includes('/pinia/') ||
-              id.includes('/@vue/')
-            ) {
-              return 'vendor-vue'
+    resolve: {
+      alias: {
+        '@': resolve(__dirname, 'src'),
+        // 使用 vue-i18n 运行时版本，避免 CSP unsafe-eval 问题
+        'vue-i18n': 'vue-i18n/dist/vue-i18n.runtime.esm-bundler.js'
+      }
+    },
+    define: {
+      // 启用 vue-i18n JIT 编译，在 CSP 环境下处理消息插值
+      // JIT 编译器生成 AST 对象而非 JS 代码，无需 unsafe-eval
+      __INTLIFY_JIT_COMPILATION__: true
+    },
+    build: {
+      outDir: '../backend/internal/web/dist',
+      emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          /**
+           * 手动分包配置
+           * 分离第三方库并按功能合并应用代码，避免循环依赖
+           */
+          manualChunks(id: string) {
+            if (id.includes('node_modules')) {
+              // Vue 核心库
+              if (
+                id.includes('/vue/') ||
+                id.includes('/vue-router/') ||
+                id.includes('/pinia/') ||
+                id.includes('/@vue/')
+              ) {
+                return 'vendor-vue'
+              }
+
+              // UI 工具库（较大，单独分离）
+              if (id.includes('/@vueuse/') || id.includes('/xlsx/')) {
+                return 'vendor-ui'
+              }
+
+              // 图表库
+              if (id.includes('/chart.js/') || id.includes('/vue-chartjs/')) {
+                return 'vendor-chart'
+              }
+
+              // 国际化
+              if (id.includes('/vue-i18n/') || id.includes('/@intlify/')) {
+                return 'vendor-i18n'
+              }
+
+              // 其他小型第三方库合并
+              return 'vendor-misc'
             }
 
-            // UI 工具库（较大，单独分离）
-            if (id.includes('/@vueuse/') || id.includes('/xlsx/')) {
-              return 'vendor-ui'
-            }
-
-            // 图表库
-            if (id.includes('/chart.js/') || id.includes('/vue-chartjs/')) {
-              return 'vendor-chart'
-            }
-
-            // 国际化
-            if (id.includes('/vue-i18n/') || id.includes('/@intlify/')) {
-              return 'vendor-i18n'
-            }
-
-            // 其他小型第三方库合并
-            return 'vendor-misc'
+            // 应用代码：按入口点自动分包，不手动干预
+            // 这样可以避免循环依赖，同时保持合理的 chunk 数量
           }
-
-          // 应用代码：按入口点自动分包，不手动干预
-          // 这样可以避免循环依赖，同时保持合理的 chunk 数量
         }
       }
-    }
-  },
+    },
     server: {
       host: '0.0.0.0',
       port: devPort,

@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,7 +21,8 @@ import (
 
 const (
 	// NonceHTMLPlaceholder is the placeholder for nonce in HTML script tags
-	NonceHTMLPlaceholder = "__CSP_NONCE_VALUE__"
+	NonceHTMLPlaceholder    = "__CSP_NONCE_VALUE__"
+	staticAssetCacheControl = "public, max-age=31536000, immutable"
 )
 
 //go:embed all:dist
@@ -99,10 +102,12 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 			return
 		}
 
-		// Serve static files normally
-		s.fileServer.ServeHTTP(c.Writer, c.Request)
-		c.Abort()
+		s.serveStaticFile(c, cleanPath)
 	}
+}
+
+func (s *FrontendServer) serveStaticFile(c *gin.Context, cleanPath string) {
+	serveStaticFile(c, s.distFS, s.fileServer, cleanPath)
 }
 
 func (s *FrontendServer) fileExists(path string) bool {
@@ -242,8 +247,7 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 
 		if file, err := distFS.Open(cleanPath); err == nil {
 			_ = file.Close()
-			fileServer.ServeHTTP(c.Writer, c.Request)
-			c.Abort()
+			serveStaticFile(c, distFS, fileServer, cleanPath)
 			return
 		}
 
@@ -266,6 +270,76 @@ func shouldBypassEmbeddedFrontend(path string) bool {
 		trimmed == "/health" ||
 		trimmed == "/responses" ||
 		strings.HasPrefix(trimmed, "/responses/")
+}
+
+func serveStaticFile(c *gin.Context, fsys fs.FS, fileServer http.Handler, cleanPath string) {
+	if isImmutableStaticAsset(cleanPath) {
+		c.Header("Cache-Control", staticAssetCacheControl)
+	}
+
+	// Serve pre-compressed assets directly when available. This avoids relying on
+	// the outer reverse proxy for large Vite bundles embedded in the binary.
+	if acceptsEncoding(c.GetHeader("Accept-Encoding"), "gzip") && canServeGzipAsset(cleanPath) {
+		gzipPath := cleanPath + ".gz"
+		if file, err := fsys.Open(gzipPath); err == nil {
+			defer func() { _ = file.Close() }()
+			info, statErr := file.Stat()
+			if statErr == nil && !info.IsDir() {
+				content, readErr := io.ReadAll(file)
+				if readErr != nil {
+					c.String(http.StatusInternalServerError, "Failed to read static asset")
+					c.Abort()
+					return
+				}
+				setStaticContentType(c, cleanPath)
+				c.Header("Content-Encoding", "gzip")
+				c.Header("Vary", "Accept-Encoding")
+				http.ServeContent(c.Writer, c.Request, cleanPath, info.ModTime(), bytes.NewReader(content))
+				c.Abort()
+				return
+			}
+		}
+	}
+
+	fileServer.ServeHTTP(c.Writer, c.Request)
+	c.Abort()
+}
+
+func isImmutableStaticAsset(path string) bool {
+	return strings.HasPrefix(path, "assets/") || strings.HasPrefix(path, "fonts/") ||
+		path == "logo.svg" || path == "logo.png" || path == "favicon.ico"
+}
+
+func canServeGzipAsset(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".js", ".mjs", ".css", ".html", ".svg", ".json", ".txt", ".xml":
+		return true
+	default:
+		return false
+	}
+}
+
+func acceptsEncoding(header, encoding string) bool {
+	encoding = strings.ToLower(strings.TrimSpace(encoding))
+	if encoding == "" {
+		return false
+	}
+	for _, part := range strings.Split(header, ",") {
+		part = strings.ToLower(strings.TrimSpace(part))
+		if part == encoding || strings.HasPrefix(part, encoding+";") {
+			return true
+		}
+	}
+	return false
+}
+
+func setStaticContentType(c *gin.Context, path string) {
+	if c.Writer.Header().Get("Content-Type") != "" {
+		return
+	}
+	if ct := mime.TypeByExtension(filepath.Ext(path)); ct != "" {
+		c.Header("Content-Type", ct)
+	}
 }
 
 func serveIndexHTML(c *gin.Context, fsys fs.FS) {
