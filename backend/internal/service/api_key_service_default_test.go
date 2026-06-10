@@ -70,6 +70,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsMinimaxGroup(t *testin
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
 			{ID: 1, Name: "minimax", IsExclusive: true, Status: StatusActive},
+			{ID: 3, Name: "OpenAI MiniMax", Platform: PlatformOpenAI, IsExclusive: false, Status: StatusActive},
 			{ID: 2, Name: "default", IsExclusive: false, Status: StatusActive},
 			{ID: minimaxID, Name: "Claude MiniMax", IsExclusive: false, Status: StatusActive},
 		}},
@@ -100,11 +101,14 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_SkipsWhenUserAlreadyHasKeys
 
 func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxMissing(t *testing.T) {
 	repo := &defaultAPIKeyRepoStub{}
-	fallbackID := int64(1)
+	fallbackID := int64(2)
 	svc := NewAPIKeyService(
 		repo,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
-		&defaultAPIKeyGroupRepoStub{groups: []Group{{ID: fallbackID, Name: "default", Status: StatusActive}}},
+		&defaultAPIKeyGroupRepoStub{groups: []Group{
+			{ID: 1, Name: "openai-default", Platform: PlatformOpenAI, Status: StatusActive},
+			{ID: fallbackID, Name: "default", Platform: PlatformAnthropic, Status: StatusActive},
+		}},
 		nil,
 		nil,
 		nil,
@@ -118,4 +122,27 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxM
 	require.NotNil(t, repo.created[0].GroupID)
 	require.Equal(t, fallbackID, *repo.created[0].GroupID)
 	require.True(t, strings.HasPrefix(repo.created[0].Key, "sk-"))
+}
+
+func TestAPIKeyService_GetAvailableGroups_HidesOpenAIRelatedGroups(t *testing.T) {
+	svc := NewAPIKeyService(
+		nil,
+		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive, AllowedGroups: []int64{3, 4}}},
+		&defaultAPIKeyGroupRepoStub{groups: []Group{
+			{ID: 1, Name: "default", Platform: PlatformAnthropic, Status: StatusActive},
+			{ID: 2, Name: "openai-public", Platform: PlatformAnthropic, Status: StatusActive},
+			{ID: 3, Name: "private", Platform: PlatformOpenAI, IsExclusive: true, Status: StatusActive},
+			{ID: 4, Name: "exclusive", Platform: PlatformAnthropic, IsExclusive: true, Status: StatusActive},
+		}},
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	groups, err := svc.GetAvailableGroups(context.Background(), 9)
+	require.NoError(t, err)
+	require.Len(t, groups, 2)
+	require.Equal(t, int64(1), groups[0].ID)
+	require.Equal(t, int64(4), groups[1].ID)
 }
