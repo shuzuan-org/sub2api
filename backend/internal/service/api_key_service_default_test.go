@@ -126,7 +126,7 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxM
 	require.True(t, strings.HasPrefix(repo.created[0].Key, "sk-"))
 }
 
-func TestAPIKeyService_GetAvailableGroups_HidesOpenAIAndDeepSeekRelatedGroups(t *testing.T) {
+func TestAPIKeyService_GetAvailableGroups_ReturnsOpenAIAndDeepSeekRelatedGroups(t *testing.T) {
 	svc := NewAPIKeyService(
 		nil,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive, AllowedGroups: []int64{3, 4, 5}}},
@@ -137,6 +137,7 @@ func TestAPIKeyService_GetAvailableGroups_HidesOpenAIAndDeepSeekRelatedGroups(t 
 			{ID: 4, Name: "exclusive", Platform: PlatformAnthropic, IsExclusive: true, Status: StatusActive},
 			{ID: 5, Name: "deepseek-private", Platform: PlatformDeepSeek, IsExclusive: true, Status: StatusActive},
 			{ID: 6, Name: "DeepSeek Public", Platform: PlatformAnthropic, Status: StatusActive},
+			{ID: 7, Name: "openai-exclusive-denied", Platform: PlatformOpenAI, IsExclusive: true, Status: StatusActive},
 		}},
 		nil,
 		nil,
@@ -146,7 +147,13 @@ func TestAPIKeyService_GetAvailableGroups_HidesOpenAIAndDeepSeekRelatedGroups(t 
 
 	groups, err := svc.GetAvailableGroups(context.Background(), 9)
 	require.NoError(t, err)
-	require.Len(t, groups, 2)
-	require.Equal(t, int64(1), groups[0].ID)
-	require.Equal(t, int64(4), groups[1].ID)
+	require.Equal(t, []int64{1, 2, 3, 4, 5, 6}, groupIDs(groups))
+}
+
+func groupIDs(groups []Group) []int64 {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	return ids
 }
