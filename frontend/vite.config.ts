@@ -1,8 +1,9 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import checker from 'vite-plugin-checker'
+import { readFileSync, writeFileSync } from 'fs'
+import { dirname, join, resolve } from 'path'
 import { gzipSync } from 'zlib'
-import { resolve } from 'path'
 
 /**
  * Vite 插件：开发模式下注入公开配置到 index.html
@@ -49,20 +50,19 @@ function gzipStaticAssets(): Plugin {
   return {
     name: 'gzip-static-assets',
     apply: 'build',
-    generateBundle(_, bundle) {
+    writeBundle(outputOptions, bundle) {
+      const outputDir = outputOptions.dir ?? dirname(outputOptions.file ?? '')
+      if (!outputDir) {
+        return
+      }
+
       for (const [fileName, item] of Object.entries(bundle)) {
         if (!compressible.test(fileName) || fileName.endsWith('.gz')) {
           continue
         }
 
-        const source = item.type === 'asset' ? item.source : item.code
-        const input = Buffer.from(source as string | Uint8Array)
-
-        this.emitFile({
-          type: 'asset',
-          fileName: `${fileName}.gz`,
-          source: gzipSync(input, { level: 9 })
-        })
+        const sourcePath = join(outputDir, fileName)
+        writeFileSync(`${sourcePath}.gz`, gzipSync(readFileSync(sourcePath), { level: 9 }))
       }
     }
   }
