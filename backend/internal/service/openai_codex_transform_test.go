@@ -188,6 +188,27 @@ func TestFilterCodexInput_RemovesItemReferenceWhenNotPreserved(t *testing.T) {
 	require.False(t, hasID)
 }
 
+func TestFilterCodexInput_RemovesEmptyNameFields(t *testing.T) {
+	input := []any{
+		map[string]any{"type": "message", "role": "user", "content": "hi", "name": ""},
+		map[string]any{"type": "item_reference", "id": "call_1", "name": "   "},
+	}
+
+	filtered := filterCodexInput(input, true)
+	require.Len(t, filtered, 2)
+
+	first, ok := filtered[0].(map[string]any)
+	require.True(t, ok)
+	_, hasName := first["name"]
+	require.False(t, hasName)
+
+	second, ok := filtered[1].(map[string]any)
+	require.True(t, ok)
+	_, hasName = second["name"]
+	require.False(t, hasName)
+	require.Equal(t, "fc1", second["id"])
+}
+
 func TestApplyCodexOAuthTransform_NormalizeCodexTools_PreservesResponsesFunctionTools(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "gpt-5.1",
@@ -215,6 +236,41 @@ func TestApplyCodexOAuthTransform_NormalizeCodexTools_PreservesResponsesFunction
 	require.True(t, ok)
 	require.Equal(t, "function", first["type"])
 	require.Equal(t, "bash", first["name"])
+}
+
+func TestApplyCodexOAuthTransform_NormalizeCodexTools_FillsOrDropsEmptyNames(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.1",
+		"tools": []any{
+			map[string]any{
+				"type": "function",
+				"name": "",
+				"function": map[string]any{
+					"name":        "bash",
+					"description": "run a command",
+				},
+			},
+			map[string]any{
+				"type": "function",
+				"name": "   ",
+				"function": map[string]any{
+					"name": "",
+				},
+			},
+		},
+	}
+
+	applyCodexOAuthTransform(reqBody, false, false)
+
+	tools, ok := reqBody["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+
+	first, ok := tools[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "function", first["type"])
+	require.Equal(t, "bash", first["name"])
+	require.Equal(t, "run a command", first["description"])
 }
 
 func TestApplyCodexOAuthTransform_EmptyInput(t *testing.T) {
