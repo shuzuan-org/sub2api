@@ -181,6 +181,32 @@ func TestResponsesToAnthropic_TextOnly(t *testing.T) {
 	assert.Equal(t, 5, anth.Usage.OutputTokens)
 }
 
+func TestResponsesToAnthropicRequest_FunctionCallOutputArray(t *testing.T) {
+	req := &ResponsesRequest{
+		Model: "claude-opus-4-8",
+		Input: json.RawMessage(`[
+			{"type":"function_call","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"README.md\"}"},
+			{"type":"function_call_output","call_id":"call_1","output":[
+				{"type":"output_text","text":"first chunk"},
+				{"type":"output_text","text":"second chunk"}
+			]}
+		]`),
+	}
+
+	anth, err := ResponsesToAnthropicRequest(req)
+	require.NoError(t, err)
+	require.Len(t, anth.Messages, 2)
+
+	var blocks []AnthropicContentBlock
+	require.NoError(t, json.Unmarshal(anth.Messages[1].Content, &blocks))
+	require.Len(t, blocks, 1)
+	assert.Equal(t, "tool_result", blocks[0].Type)
+
+	var output string
+	require.NoError(t, json.Unmarshal(blocks[0].Content, &output))
+	assert.Equal(t, "first chunk\n\nsecond chunk", output)
+}
+
 func TestResponsesToAnthropic_ToolUse(t *testing.T) {
 	resp := &ResponsesResponse{
 		ID:     "resp_456",

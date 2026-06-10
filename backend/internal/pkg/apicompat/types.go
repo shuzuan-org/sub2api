@@ -188,7 +188,27 @@ type ResponsesInputItem struct {
 	ID        string `json:"id,omitempty"`
 
 	// type=function_call_output
-	Output string `json:"output,omitempty"`
+	Output string `json:"output,omitempty"` // string or []ResponsesContentPart on input
+}
+
+// UnmarshalJSON accepts the Responses API's polymorphic
+// function_call_output.output field. Most clients send a string, but some send
+// an array of output_text content parts; normalize both to plain text for the
+// Anthropic tool_result converter.
+func (i *ResponsesInputItem) UnmarshalJSON(data []byte) error {
+	type alias ResponsesInputItem
+	var aux struct {
+		alias
+		Output json.RawMessage `json:"output"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*i = ResponsesInputItem(aux.alias)
+	if len(aux.Output) > 0 && string(aux.Output) != "null" {
+		i.Output = extractTextFromContent(aux.Output)
+	}
+	return nil
 }
 
 // ResponsesContentPart is a typed content part in a Responses message.
