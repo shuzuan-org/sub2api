@@ -324,8 +324,8 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 }
 
 // CreateDefaultAPIKeyForNewUser creates the initial API key for a newly registered user.
-// It binds the key to a public active group containing "minimax", falling back to
-// the first public active group when no minimax group exists.
+// It binds the key to a public active non-OpenAI group containing "minimax", falling back to
+// the first public active non-OpenAI group when no minimax group exists.
 func (s *APIKeyService) CreateDefaultAPIKeyForNewUser(ctx context.Context, userID int64) error {
 	if userID <= 0 {
 		return nil
@@ -366,7 +366,7 @@ func (s *APIKeyService) findDefaultMinimaxGroupID(ctx context.Context) (*int64, 
 	var fallback *int64
 	for i := range groups {
 		group := groups[i]
-		if group.IsExclusive {
+		if group.IsExclusive || isOpenAIRelatedGroup(group) {
 			continue
 		}
 		if fallback == nil {
@@ -377,6 +377,15 @@ func (s *APIKeyService) findDefaultMinimaxGroupID(ctx context.Context) (*int64, 
 		}
 	}
 	return fallback, nil
+}
+
+func isOpenAIRelatedGroup(group Group) bool {
+	platform := strings.ToLower(strings.TrimSpace(group.Platform))
+	if platform == PlatformOpenAI {
+		return true
+	}
+	name := strings.ToLower(strings.TrimSpace(group.Name))
+	return strings.Contains(name, "openai")
 }
 
 // Create 创建API Key
@@ -804,9 +813,12 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
 
-	// 过滤出用户有权限的分组
+	// 过滤出用户有权限的分组；用户端不展示 OpenAI 相关分组。
 	availableGroups := make([]Group, 0)
 	for _, group := range allGroups {
+		if isOpenAIRelatedGroup(group) {
+			continue
+		}
 		if user.CanBindGroup(group.ID, group.IsExclusive) {
 			availableGroups = append(availableGroups, group)
 		}
