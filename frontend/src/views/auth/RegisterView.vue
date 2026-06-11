@@ -321,16 +321,18 @@ onMounted(async () => {
     )
 
     // Read invite code from URL:
-    // - 12-char hex codes → channel activity, set channelCode for claim after registration
-    // - shorter codes → friend invite, validate as invitation code if enabled
+    // - 12-char hex → channel activity code (usage limits from activity settings)
+    // - 6-char friend code → referral attribution only, no validation (unlimited)
+    // - anything else → invitation/redeem code, validate if enabled
     const inviteParam = route.query.invite as string
     if (inviteParam) {
       const inviteCode = inviteParam.trim()
       formData.referral_code = inviteCode
       const isChannelCode = /^[0-9A-Fa-f]{12}$/.test(inviteCode)
+      const isFriendCode = /^[A-HJ-NP-Z2-9]{6}$/i.test(inviteCode)
       if (isChannelCode) {
         channelCode.value = inviteCode
-      } else if (invitationCodeEnabled.value) {
+      } else if (!isFriendCode && invitationCodeEnabled.value) {
         formData.invitation_code = inviteCode
         await validateInvitationCodeDebounced(inviteCode)
       }
