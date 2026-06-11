@@ -90,6 +90,11 @@ func Notes(v string) predicate.ChannelInviteBatch {
 	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldNotes, v))
 }
 
+// ActivityCopyText applies equality check predicate on the "activity_copy_text" field. It's identical to ActivityCopyTextEQ.
+func ActivityCopyText(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldActivityCopyText, v))
+}
+
 // CreatedBy applies equality check predicate on the "created_by" field. It's identical to CreatedByEQ.
 func CreatedBy(v int64) predicate.ChannelInviteBatch {
 	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldCreatedBy, v))
@@ -488,6 +493,81 @@ func NotesEqualFold(v string) predicate.ChannelInviteBatch {
 // NotesContainsFold applies the ContainsFold predicate on the "notes" field.
 func NotesContainsFold(v string) predicate.ChannelInviteBatch {
 	return predicate.ChannelInviteBatch(sql.FieldContainsFold(FieldNotes, v))
+}
+
+// ActivityCopyTextEQ applies the EQ predicate on the "activity_copy_text" field.
+func ActivityCopyTextEQ(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextNEQ applies the NEQ predicate on the "activity_copy_text" field.
+func ActivityCopyTextNEQ(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldNEQ(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextIn applies the In predicate on the "activity_copy_text" field.
+func ActivityCopyTextIn(vs ...string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldIn(FieldActivityCopyText, vs...))
+}
+
+// ActivityCopyTextNotIn applies the NotIn predicate on the "activity_copy_text" field.
+func ActivityCopyTextNotIn(vs ...string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldNotIn(FieldActivityCopyText, vs...))
+}
+
+// ActivityCopyTextGT applies the GT predicate on the "activity_copy_text" field.
+func ActivityCopyTextGT(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldGT(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextGTE applies the GTE predicate on the "activity_copy_text" field.
+func ActivityCopyTextGTE(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldGTE(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextLT applies the LT predicate on the "activity_copy_text" field.
+func ActivityCopyTextLT(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldLT(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextLTE applies the LTE predicate on the "activity_copy_text" field.
+func ActivityCopyTextLTE(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldLTE(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextContains applies the Contains predicate on the "activity_copy_text" field.
+func ActivityCopyTextContains(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldContains(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextHasPrefix applies the HasPrefix predicate on the "activity_copy_text" field.
+func ActivityCopyTextHasPrefix(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldHasPrefix(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextHasSuffix applies the HasSuffix predicate on the "activity_copy_text" field.
+func ActivityCopyTextHasSuffix(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldHasSuffix(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextIsNil applies the IsNil predicate on the "activity_copy_text" field.
+func ActivityCopyTextIsNil() predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldIsNull(FieldActivityCopyText))
+}
+
+// ActivityCopyTextNotNil applies the NotNil predicate on the "activity_copy_text" field.
+func ActivityCopyTextNotNil() predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldNotNull(FieldActivityCopyText))
+}
+
+// ActivityCopyTextEqualFold applies the EqualFold predicate on the "activity_copy_text" field.
+func ActivityCopyTextEqualFold(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldEqualFold(FieldActivityCopyText, v))
+}
+
+// ActivityCopyTextContainsFold applies the ContainsFold predicate on the "activity_copy_text" field.
+func ActivityCopyTextContainsFold(v string) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldContainsFold(FieldActivityCopyText, v))
 }
 
 // CreatedByEQ applies the EQ predicate on the "created_by" field.

@@ -177,6 +177,7 @@ import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, sendVerifyCode } from '@/api/auth'
+import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
   isRegistrationEmailSuffixAllowed,
@@ -208,6 +209,7 @@ const initialTurnstileToken = ref<string>('')
 const promoCode = ref<string>('')
 const invitationCode = ref<string>('')
 const referralCode = ref<string>('')
+const channelCode = ref<string>('')
 const redirectPath = ref<string>('')
 const hasRegisterData = ref<boolean>(false)
 
@@ -241,6 +243,7 @@ onMounted(async () => {
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
       referralCode.value = registerData.referral_code || ''
+      channelCode.value = registerData.channel_code || ''
       redirectPath.value = registerData.redirect || ''
       hasRegisterData.value = !!(email.value && password.value)
     } catch {
@@ -415,6 +418,15 @@ async function handleVerify(): Promise<void> {
 
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
+
+    // Claim channel activity code if provided in URL
+    if (channelCode.value) {
+      try {
+        await apiClient.post('/channel-invite/claim', { code: channelCode.value })
+      } catch {
+        // Channel claim fails silently - user still registered successfully
+      }
+    }
 
     // Redirect to intended destination, or default to dashboard
     await router.push(redirectPath.value || '/dashboard')

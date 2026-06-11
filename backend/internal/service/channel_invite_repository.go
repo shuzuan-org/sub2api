@@ -36,4 +36,8 @@ type ChannelInviteRepository interface {
 
 	// 批量计数
 	GetBatchCodeStats(ctx context.Context, batchID int64) (codeCount, usedCount int, err error)
+
+	// 用户判定
+	HasPriorBonusGrantedByUser(ctx context.Context, userID int64) (bool, error)
+	HasPendingBonusByUser(ctx context.Context, userID int64) (bool, error)
 }

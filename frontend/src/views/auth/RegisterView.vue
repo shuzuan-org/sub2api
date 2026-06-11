@@ -243,6 +243,7 @@ import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, validateInvitationCode } from '@/api/auth'
+import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
   isRegistrationEmailSuffixAllowed,
@@ -281,6 +282,7 @@ const turnstileToken = ref<string>('')
 
 // Invitation code validation
 const invitationValidating = ref<boolean>(false)
+const channelCode = ref<string>('')
 const invitationValidation = reactive({
   valid: false,
   invalid: false,
@@ -328,6 +330,12 @@ onMounted(async () => {
         formData.invitation_code = inviteCode
         await validateInvitationCodeDebounced(inviteCode)
       }
+    }
+
+    // Read channel activity code from URL for auto-claim after registration
+    const channelParam = route.query.channel as string
+    if (channelParam) {
+      channelCode.value = channelParam.trim()
     }
   } catch (error) {
     console.error('Failed to load public settings:', error)
@@ -535,6 +543,7 @@ async function handleRegister(): Promise<void> {
           turnstile_token: turnstileToken.value,
           invitation_code: formData.invitation_code || undefined,
           referral_code: formData.referral_code || undefined,
+          channel_code: channelCode.value || undefined,
           redirect: (route.query.redirect as string) || undefined
         })
       )
@@ -555,6 +564,16 @@ async function handleRegister(): Promise<void> {
 
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
+
+    // Claim channel activity code if provided in URL
+    if (channelCode.value) {
+      try {
+        await apiClient.post('/channel-invite/claim', { code: channelCode.value })
+      } catch {
+        // Channel claim fails silently - user still registered successfully.
+        // The activity may have ended; registration+100U still apply.
+      }
+    }
 
     // Redirect to intended destination, or default to dashboard
     const redirectTo = (route.query.redirect as string) || '/dashboard'

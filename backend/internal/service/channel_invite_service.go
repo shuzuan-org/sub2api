@@ -15,13 +15,14 @@ import (
 )
 
 var (
-	ErrChannelInviteBatchNotFound = infraerrors.NotFound("CHANNEL_INVITE_BATCH_NOT_FOUND", "channel invite batch not found")
-	ErrChannelInviteCodeNotFound  = infraerrors.NotFound("CHANNEL_INVITE_CODE_NOT_FOUND", "channel invite code not found")
-	ErrChannelInviteCodeExpired   = infraerrors.BadRequest("CHANNEL_INVITE_CODE_EXPIRED", "channel invite code has expired")
-	ErrChannelInviteCodeDisabled  = infraerrors.BadRequest("CHANNEL_INVITE_CODE_DISABLED", "channel invite code is disabled")
-	ErrChannelInviteCodeMaxUsed   = infraerrors.BadRequest("CHANNEL_INVITE_CODE_MAX_USED", "channel invite code has reached maximum uses")
-	ErrChannelInviteCodeAlreadyUsed = infraerrors.Conflict("CHANNEL_INVITE_CODE_ALREADY_USED", "you have already claimed this invite code")
+	ErrChannelInviteBatchNotFound     = infraerrors.NotFound("CHANNEL_INVITE_BATCH_NOT_FOUND", "channel invite batch not found")
+	ErrChannelInviteCodeNotFound      = infraerrors.NotFound("CHANNEL_INVITE_CODE_NOT_FOUND", "channel invite code not found")
+	ErrChannelInviteCodeExpired       = infraerrors.BadRequest("CHANNEL_INVITE_CODE_EXPIRED", "channel invite code has expired")
+	ErrChannelInviteCodeDisabled      = infraerrors.BadRequest("CHANNEL_INVITE_CODE_DISABLED", "channel invite code is disabled")
+	ErrChannelInviteCodeMaxUsed       = infraerrors.BadRequest("CHANNEL_INVITE_CODE_MAX_USED", "channel invite code has reached maximum uses")
+	ErrChannelInviteCodeAlreadyUsed   = infraerrors.Conflict("CHANNEL_INVITE_CODE_ALREADY_USED", "you have already claimed this invite code")
 	ErrChannelInviteCodeBatchInactive = infraerrors.BadRequest("CHANNEL_INVITE_BATCH_INACTIVE", "channel invite batch is not active")
+	ErrChannelInviteAlreadyGranted    = infraerrors.Conflict("CHANNEL_INVITE_ALREADY_GRANTED", "您已参加过渠道活动，每位用户只能参加一次")
 )
 
 // ChannelInviteService 渠道邀请码服务
@@ -199,6 +200,15 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 		return err
 	}
 
+	// 检查用户是否已获得过任何渠道活动奖励（一用户只能参加一次）
+	hasPrior, err := s.repo.HasPriorBonusGrantedByUser(txCtx, userID)
+	if err != nil {
+		return fmt.Errorf("check prior bonus: %w", err)
+	}
+	if hasPrior {
+		return ErrChannelInviteAlreadyGranted
+	}
+
 	// 检查用户是否已使用过此码
 	existing, err := s.repo.GetUsageByCodeAndUser(txCtx, code.ID, userID)
 	if err != nil {
@@ -265,6 +275,11 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 	}
 
 	return nil
+}
+
+// HasPendingBonuses 检查用户是否有待发放的渠道邀请奖励
+func (s *ChannelInviteService) HasPendingBonuses(ctx context.Context, userID int64) (bool, error) {
+	return s.repo.HasPendingBonusByUser(ctx, userID)
 }
 
 // GrantPendingBonuses 发放用户所有待发放的渠道邀请奖励（手机绑定后调用）

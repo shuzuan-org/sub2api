@@ -61,6 +61,11 @@ func (ChannelInviteBatch) Fields() []ent.Field {
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "text"}).
 			Comment("备注"),
+		field.String("activity_copy_text").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "text"}).
+			Comment("活动页文案，如绑定即送500U"),
 		field.Int64("created_by").
 			Comment("创建者（渠道合作方）用户ID"),
 		field.Time("created_at").

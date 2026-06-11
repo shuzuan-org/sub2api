@@ -384,11 +384,11 @@ func init() {
 	// channelinvitebatch.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	channelinvitebatch.StatusValidator = channelinvitebatchDescStatus.Validators[0].(func(string) error)
 	// channelinvitebatchDescCreatedAt is the schema descriptor for created_at field.
-	channelinvitebatchDescCreatedAt := channelinvitebatchFields[8].Descriptor()
+	channelinvitebatchDescCreatedAt := channelinvitebatchFields[9].Descriptor()
 	// channelinvitebatch.DefaultCreatedAt holds the default value on creation for the created_at field.
 	channelinvitebatch.DefaultCreatedAt = channelinvitebatchDescCreatedAt.Default.(func() time.Time)
 	// channelinvitebatchDescUpdatedAt is the schema descriptor for updated_at field.
-	channelinvitebatchDescUpdatedAt := channelinvitebatchFields[9].Descriptor()
+	channelinvitebatchDescUpdatedAt := channelinvitebatchFields[10].Descriptor()
 	// channelinvitebatch.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	channelinvitebatch.DefaultUpdatedAt = channelinvitebatchDescUpdatedAt.Default.(func() time.Time)
 	// channelinvitebatch.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
