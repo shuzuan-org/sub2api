@@ -320,22 +320,20 @@ onMounted(async () => {
       settings.registration_email_suffix_whitelist || []
     )
 
-    // Read invite code from URL. If the invitation field is shown, prefill it and
-    // validate it; otherwise keep referral_code for attribution only.
+    // Read invite code from URL:
+    // - 12-char hex codes → channel activity, set channelCode for claim after registration
+    // - shorter codes → friend invite, validate as invitation code if enabled
     const inviteParam = route.query.invite as string
     if (inviteParam) {
       const inviteCode = inviteParam.trim()
       formData.referral_code = inviteCode
-      if (invitationCodeEnabled.value) {
+      const isChannelCode = /^[0-9A-Fa-f]{12}$/.test(inviteCode)
+      if (isChannelCode) {
+        channelCode.value = inviteCode
+      } else if (invitationCodeEnabled.value) {
         formData.invitation_code = inviteCode
         await validateInvitationCodeDebounced(inviteCode)
       }
-    }
-
-    // Read channel activity code from URL for auto-claim after registration
-    const channelParam = route.query.channel as string
-    if (channelParam) {
-      channelCode.value = channelParam.trim()
     }
   } catch (error) {
     console.error('Failed to load public settings:', error)
@@ -543,7 +541,6 @@ async function handleRegister(): Promise<void> {
           turnstile_token: turnstileToken.value,
           invitation_code: formData.invitation_code || undefined,
           referral_code: formData.referral_code || undefined,
-          channel_code: channelCode.value || undefined,
           redirect: (route.query.redirect as string) || undefined
         })
       )
