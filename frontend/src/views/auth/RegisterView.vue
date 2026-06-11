@@ -95,59 +95,7 @@
           </p>
         </div>
 
-        <!-- Invitation Code Input (Optional when enabled) -->
-        <div v-if="invitationCodeEnabled">
-          <label for="invitation_code" class="input-label">
-            {{ t('auth.invitationCodeLabel') }}
-            <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="key" size="md" :class="invitationValidation.valid ? 'text-green-500' : 'text-gray-400 dark:text-dark-500'" />
-            </div>
-            <input
-              id="invitation_code"
-              v-model="formData.invitation_code"
-              type="text"
-              :disabled="isLoading"
-              class="input pl-11 pr-10"
-              :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500': invitationValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': invitationValidation.invalid || errors.invitation_code
-              }"
-              :placeholder="t('auth.invitationCodePlaceholder')"
-              @input="handleInvitationCodeInput"
-            />
-            <!-- Validation indicator -->
-            <div v-if="invitationValidating" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-            <div v-else-if="invitationValidation.valid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="checkCircle" size="md" class="text-green-500" />
-            </div>
-            <div v-else-if="invitationValidation.invalid || errors.invitation_code" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="exclamationCircle" size="md" class="text-red-500" />
-            </div>
-          </div>
-          <!-- Invitation code validation result -->
-          <transition name="fade">
-            <div v-if="invitationValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
-              <Icon name="checkCircle" size="sm" class="text-green-600 dark:text-green-400" />
-              <span class="text-sm text-green-700 dark:text-green-400">
-                {{ t('auth.invitationCodeValid') }}
-              </span>
-            </div>
-            <p v-else-if="invitationValidation.invalid" class="input-error-text">
-              {{ invitationValidation.message }}
-            </p>
-            <p v-else-if="errors.invitation_code" class="input-error-text">
-              {{ errors.invitation_code }}
-            </p>
-          </transition>
-        </div>
+        <!-- Invitation Code Input removed intentionally -->
 
         <!-- Turnstile Widget -->
         <div v-if="turnstileEnabled && turnstileSiteKey">
@@ -234,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
@@ -242,7 +190,7 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
-import { getPublicSettings, validateInvitationCode } from '@/api/auth'
+import { getPublicSettings } from '@/api/auth'
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
@@ -269,7 +217,6 @@ const showPassword = ref<boolean>(false)
 // Public settings
 const registrationEnabled = ref<boolean>(true)
 const emailVerifyEnabled = ref<boolean>(false)
-const invitationCodeEnabled = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
 const siteName = ref<string>('Sub2API')
@@ -280,28 +227,19 @@ const registrationEmailSuffixWhitelist = ref<string[]>([])
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const turnstileToken = ref<string>('')
 
-// Invitation code validation
-const invitationValidating = ref<boolean>(false)
+// Channel activity code
 const channelCode = ref<string>('')
-const invitationValidation = reactive({
-  valid: false,
-  invalid: false,
-  message: ''
-})
-let invitationValidateTimeout: ReturnType<typeof setTimeout> | null = null
 
 const formData = reactive({
   email: '',
   password: '',
-  invitation_code: '',
   referral_code: ''
 })
 
 const errors = reactive({
   email: '',
   password: '',
-  turnstile: '',
-  invitation_code: ''
+  turnstile: ''
 })
 
 // ==================== Lifecycle ====================
@@ -311,7 +249,6 @@ onMounted(async () => {
     const settings = await getPublicSettings()
     registrationEnabled.value = settings.registration_enabled
     emailVerifyEnabled.value = settings.email_verify_enabled
-    invitationCodeEnabled.value = settings.invitation_code_enabled
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     siteName.value = settings.site_name || 'Sub2API'
@@ -322,19 +259,13 @@ onMounted(async () => {
 
     // Read invite code from URL:
     // - 12-char hex → channel activity code (usage limits from activity settings)
-    // - 6-char friend code → referral attribution only, no validation (unlimited)
-    // - anything else → invitation/redeem code, validate if enabled
+    // - anything else → friend referral code (unlimited)
     const inviteParam = route.query.invite as string
     if (inviteParam) {
       const inviteCode = inviteParam.trim()
       formData.referral_code = inviteCode
-      const isChannelCode = /^[0-9A-Fa-f]{12}$/.test(inviteCode)
-      const isFriendCode = /^[A-HJ-NP-Z2-9]{6}$/i.test(inviteCode)
-      if (isChannelCode) {
+      if (/^[0-9A-Fa-f]{12}$/.test(inviteCode)) {
         channelCode.value = inviteCode
-      } else if (!isFriendCode && invitationCodeEnabled.value) {
-        formData.invitation_code = inviteCode
-        await validateInvitationCodeDebounced(inviteCode)
       }
     }
   } catch (error) {
@@ -343,76 +274,6 @@ onMounted(async () => {
     settingsLoaded.value = true
   }
 })
-
-onUnmounted(() => {
-  if (invitationValidateTimeout) {
-    clearTimeout(invitationValidateTimeout)
-  }
-})
-
-// ==================== Invitation Code Validation ====================
-
-function handleInvitationCodeInput(): void {
-  const code = formData.invitation_code.trim()
-
-  // Clear previous validation
-  invitationValidation.valid = false
-  invitationValidation.invalid = false
-  invitationValidation.message = ''
-  errors.invitation_code = ''
-
-  if (!code) {
-    return
-  }
-
-  // Debounce validation
-  if (invitationValidateTimeout) {
-    clearTimeout(invitationValidateTimeout)
-  }
-
-  invitationValidateTimeout = setTimeout(() => {
-    validateInvitationCodeDebounced(code)
-  }, 500)
-}
-
-async function validateInvitationCodeDebounced(code: string): Promise<void> {
-  invitationValidating.value = true
-
-  try {
-    const result = await validateInvitationCode(code)
-
-    if (result.valid) {
-      invitationValidation.valid = true
-      invitationValidation.invalid = false
-      invitationValidation.message = ''
-    } else {
-      invitationValidation.valid = false
-      invitationValidation.invalid = true
-      invitationValidation.message = getInvitationErrorMessage(result.error_code)
-    }
-  } catch {
-    invitationValidation.valid = false
-    invitationValidation.invalid = true
-    invitationValidation.message = t('auth.invitationCodeInvalid')
-  } finally {
-    invitationValidating.value = false
-  }
-}
-
-function getInvitationErrorMessage(errorCode?: string): string {
-  switch (errorCode) {
-    case 'INVITATION_CODE_NOT_FOUND':
-      return t('auth.invitationCodeInvalid')
-    case 'INVITATION_CODE_INVALID':
-      return t('auth.invitationCodeInvalid')
-    case 'INVITATION_CODE_USED':
-      return t('auth.invitationCodeInvalid')
-    case 'INVITATION_CODE_DISABLED':
-      return t('auth.invitationCodeInvalid')
-    default:
-      return t('auth.invitationCodeInvalid')
-  }
-}
 
 // ==================== Turnstile Handlers ====================
 
@@ -456,7 +317,6 @@ function validateForm(): boolean {
   errors.email = ''
   errors.password = ''
   errors.turnstile = ''
-  errors.invitation_code = ''
 
   let isValid = true
 
@@ -503,32 +363,6 @@ async function handleRegister(): Promise<void> {
     return
   }
 
-  // Check invitation code validation status only when a code is provided.
-  // Empty invitation code skips all invitation logic and registers normally.
-  const invitationCode = formData.invitation_code.trim()
-  if (invitationCode) {
-    // If still validating, wait
-    if (invitationValidating.value) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      return
-    }
-    // If invitation code is invalid, block submission
-    if (invitationValidation.invalid) {
-      errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-      return
-    }
-    // If invitation code was provided but not validated yet
-    if (!invitationValidation.valid) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      // Trigger validation
-      await validateInvitationCodeDebounced(invitationCode)
-      if (!invitationValidation.valid) {
-        errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-        return
-      }
-    }
-  }
-
   isLoading.value = true
 
   try {
@@ -541,7 +375,6 @@ async function handleRegister(): Promise<void> {
           email: formData.email,
           password: formData.password,
           turnstile_token: turnstileToken.value,
-          invitation_code: formData.invitation_code || undefined,
           referral_code: formData.referral_code || undefined,
           redirect: (route.query.redirect as string) || undefined
         })
@@ -557,7 +390,6 @@ async function handleRegister(): Promise<void> {
       email: formData.email,
       password: formData.password,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
-      invitation_code: formData.invitation_code || undefined,
       referral_code: formData.referral_code || undefined
     })
 
