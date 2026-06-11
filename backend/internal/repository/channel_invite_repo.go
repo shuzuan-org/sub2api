@@ -440,9 +440,7 @@ func (r *channelInviteRepository) GetBatchCodeStats(ctx context.Context, batchID
 	}
 	codeCount = len(codes)
 	for _, c := range codes {
-		if c.UsedCount > 0 {
-			usedCount++
-		}
+		usedCount += c.UsedCount
 	}
 	return codeCount, usedCount, nil
 }

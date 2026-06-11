@@ -128,4 +128,7 @@ func RegisterUserRoutes(
 
 	// 支付回调（不需要 JWT 认证）
 	v1.POST("/payments/alipay/notify", h.Alipay.HandleNotify)
+
+	// 邀请码公开发验（不需要 JWT 认证）
+	v1.GET("/invite/validate", h.ChannelInvite.ValidateCode)
 }

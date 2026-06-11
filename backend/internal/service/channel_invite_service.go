@@ -283,6 +283,68 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 	return nil
 }
 
+// ======================== 公开发验 ========================
+
+// ValidateCodeResult 邀请码校验结果
+type ValidateCodeResult struct {
+	Valid         bool   `json:"valid"`
+	Type          string `json:"type,omitempty"` // "channel" | "friend"
+	RemainingUses int    `json:"remaining_uses,omitempty"`
+	BatchStatus   string `json:"batch_status,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// ValidateCode 公开发验邀请码：渠道码校验活动状态和剩余次数，朋友码校验是否存在
+func (s *ChannelInviteService) ValidateCode(ctx context.Context, codeStr string) ValidateCodeResult {
+	codeStr = strings.TrimSpace(codeStr)
+	if codeStr == "" {
+		return ValidateCodeResult{Valid: false, Reason: "code is empty"}
+	}
+
+	// 12位 hex → 渠道活动码
+	if isChannelCodeFormat(codeStr) {
+		code, err := s.repo.GetCodeByCode(ctx, codeStr)
+		if err != nil {
+			return ValidateCodeResult{Valid: false, Reason: "邀请码无效"}
+		}
+		if code.Batch == nil || !code.Batch.IsActive() {
+			return ValidateCodeResult{Valid: false, Reason: "该活动已结束"}
+		}
+		if !code.CanClaim() {
+			return ValidateCodeResult{Valid: false, Reason: "邀请码已被使用或已达上限"}
+		}
+		return ValidateCodeResult{
+			Valid:         true,
+			Type:          "channel",
+			RemainingUses: code.MaxUses - code.UsedCount,
+			BatchStatus:   code.Batch.Status,
+		}
+	}
+
+	// 6位 → 朋友邀请码
+	if len(codeStr) == 6 {
+		_, err := s.userRepo.GetByReferralCode(ctx, codeStr)
+		if err != nil {
+			return ValidateCodeResult{Valid: false, Reason: "邀请码无效"}
+		}
+		return ValidateCodeResult{Valid: true, Type: "friend"}
+	}
+
+	return ValidateCodeResult{Valid: false, Reason: "邀请码格式不正确"}
+}
+
+func isChannelCodeFormat(code string) bool {
+	if len(code) != 12 {
+		return false
+	}
+	for _, c := range code {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 // HasPendingBonuses 检查用户是否有待发放的渠道邀请奖励
 func (s *ChannelInviteService) HasPendingBonuses(ctx context.Context, userID int64) (bool, error) {
 	return s.repo.HasPendingBonusByUser(ctx, userID)
