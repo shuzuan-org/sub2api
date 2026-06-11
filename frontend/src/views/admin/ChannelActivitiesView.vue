@@ -76,7 +76,7 @@
               </td>
               <td class="px-4 py-3 text-xs text-gray-500">
                 <div class="flex items-center gap-2">
-                  <span>{{ batch.used_count }} / {{ batch.code_count }}</span>
+                  <span>{{ batch.used_count }} / {{ batch.max_uses_per_code }}</span>
                   <button
                     v-if="batch.used_count > 0"
                     class="text-xs text-primary-600 hover:underline"
