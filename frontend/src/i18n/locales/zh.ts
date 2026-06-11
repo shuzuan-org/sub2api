@@ -5025,9 +5025,7 @@ export default {
         inviter: '邀请人',
         inviterPlaceholder: '输入邮箱搜索...',
         copyText: '活动文案',
-        copyTextPlaceholder: '例如：绑定即送500U',
-        groups: '关联分组',
-        groupsHint: '用户兑换邀请码后自动加入的分组'
+        copyTextPlaceholder: '例如：绑定即送500U'
       }
     },
 
