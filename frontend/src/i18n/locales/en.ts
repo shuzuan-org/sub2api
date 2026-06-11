@@ -4847,6 +4847,7 @@ export default {
       actions: 'Actions',
       noActivities: 'No activities',
       deleteConfirm: 'Delete activity "{name}"? This cannot be undone.',
+      linkCopied: 'Invite link copied',
       viewUsages: 'Usages',
       user: 'User',
       bonusGranted: 'Bonus Granted',

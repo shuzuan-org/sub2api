@@ -5013,6 +5013,7 @@ export default {
       actions: '操作',
       noActivities: '暂无活动',
       deleteConfirm: '确认删除活动 "{name}"？此操作不可撤销。',
+      linkCopied: '邀请链接已复制',
       viewUsages: '使用记录',
       user: '用户',
       bonusGranted: '奖励已发放',
