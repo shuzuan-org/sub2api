@@ -503,6 +503,11 @@ export default {
     invitationCodeInvalid: '邀请码无效或已被使用',
     invitationCodeValidating: '正在验证邀请码...',
     invitationCodeInvalidCannotRegister: '邀请码无效，请检查后重试',
+    inviteCodeLabel: '邀请码',
+    inviteCodePlaceholder: '请输入邀请码',
+    inviteCodeChannelValid: '渠道活动码有效，剩余 {remaining} 次',
+    inviteCodeFriendValid: '邀请码有效',
+    inviteCodeInvalid: '邀请码无效',
     linuxdo: {
       signIn: '使用 Linux.do 登录',
       orContinue: '或使用邮箱密码继续',
@@ -4481,7 +4486,7 @@ export default {
         email: '邮件设置',
         backup: '数据备份',
         data: 'Sora 存储',
-        'channel-invite': '渠道邀请码',
+        channelActivity: '渠道活动',
       },
       emailTabDisabledTitle: '邮箱验证未启用',
       emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',
@@ -4988,6 +4993,46 @@ export default {
       failedToSave: '保存规则失败',
       failedToDelete: '删除规则失败',
       failedToToggle: '切换状态失败'
+    },
+
+    // 渠道活动
+    channelActivity: {
+      searchPlaceholder: '搜索活动名称',
+      allStatuses: '全部状态',
+      statusActive: '进行中',
+      statusDisabled: '已关闭',
+      createActivity: '创建活动',
+      editActivity: '编辑活动',
+      name: '活动名称',
+      status: '状态',
+      timeRange: '活动时间',
+      bonus: '单码积分',
+      inviteCode: '邀请码',
+      usage: '已用/总数',
+      creator: '邀请人',
+      actions: '操作',
+      noActivities: '暂无活动',
+      deleteConfirm: '确认删除活动 "{name}"？此操作不可撤销。',
+      linkCopied: '邀请链接已复制',
+      viewUsages: '使用记录',
+      user: '用户',
+      bonusGranted: '奖励已发放',
+      claimedAt: '领取时间',
+      noUsages: '暂无使用记录',
+      form: {
+        name: '活动名称',
+        namePlaceholder: '例如：春节拉新活动',
+        startTime: '开始时间',
+        endTime: '结束时间',
+        bonusAmount: '单码积分 (U)',
+        bonusHint: '每个邀请码对应的奖励金额',
+        maxUsesPerCode: '每码最多使用次数',
+        maxUsesHint: '每个邀请码最多被多少人使用，默认100',
+        inviter: '邀请人',
+        inviterPlaceholder: '输入邮箱搜索...',
+        copyText: '活动文案',
+        copyTextPlaceholder: '例如：绑定即送500U'
+      }
     },
 
     // TLS 指纹模板

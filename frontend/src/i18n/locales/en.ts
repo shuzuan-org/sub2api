@@ -502,6 +502,11 @@ export default {
     invitationCodeInvalid: 'Invalid or used invitation code',
     invitationCodeValidating: 'Validating invitation code...',
     invitationCodeInvalidCannotRegister: 'Invalid invitation code. Please check and try again',
+    inviteCodeLabel: 'Invite Code',
+    inviteCodePlaceholder: 'Enter invite code',
+    inviteCodeChannelValid: 'Channel code valid, {remaining} uses remaining',
+    inviteCodeFriendValid: 'Invite code valid',
+    inviteCodeInvalid: 'Invalid invite code',
     linuxdo: {
       signIn: 'Continue with Linux.do',
       orContinue: 'or continue with email',
@@ -4313,7 +4318,7 @@ export default {
         email: 'Email',
         backup: 'Backup',
         data: 'Sora Storage',
-        'channel-invite': 'Channel Invite',
+        channelActivity: 'Channel Activity',
       },
       emailTabDisabledTitle: 'Email Verification Not Enabled',
       emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',
@@ -4822,6 +4827,46 @@ export default {
       failedToSave: 'Failed to save rule',
       failedToDelete: 'Failed to delete rule',
       failedToToggle: 'Failed to toggle status'
+    },
+
+    // Channel Activities
+    channelActivity: {
+      searchPlaceholder: 'Search activity name',
+      allStatuses: 'All Statuses',
+      statusActive: 'Active',
+      statusDisabled: 'Disabled',
+      createActivity: 'Create Activity',
+      editActivity: 'Edit Activity',
+      name: 'Name',
+      status: 'Status',
+      timeRange: 'Time Range',
+      bonus: 'Bonus',
+      inviteCode: 'Invite Code',
+      usage: 'Used/Total',
+      creator: 'Creator',
+      actions: 'Actions',
+      noActivities: 'No activities',
+      deleteConfirm: 'Delete activity "{name}"? This cannot be undone.',
+      linkCopied: 'Invite link copied',
+      viewUsages: 'Usages',
+      user: 'User',
+      bonusGranted: 'Bonus Granted',
+      claimedAt: 'Claimed At',
+      noUsages: 'No usage records',
+      form: {
+        name: 'Activity Name',
+        namePlaceholder: 'e.g. Spring Festival Event',
+        startTime: 'Start Time',
+        endTime: 'End Time',
+        bonusAmount: 'Bonus per Code (U)',
+        bonusHint: 'Reward amount per invite code',
+        maxUsesPerCode: 'Max Uses per Code',
+        maxUsesHint: 'How many users can use each code, default 100',
+        inviter: 'Inviter',
+        inviterPlaceholder: 'Search by email...',
+        copyText: 'Activity Copy Text',
+        copyTextPlaceholder: 'e.g. Bind and get 500U'
+      }
     },
 
     // TLS Fingerprint Profiles

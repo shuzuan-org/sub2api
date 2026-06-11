@@ -32,6 +32,8 @@ type ChannelInviteBatch struct {
 	Status string `json:"status,omitempty"`
 	// 备注
 	Notes *string `json:"notes,omitempty"`
+	// 活动页文案，如绑定即送500U
+	ActivityCopyText *string `json:"activity_copy_text,omitempty"`
 	// 创建者（渠道合作方）用户ID
 	CreatedBy int64 `json:"created_by,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -106,7 +108,7 @@ func (*ChannelInviteBatch) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case channelinvitebatch.FieldID, channelinvitebatch.FieldMaxUsesPerCode, channelinvitebatch.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
-		case channelinvitebatch.FieldName, channelinvitebatch.FieldStatus, channelinvitebatch.FieldNotes:
+		case channelinvitebatch.FieldName, channelinvitebatch.FieldStatus, channelinvitebatch.FieldNotes, channelinvitebatch.FieldActivityCopyText:
 			values[i] = new(sql.NullString)
 		case channelinvitebatch.FieldStartTime, channelinvitebatch.FieldEndTime, channelinvitebatch.FieldCreatedAt, channelinvitebatch.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -175,6 +177,13 @@ func (_m *ChannelInviteBatch) assignValues(columns []string, values []any) error
 			} else if value.Valid {
 				_m.Notes = new(string)
 				*_m.Notes = value.String
+			}
+		case channelinvitebatch.FieldActivityCopyText:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field activity_copy_text", values[i])
+			} else if value.Valid {
+				_m.ActivityCopyText = new(string)
+				*_m.ActivityCopyText = value.String
 			}
 		case channelinvitebatch.FieldCreatedBy:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -274,6 +283,11 @@ func (_m *ChannelInviteBatch) String() string {
 	builder.WriteString(", ")
 	if v := _m.Notes; v != nil {
 		builder.WriteString("notes=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.ActivityCopyText; v != nil {
+		builder.WriteString("activity_copy_text=")
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")

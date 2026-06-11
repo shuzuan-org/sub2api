@@ -33,7 +33,8 @@ func (r *channelInviteRepository) CreateBatch(ctx context.Context, batch *servic
 		SetMaxUsesPerCode(batch.MaxUsesPerCode).
 		SetStatus(batch.Status).
 		SetCreatedBy(batch.CreatedBy).
-		SetNotes(batch.Notes)
+		SetNotes(batch.Notes).
+		SetActivityCopyText(batch.ActivityCopyText)
 
 	if batch.StartTime != nil {
 		builder.SetStartTime(*batch.StartTime)
@@ -109,6 +110,9 @@ func (r *channelInviteRepository) UpdateBatch(ctx context.Context, id int64, inp
 	if input.Notes != nil {
 		builder.SetNotes(*input.Notes)
 	}
+	if input.ActivityCopyText != nil {
+		builder.SetActivityCopyText(*input.ActivityCopyText)
+	}
 
 	_, err := builder.Save(ctx)
 	if err != nil {
@@ -151,6 +155,7 @@ func (r *channelInviteRepository) ListBatches(ctx context.Context, params pagina
 
 	batches, err := q.
 		WithCreator().
+		WithCodes().
 		WithBatchGroups(func(q *dbent.ChannelInviteBatchGroupQuery) {
 			q.WithGroup()
 		}).
@@ -409,6 +414,28 @@ func (r *channelInviteRepository) ReplaceBatchGroups(ctx context.Context, batchI
 	return nil
 }
 
+// ======================== 用户判定 ========================
+
+func (r *channelInviteRepository) HasPriorBonusGrantedByUser(ctx context.Context, userID int64) (bool, error) {
+	client := clientFromContext(ctx, r.client)
+	return client.ChannelInviteCodeUsage.Query().
+		Where(
+			channelinvitecodeusage.UserIDEQ(userID),
+			channelinvitecodeusage.BonusGrantedEQ(true),
+		).
+		Exist(ctx)
+}
+
+func (r *channelInviteRepository) HasPendingBonusByUser(ctx context.Context, userID int64) (bool, error) {
+	client := clientFromContext(ctx, r.client)
+	return client.ChannelInviteCodeUsage.Query().
+		Where(
+			channelinvitecodeusage.UserIDEQ(userID),
+			channelinvitecodeusage.BonusGrantedEQ(false),
+		).
+		Exist(ctx)
+}
+
 // ======================== 批量计数 ========================
 
 func (r *channelInviteRepository) GetBatchCodeStats(ctx context.Context, batchID int64) (codeCount, usedCount int, err error) {
@@ -420,9 +447,7 @@ func (r *channelInviteRepository) GetBatchCodeStats(ctx context.Context, batchID
 	}
 	codeCount = len(codes)
 	for _, c := range codes {
-		if c.UsedCount > 0 {
-			usedCount++
-		}
+		usedCount += c.UsedCount
 	}
 	return codeCount, usedCount, nil
 }
@@ -434,17 +459,18 @@ func channelInviteBatchEntityToService(m *dbent.ChannelInviteBatch) *service.Cha
 		return nil
 	}
 	b := &service.ChannelInviteBatch{
-		ID:             m.ID,
-		Name:           m.Name,
-		BonusAmount:    m.BonusAmount,
-		MaxUsesPerCode: m.MaxUsesPerCode,
-		StartTime:      m.StartTime,
-		EndTime:        m.EndTime,
-		Status:         m.Status,
-		Notes:          derefString(m.Notes),
-		CreatedBy:      m.CreatedBy,
-		CreatedAt:      m.CreatedAt,
-		UpdatedAt:      m.UpdatedAt,
+		ID:               m.ID,
+		Name:             m.Name,
+		BonusAmount:      m.BonusAmount,
+		MaxUsesPerCode:   m.MaxUsesPerCode,
+		StartTime:        m.StartTime,
+		EndTime:          m.EndTime,
+		Status:           m.Status,
+		Notes:            derefString(m.Notes),
+		ActivityCopyText: derefString(m.ActivityCopyText),
+		CreatedBy:        m.CreatedBy,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
 	}
 	if m.Edges.Creator != nil {
 		b.Creator = userEntityToService(m.Edges.Creator)
@@ -457,6 +483,15 @@ func channelInviteBatchEntityToService(m *dbent.ChannelInviteBatch) *service.Cha
 			}
 		}
 		b.Groups = groups
+	}
+	if m.Edges.Codes != nil {
+		codes := make([]service.ChannelInviteCode, 0, len(m.Edges.Codes))
+		for _, c := range m.Edges.Codes {
+			if s := channelInviteCodeEntityToService(c); s != nil {
+				codes = append(codes, *s)
+			}
+		}
+		b.Codes = codes
 	}
 	return b
 }

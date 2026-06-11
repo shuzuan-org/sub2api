@@ -549,22 +549,24 @@ type PromoCodeUsage struct {
 
 // ChannelInviteBatch 渠道邀请码批次
 type ChannelInviteBatch struct {
-	ID             int64      `json:"id"`
-	Name           string     `json:"name"`
-	BonusAmount    float64    `json:"bonus_amount"`
-	MaxUsesPerCode int        `json:"max_uses_per_code"`
-	StartTime      *time.Time `json:"start_time"`
-	EndTime        *time.Time `json:"end_time"`
-	Status         string     `json:"status"`
-	Notes          string     `json:"notes"`
-	CreatedBy      int64      `json:"created_by"`
-	CodeCount      int        `json:"code_count"`
-	UsedCount      int        `json:"used_count"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID               int64      `json:"id"`
+	Name             string     `json:"name"`
+	BonusAmount      float64    `json:"bonus_amount"`
+	MaxUsesPerCode   int        `json:"max_uses_per_code"`
+	StartTime        *time.Time `json:"start_time"`
+	EndTime          *time.Time `json:"end_time"`
+	Status           string     `json:"status"`
+	Notes            string     `json:"notes"`
+	ActivityCopyText string     `json:"activity_copy_text"`
+	CreatedBy        int64      `json:"created_by"`
+	CodeCount        int        `json:"code_count"`
+	UsedCount        int        `json:"used_count"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 
-	Groups  []Group `json:"groups,omitempty"`
-	Creator *User   `json:"creator,omitempty"`
+	Groups  []Group            `json:"groups,omitempty"`
+	Codes   []ChannelInviteCode `json:"codes,omitempty"`
+	Creator *User              `json:"creator,omitempty"`
 }
 
 // ChannelInviteCode 渠道邀请码（个体码）

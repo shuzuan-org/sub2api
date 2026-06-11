@@ -162,6 +162,26 @@ func (_u *ChannelInviteBatchUpdate) ClearNotes() *ChannelInviteBatchUpdate {
 	return _u
 }
 
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (_u *ChannelInviteBatchUpdate) SetActivityCopyText(v string) *ChannelInviteBatchUpdate {
+	_u.mutation.SetActivityCopyText(v)
+	return _u
+}
+
+// SetNillableActivityCopyText sets the "activity_copy_text" field if the given value is not nil.
+func (_u *ChannelInviteBatchUpdate) SetNillableActivityCopyText(v *string) *ChannelInviteBatchUpdate {
+	if v != nil {
+		_u.SetActivityCopyText(*v)
+	}
+	return _u
+}
+
+// ClearActivityCopyText clears the value of the "activity_copy_text" field.
+func (_u *ChannelInviteBatchUpdate) ClearActivityCopyText() *ChannelInviteBatchUpdate {
+	_u.mutation.ClearActivityCopyText()
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ChannelInviteBatchUpdate) SetCreatedBy(v int64) *ChannelInviteBatchUpdate {
 	_u.mutation.SetCreatedBy(v)
@@ -413,6 +433,12 @@ func (_u *ChannelInviteBatchUpdate) sqlSave(ctx context.Context) (_node int, err
 	}
 	if _u.mutation.NotesCleared() {
 		_spec.ClearField(channelinvitebatch.FieldNotes, field.TypeString)
+	}
+	if value, ok := _u.mutation.ActivityCopyText(); ok {
+		_spec.SetField(channelinvitebatch.FieldActivityCopyText, field.TypeString, value)
+	}
+	if _u.mutation.ActivityCopyTextCleared() {
+		_spec.ClearField(channelinvitebatch.FieldActivityCopyText, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(channelinvitebatch.FieldUpdatedAt, field.TypeTime, value)
@@ -731,6 +757,26 @@ func (_u *ChannelInviteBatchUpdateOne) ClearNotes() *ChannelInviteBatchUpdateOne
 	return _u
 }
 
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (_u *ChannelInviteBatchUpdateOne) SetActivityCopyText(v string) *ChannelInviteBatchUpdateOne {
+	_u.mutation.SetActivityCopyText(v)
+	return _u
+}
+
+// SetNillableActivityCopyText sets the "activity_copy_text" field if the given value is not nil.
+func (_u *ChannelInviteBatchUpdateOne) SetNillableActivityCopyText(v *string) *ChannelInviteBatchUpdateOne {
+	if v != nil {
+		_u.SetActivityCopyText(*v)
+	}
+	return _u
+}
+
+// ClearActivityCopyText clears the value of the "activity_copy_text" field.
+func (_u *ChannelInviteBatchUpdateOne) ClearActivityCopyText() *ChannelInviteBatchUpdateOne {
+	_u.mutation.ClearActivityCopyText()
+	return _u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_u *ChannelInviteBatchUpdateOne) SetCreatedBy(v int64) *ChannelInviteBatchUpdateOne {
 	_u.mutation.SetCreatedBy(v)
@@ -1012,6 +1058,12 @@ func (_u *ChannelInviteBatchUpdateOne) sqlSave(ctx context.Context) (_node *Chan
 	}
 	if _u.mutation.NotesCleared() {
 		_spec.ClearField(channelinvitebatch.FieldNotes, field.TypeString)
+	}
+	if value, ok := _u.mutation.ActivityCopyText(); ok {
+		_spec.SetField(channelinvitebatch.FieldActivityCopyText, field.TypeString, value)
+	}
+	if _u.mutation.ActivityCopyTextCleared() {
+		_spec.ClearField(channelinvitebatch.FieldActivityCopyText, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(channelinvitebatch.FieldUpdatedAt, field.TypeTime, value)

@@ -287,9 +287,19 @@ const phoneBindBonusAmount = 100.0 // 绑定手机号赠送 100U
 
 // BindPhoneAndGrantBonus 绑定手机号并赠送余额。
 // 使用 Redis 分布式锁 + 数据库事务保证并发安全。
+// 若用户有待发放的渠道活动奖励，则跳过 100U 基础奖励（不叠加）。
 func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string) (*User, error) {
+	// 检查是否有待发放的渠道邀请奖励，有则跳过 100U 基础奖励
+	bonusAmount := phoneBindBonusAmount
+	if s.channelInviteSvc != nil {
+		hasPending, err := s.channelInviteSvc.HasPendingBonuses(ctx, userID)
+		if err == nil && hasPending {
+			bonusAmount = 0
+		}
+	}
+
 	// 已通过验证码校验，此处直接绑定
-	user, err := s.userRepo.BindPhoneAndGrantBonus(ctx, userID, phone, phoneBindBonusAmount)
+	user, err := s.userRepo.BindPhoneAndGrantBonus(ctx, userID, phone, bonusAmount)
 	if err != nil {
 		return nil, err
 	}

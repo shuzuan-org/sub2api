@@ -8094,6 +8094,7 @@ type ChannelInviteBatchMutation struct {
 	end_time             *time.Time
 	status               *string
 	notes                *string
+	activity_copy_text   *string
 	created_at           *time.Time
 	updated_at           *time.Time
 	clearedFields        map[string]struct{}
@@ -8542,6 +8543,55 @@ func (m *ChannelInviteBatchMutation) ResetNotes() {
 	delete(m.clearedFields, channelinvitebatch.FieldNotes)
 }
 
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (m *ChannelInviteBatchMutation) SetActivityCopyText(s string) {
+	m.activity_copy_text = &s
+}
+
+// ActivityCopyText returns the value of the "activity_copy_text" field in the mutation.
+func (m *ChannelInviteBatchMutation) ActivityCopyText() (r string, exists bool) {
+	v := m.activity_copy_text
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldActivityCopyText returns the old "activity_copy_text" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldActivityCopyText(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldActivityCopyText is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldActivityCopyText requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldActivityCopyText: %w", err)
+	}
+	return oldValue.ActivityCopyText, nil
+}
+
+// ClearActivityCopyText clears the value of the "activity_copy_text" field.
+func (m *ChannelInviteBatchMutation) ClearActivityCopyText() {
+	m.activity_copy_text = nil
+	m.clearedFields[channelinvitebatch.FieldActivityCopyText] = struct{}{}
+}
+
+// ActivityCopyTextCleared returns if the "activity_copy_text" field was cleared in this mutation.
+func (m *ChannelInviteBatchMutation) ActivityCopyTextCleared() bool {
+	_, ok := m.clearedFields[channelinvitebatch.FieldActivityCopyText]
+	return ok
+}
+
+// ResetActivityCopyText resets all changes to the "activity_copy_text" field.
+func (m *ChannelInviteBatchMutation) ResetActivityCopyText() {
+	m.activity_copy_text = nil
+	delete(m.clearedFields, channelinvitebatch.FieldActivityCopyText)
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (m *ChannelInviteBatchMutation) SetCreatedBy(i int64) {
 	m.creator = &i
@@ -8886,7 +8936,7 @@ func (m *ChannelInviteBatchMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ChannelInviteBatchMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.name != nil {
 		fields = append(fields, channelinvitebatch.FieldName)
 	}
@@ -8907,6 +8957,9 @@ func (m *ChannelInviteBatchMutation) Fields() []string {
 	}
 	if m.notes != nil {
 		fields = append(fields, channelinvitebatch.FieldNotes)
+	}
+	if m.activity_copy_text != nil {
+		fields = append(fields, channelinvitebatch.FieldActivityCopyText)
 	}
 	if m.creator != nil {
 		fields = append(fields, channelinvitebatch.FieldCreatedBy)
@@ -8939,6 +8992,8 @@ func (m *ChannelInviteBatchMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case channelinvitebatch.FieldNotes:
 		return m.Notes()
+	case channelinvitebatch.FieldActivityCopyText:
+		return m.ActivityCopyText()
 	case channelinvitebatch.FieldCreatedBy:
 		return m.CreatedBy()
 	case channelinvitebatch.FieldCreatedAt:
@@ -8968,6 +9023,8 @@ func (m *ChannelInviteBatchMutation) OldField(ctx context.Context, name string) 
 		return m.OldStatus(ctx)
 	case channelinvitebatch.FieldNotes:
 		return m.OldNotes(ctx)
+	case channelinvitebatch.FieldActivityCopyText:
+		return m.OldActivityCopyText(ctx)
 	case channelinvitebatch.FieldCreatedBy:
 		return m.OldCreatedBy(ctx)
 	case channelinvitebatch.FieldCreatedAt:
@@ -9031,6 +9088,13 @@ func (m *ChannelInviteBatchMutation) SetField(name string, value ent.Value) erro
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetNotes(v)
+		return nil
+	case channelinvitebatch.FieldActivityCopyText:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetActivityCopyText(v)
 		return nil
 	case channelinvitebatch.FieldCreatedBy:
 		v, ok := value.(int64)
@@ -9119,6 +9183,9 @@ func (m *ChannelInviteBatchMutation) ClearedFields() []string {
 	if m.FieldCleared(channelinvitebatch.FieldNotes) {
 		fields = append(fields, channelinvitebatch.FieldNotes)
 	}
+	if m.FieldCleared(channelinvitebatch.FieldActivityCopyText) {
+		fields = append(fields, channelinvitebatch.FieldActivityCopyText)
+	}
 	return fields
 }
 
@@ -9141,6 +9208,9 @@ func (m *ChannelInviteBatchMutation) ClearField(name string) error {
 		return nil
 	case channelinvitebatch.FieldNotes:
 		m.ClearNotes()
+		return nil
+	case channelinvitebatch.FieldActivityCopyText:
+		m.ClearActivityCopyText()
 		return nil
 	}
 	return fmt.Errorf("unknown ChannelInviteBatch nullable field %s", name)
@@ -9170,6 +9240,9 @@ func (m *ChannelInviteBatchMutation) ResetField(name string) error {
 		return nil
 	case channelinvitebatch.FieldNotes:
 		m.ResetNotes()
+		return nil
+	case channelinvitebatch.FieldActivityCopyText:
+		m.ResetActivityCopyText()
 		return nil
 	case channelinvitebatch.FieldCreatedBy:
 		m.ResetCreatedBy()

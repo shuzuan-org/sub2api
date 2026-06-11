@@ -116,6 +116,20 @@ func (_c *ChannelInviteBatchCreate) SetNillableNotes(v *string) *ChannelInviteBa
 	return _c
 }
 
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (_c *ChannelInviteBatchCreate) SetActivityCopyText(v string) *ChannelInviteBatchCreate {
+	_c.mutation.SetActivityCopyText(v)
+	return _c
+}
+
+// SetNillableActivityCopyText sets the "activity_copy_text" field if the given value is not nil.
+func (_c *ChannelInviteBatchCreate) SetNillableActivityCopyText(v *string) *ChannelInviteBatchCreate {
+	if v != nil {
+		_c.SetActivityCopyText(*v)
+	}
+	return _c
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (_c *ChannelInviteBatchCreate) SetCreatedBy(v int64) *ChannelInviteBatchCreate {
 	_c.mutation.SetCreatedBy(v)
@@ -353,6 +367,10 @@ func (_c *ChannelInviteBatchCreate) createSpec() (*ChannelInviteBatch, *sqlgraph
 	if value, ok := _c.mutation.Notes(); ok {
 		_spec.SetField(channelinvitebatch.FieldNotes, field.TypeString, value)
 		_node.Notes = &value
+	}
+	if value, ok := _c.mutation.ActivityCopyText(); ok {
+		_spec.SetField(channelinvitebatch.FieldActivityCopyText, field.TypeString, value)
+		_node.ActivityCopyText = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(channelinvitebatch.FieldCreatedAt, field.TypeTime, value)
@@ -593,6 +611,24 @@ func (u *ChannelInviteBatchUpsert) ClearNotes() *ChannelInviteBatchUpsert {
 	return u
 }
 
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (u *ChannelInviteBatchUpsert) SetActivityCopyText(v string) *ChannelInviteBatchUpsert {
+	u.Set(channelinvitebatch.FieldActivityCopyText, v)
+	return u
+}
+
+// UpdateActivityCopyText sets the "activity_copy_text" field to the value that was provided on create.
+func (u *ChannelInviteBatchUpsert) UpdateActivityCopyText() *ChannelInviteBatchUpsert {
+	u.SetExcluded(channelinvitebatch.FieldActivityCopyText)
+	return u
+}
+
+// ClearActivityCopyText clears the value of the "activity_copy_text" field.
+func (u *ChannelInviteBatchUpsert) ClearActivityCopyText() *ChannelInviteBatchUpsert {
+	u.SetNull(channelinvitebatch.FieldActivityCopyText)
+	return u
+}
+
 // SetCreatedBy sets the "created_by" field.
 func (u *ChannelInviteBatchUpsert) SetCreatedBy(v int64) *ChannelInviteBatchUpsert {
 	u.Set(channelinvitebatch.FieldCreatedBy, v)
@@ -792,6 +828,27 @@ func (u *ChannelInviteBatchUpsertOne) UpdateNotes() *ChannelInviteBatchUpsertOne
 func (u *ChannelInviteBatchUpsertOne) ClearNotes() *ChannelInviteBatchUpsertOne {
 	return u.Update(func(s *ChannelInviteBatchUpsert) {
 		s.ClearNotes()
+	})
+}
+
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (u *ChannelInviteBatchUpsertOne) SetActivityCopyText(v string) *ChannelInviteBatchUpsertOne {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.SetActivityCopyText(v)
+	})
+}
+
+// UpdateActivityCopyText sets the "activity_copy_text" field to the value that was provided on create.
+func (u *ChannelInviteBatchUpsertOne) UpdateActivityCopyText() *ChannelInviteBatchUpsertOne {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.UpdateActivityCopyText()
+	})
+}
+
+// ClearActivityCopyText clears the value of the "activity_copy_text" field.
+func (u *ChannelInviteBatchUpsertOne) ClearActivityCopyText() *ChannelInviteBatchUpsertOne {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.ClearActivityCopyText()
 	})
 }
 
@@ -1164,6 +1221,27 @@ func (u *ChannelInviteBatchUpsertBulk) UpdateNotes() *ChannelInviteBatchUpsertBu
 func (u *ChannelInviteBatchUpsertBulk) ClearNotes() *ChannelInviteBatchUpsertBulk {
 	return u.Update(func(s *ChannelInviteBatchUpsert) {
 		s.ClearNotes()
+	})
+}
+
+// SetActivityCopyText sets the "activity_copy_text" field.
+func (u *ChannelInviteBatchUpsertBulk) SetActivityCopyText(v string) *ChannelInviteBatchUpsertBulk {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.SetActivityCopyText(v)
+	})
+}
+
+// UpdateActivityCopyText sets the "activity_copy_text" field to the value that was provided on create.
+func (u *ChannelInviteBatchUpsertBulk) UpdateActivityCopyText() *ChannelInviteBatchUpsertBulk {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.UpdateActivityCopyText()
+	})
+}
+
+// ClearActivityCopyText clears the value of the "activity_copy_text" field.
+func (u *ChannelInviteBatchUpsertBulk) ClearActivityCopyText() *ChannelInviteBatchUpsertBulk {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.ClearActivityCopyText()
 	})
 }
 

@@ -28,6 +28,8 @@ const (
 	FieldStatus = "status"
 	// FieldNotes holds the string denoting the notes field in the database.
 	FieldNotes = "notes"
+	// FieldActivityCopyText holds the string denoting the activity_copy_text field in the database.
+	FieldActivityCopyText = "activity_copy_text"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
 	FieldCreatedBy = "created_by"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -84,6 +86,7 @@ var Columns = []string{
 	FieldEndTime,
 	FieldStatus,
 	FieldNotes,
+	FieldActivityCopyText,
 	FieldCreatedBy,
 	FieldCreatedAt,
 	FieldUpdatedAt,
@@ -159,6 +162,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByNotes orders the results by the notes field.
 func ByNotes(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldNotes, opts...).ToFunc()
+}
+
+// ByActivityCopyText orders the results by the activity_copy_text field.
+func ByActivityCopyText(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldActivityCopyText, opts...).ToFunc()
 }
 
 // ByCreatedBy orders the results by the created_by field.

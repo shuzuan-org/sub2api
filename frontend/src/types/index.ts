@@ -1688,31 +1688,33 @@ export interface UpdateScheduledTestPlanRequest {
   auto_recover?: boolean
 }
 
-// ======================== Channel Invite ========================
+// ======================== Channel Invite (渠道活动) ========================
 
 export interface ChannelInviteBatch {
   id: number
   name: string
   bonus_amount: number
   max_uses_per_code: number
-  start_time?: string
-  end_time?: string
-  status: 'active' | 'disabled'
+  start_time: string | null
+  end_time: string | null
+  status: string
   notes: string
+  activity_copy_text: string
   created_by: number
   code_count: number
   used_count: number
-  groups?: Group[]
-  creator?: User
   created_at: string
   updated_at: string
+  groups?: AdminGroup[]
+  codes?: ChannelInviteCode[]
+  creator?: AdminUser
 }
 
 export interface ChannelInviteCode {
   id: number
   batch_id: number
   code: string
-  status: 'unused' | 'used' | 'expired'
+  status: string
   max_uses: number
   used_count: number
   created_at: string
@@ -1725,8 +1727,33 @@ export interface ChannelInviteCodeUsage {
   batch_id: number
   user_id: number
   bonus_granted: boolean
-  bonus_granted_at?: string
+  bonus_granted_at: string | null
   claimed_at: string
   code?: ChannelInviteCode
-  user?: User
+  user?: AdminUser
 }
+
+export interface CreateChannelInviteBatchRequest {
+  name: string
+  bonus_amount: number
+  max_uses_per_code?: number
+  start_time?: number
+  end_time?: number
+  notes?: string
+  activity_copy_text?: string
+  created_by: number
+  group_ids?: number[]
+}
+
+export interface UpdateChannelInviteBatchRequest {
+  name?: string
+  bonus_amount?: number
+  max_uses_per_code?: number
+  start_time?: number
+  end_time?: number
+  status?: string
+  notes?: string
+  activity_copy_text?: string
+  group_ids?: number[]
+}
+

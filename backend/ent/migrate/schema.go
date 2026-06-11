@@ -393,6 +393,7 @@ var (
 		{Name: "end_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
 		{Name: "notes", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
+		{Name: "activity_copy_text", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "created_by", Type: field.TypeInt64},
@@ -405,7 +406,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "channel_invite_batches_users_channel_invite_batches",
-				Columns:    []*schema.Column{ChannelInviteBatchesColumns[10]},
+				Columns:    []*schema.Column{ChannelInviteBatchesColumns[11]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -419,7 +420,7 @@ var (
 			{
 				Name:    "channelinvitebatch_created_by",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelInviteBatchesColumns[10]},
+				Columns: []*schema.Column{ChannelInviteBatchesColumns[11]},
 			},
 		},
 	}

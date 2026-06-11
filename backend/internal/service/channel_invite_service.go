@@ -22,6 +22,7 @@ var (
 	ErrChannelInviteCodeMaxUsed       = infraerrors.BadRequest("CHANNEL_INVITE_CODE_MAX_USED", "channel invite code has reached maximum uses")
 	ErrChannelInviteCodeAlreadyUsed   = infraerrors.Conflict("CHANNEL_INVITE_CODE_ALREADY_USED", "you have already claimed this invite code")
 	ErrChannelInviteCodeBatchInactive = infraerrors.BadRequest("CHANNEL_INVITE_BATCH_INACTIVE", "channel invite batch is not active")
+	ErrChannelInviteAlreadyGranted    = infraerrors.Conflict("CHANNEL_INVITE_ALREADY_GRANTED", "您已参加过渠道活动，每位用户只能参加一次")
 )
 
 // ChannelInviteService 渠道邀请码服务
@@ -71,6 +72,12 @@ func (s *ChannelInviteService) CreateBatch(ctx context.Context, input *CreateCha
 
 	if err := s.repo.CreateBatch(ctx, batch, input.GroupIDs); err != nil {
 		return nil, fmt.Errorf("create batch: %w", err)
+	}
+
+	// 自动为每个活动生成 1 个邀请码（一人一码一活动）
+	_, err := s.GenerateCodes(ctx, batch.ID, 1)
+	if err != nil {
+		return nil, fmt.Errorf("auto-generate code: %w", err)
 	}
 
 	return batch, nil
@@ -217,6 +224,15 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 		return err
 	}
 
+	// 检查用户是否已获得过任何渠道活动奖励（一用户只能参加一次）
+	hasPrior, err := s.repo.HasPriorBonusGrantedByUser(txCtx, userID)
+	if err != nil {
+		return fmt.Errorf("check prior bonus: %w", err)
+	}
+	if hasPrior {
+		return ErrChannelInviteAlreadyGranted
+	}
+
 	// 检查用户是否已使用过此码
 	existing, err := s.repo.GetUsageByCodeAndUser(txCtx, code.ID, userID)
 	if err != nil {
@@ -283,6 +299,73 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 	}
 
 	return nil
+}
+
+// ======================== 公开发验 ========================
+
+// ValidateCodeResult 邀请码校验结果
+type ValidateCodeResult struct {
+	Valid         bool   `json:"valid"`
+	Type          string `json:"type,omitempty"` // "channel" | "friend"
+	RemainingUses int    `json:"remaining_uses,omitempty"`
+	BatchStatus   string `json:"batch_status,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// ValidateCode 公开发验邀请码：渠道码校验活动状态和剩余次数，朋友码校验是否存在
+func (s *ChannelInviteService) ValidateCode(ctx context.Context, codeStr string) ValidateCodeResult {
+	codeStr = strings.TrimSpace(codeStr)
+	if codeStr == "" {
+		return ValidateCodeResult{Valid: false, Reason: "code is empty"}
+	}
+
+	// 12位 hex → 渠道活动码
+	if isChannelCodeFormat(codeStr) {
+		code, err := s.repo.GetCodeByCode(ctx, codeStr)
+		if err != nil {
+			return ValidateCodeResult{Valid: false, Reason: "邀请码无效"}
+		}
+		if code.Batch == nil || !code.Batch.IsActive() {
+			return ValidateCodeResult{Valid: false, Reason: "该活动已结束"}
+		}
+		if !code.CanClaim() {
+			return ValidateCodeResult{Valid: false, Reason: "邀请码已被使用或已达上限"}
+		}
+		return ValidateCodeResult{
+			Valid:         true,
+			Type:          "channel",
+			RemainingUses: code.MaxUses - code.UsedCount,
+			BatchStatus:   code.Batch.Status,
+		}
+	}
+
+	// 6位 → 朋友邀请码
+	if len(codeStr) == 6 {
+		_, err := s.userRepo.GetByReferralCode(ctx, codeStr)
+		if err != nil {
+			return ValidateCodeResult{Valid: false, Reason: "邀请码无效"}
+		}
+		return ValidateCodeResult{Valid: true, Type: "friend"}
+	}
+
+	return ValidateCodeResult{Valid: false, Reason: "邀请码格式不正确"}
+}
+
+func isChannelCodeFormat(code string) bool {
+	if len(code) != 12 {
+		return false
+	}
+	for _, c := range code {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+// HasPendingBonuses 检查用户是否有待发放的渠道邀请奖励
+func (s *ChannelInviteService) HasPendingBonuses(ctx context.Context, userID int64) (bool, error) {
+	return s.repo.HasPendingBonusByUser(ctx, userID)
 }
 
 // GrantPendingBonuses 发放用户所有待发放的渠道邀请奖励（手机绑定后调用）

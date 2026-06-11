@@ -778,20 +778,21 @@ func ChannelInviteBatchFromService(b *service.ChannelInviteBatch) *ChannelInvite
 		return nil
 	}
 	out := &ChannelInviteBatch{
-		ID:             b.ID,
-		Name:           b.Name,
-		BonusAmount:    b.BonusAmount,
-		MaxUsesPerCode: b.MaxUsesPerCode,
-		StartTime:      b.StartTime,
-		EndTime:        b.EndTime,
-		Status:         b.Status,
-		Notes:          b.Notes,
-		CreatedBy:      b.CreatedBy,
-		CodeCount:      b.CodeCount,
-		UsedCount:      b.UsedCount,
-		CreatedAt:      b.CreatedAt,
-		UpdatedAt:      b.UpdatedAt,
-		Creator:        UserFromServiceShallow(b.Creator),
+		ID:               b.ID,
+		Name:             b.Name,
+		BonusAmount:      b.BonusAmount,
+		MaxUsesPerCode:   b.MaxUsesPerCode,
+		StartTime:        b.StartTime,
+		EndTime:          b.EndTime,
+		Status:           b.Status,
+		Notes:            b.Notes,
+		ActivityCopyText: b.ActivityCopyText,
+		CreatedBy:        b.CreatedBy,
+		CodeCount:        b.CodeCount,
+		UsedCount:        b.UsedCount,
+		CreatedAt:        b.CreatedAt,
+		UpdatedAt:        b.UpdatedAt,
+		Creator:          UserFromServiceShallow(b.Creator),
 	}
 	if b.Groups != nil {
 		groups := make([]Group, 0, len(b.Groups))
@@ -799,6 +800,15 @@ func ChannelInviteBatchFromService(b *service.ChannelInviteBatch) *ChannelInvite
 			groups = append(groups, *GroupFromService(&b.Groups[i]))
 		}
 		out.Groups = groups
+	}
+	if b.Codes != nil {
+		codes := make([]ChannelInviteCode, 0, len(b.Codes))
+		for i := range b.Codes {
+			if c := ChannelInviteCodeFromService(&b.Codes[i]); c != nil {
+				codes = append(codes, *c)
+			}
+		}
+		out.Codes = codes
 	}
 	return out
 }
