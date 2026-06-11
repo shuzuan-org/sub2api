@@ -320,13 +320,17 @@ onMounted(async () => {
       settings.registration_email_suffix_whitelist || []
     )
 
-    // Read invite code from URL. If the invitation field is shown, prefill it and
-    // validate it; otherwise keep referral_code for attribution only.
+    // Read invite code from URL:
+    // - 12-char hex codes → channel activity, set channelCode for claim after registration
+    // - shorter codes → friend invite, validate as invitation code if enabled
     const inviteParam = route.query.invite as string
     if (inviteParam) {
       const inviteCode = inviteParam.trim()
       formData.referral_code = inviteCode
-      if (invitationCodeEnabled.value) {
+      const isChannelCode = /^[0-9A-Fa-f]{12}$/.test(inviteCode)
+      if (isChannelCode) {
+        channelCode.value = inviteCode
+      } else if (invitationCodeEnabled.value) {
         formData.invitation_code = inviteCode
         await validateInvitationCodeDebounced(inviteCode)
       }
