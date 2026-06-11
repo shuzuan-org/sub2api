@@ -10,6 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ValidateCodeResponse 公开校验邀请码响应
+type ValidateCodeResponse struct {
+	Valid         bool   `json:"valid"`
+	Type          string `json:"type,omitempty"`           // "channel" | "friend"
+	RemainingUses int    `json:"remaining_uses,omitempty"` // 渠道码剩余次数
+	BatchStatus   string `json:"batch_status,omitempty"`  // 渠道活动状态
+	Reason        string `json:"reason,omitempty"`         // 无效原因
+}
+
 // ChannelInviteHandler handles user-facing channel invite code endpoints
 type ChannelInviteHandler struct {
 	channelInviteSvc *service.ChannelInviteService
@@ -53,4 +62,16 @@ func (h *ChannelInviteHandler) Claim(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "Invite code claimed successfully"})
+}
+
+// ValidateCode GET /api/v1/invite/validate?code=XXXXXX
+func (h *ChannelInviteHandler) ValidateCode(c *gin.Context) {
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		response.BadRequest(c, "code is required")
+		return
+	}
+
+	result := h.channelInviteSvc.ValidateCode(c.Request.Context(), code)
+	response.Success(c, result)
 }

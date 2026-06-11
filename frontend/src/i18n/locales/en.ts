@@ -502,6 +502,11 @@ export default {
     invitationCodeInvalid: 'Invalid or used invitation code',
     invitationCodeValidating: 'Validating invitation code...',
     invitationCodeInvalidCannotRegister: 'Invalid invitation code. Please check and try again',
+    inviteCodeLabel: 'Invite Code',
+    inviteCodePlaceholder: 'Enter invite code',
+    inviteCodeChannelValid: 'Channel code valid, {remaining} uses remaining',
+    inviteCodeFriendValid: 'Invite code valid',
+    inviteCodeInvalid: 'Invalid invite code',
     linuxdo: {
       signIn: 'Continue with Linux.do',
       orContinue: 'or continue with email',

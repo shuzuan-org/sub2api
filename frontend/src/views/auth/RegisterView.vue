@@ -95,7 +95,57 @@
           </p>
         </div>
 
-        <!-- Invitation Code Input removed intentionally -->
+        <!-- Invite Code Input -->
+        <div>
+          <label for="invite_code" class="input-label">
+            {{ t('auth.inviteCodeLabel') }}
+            <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
+          </label>
+          <div class="relative">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+              <Icon name="gift" size="md" :class="inviteValidation.valid ? 'text-green-500' : 'text-gray-400 dark:text-dark-500'" />
+            </div>
+            <input
+              id="invite_code"
+              v-model="formData.invite_code"
+              type="text"
+              :disabled="isLoading"
+              class="input pl-11 pr-10"
+              :class="{
+                'border-green-500 focus:border-green-500 focus:ring-green-500': inviteValidation.valid,
+                'border-red-500 focus:border-red-500 focus:ring-red-500': inviteValidation.invalid
+              }"
+              :placeholder="t('auth.inviteCodePlaceholder')"
+              @input="handleInviteCodeInput"
+            />
+            <!-- Validation indicator -->
+            <div v-if="inviteValidating" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
+              <svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div v-else-if="inviteValidation.valid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
+              <Icon name="checkCircle" size="md" class="text-green-500" />
+            </div>
+            <div v-else-if="inviteValidation.invalid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
+              <Icon name="exclamationCircle" size="md" class="text-red-500" />
+            </div>
+          </div>
+          <!-- Validation result -->
+          <transition name="fade">
+            <div v-if="inviteValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
+              <Icon name="checkCircle" size="sm" class="text-green-600 dark:text-green-400" />
+              <span class="text-sm text-green-700 dark:text-green-400">
+                <template v-if="inviteValidation.type === 'channel'">{{ t('auth.inviteCodeChannelValid', { remaining: inviteValidation.remainingUses }) }}</template>
+                <template v-else>{{ t('auth.inviteCodeFriendValid') }}</template>
+              </span>
+            </div>
+            <p v-else-if="inviteValidation.invalid" class="input-error-text">
+              {{ inviteValidation.reason }}
+            </p>
+          </transition>
+        </div>
 
         <!-- Turnstile Widget -->
         <div v-if="turnstileEnabled && turnstileSiteKey">
@@ -227,12 +277,21 @@ const registrationEmailSuffixWhitelist = ref<string[]>([])
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const turnstileToken = ref<string>('')
 
-// Channel activity code
-const channelCode = ref<string>('')
+// Invite code
+const inviteValidating = ref<boolean>(false)
+const inviteValidation = reactive({
+  valid: false,
+  invalid: false,
+  type: '' as string,
+  remainingUses: 0,
+  reason: ''
+})
+let inviteValidateTimeout: ReturnType<typeof setTimeout> | null = null
 
 const formData = reactive({
   email: '',
   password: '',
+  invite_code: '',
   referral_code: ''
 })
 
@@ -257,16 +316,13 @@ onMounted(async () => {
       settings.registration_email_suffix_whitelist || []
     )
 
-    // Read invite code from URL:
-    // - 12-char hex → channel activity code (usage limits from activity settings)
-    // - anything else → friend referral code (unlimited)
+    // Read invite code from URL and prefill the input
     const inviteParam = route.query.invite as string
     if (inviteParam) {
       const inviteCode = inviteParam.trim()
+      formData.invite_code = inviteCode
       formData.referral_code = inviteCode
-      if (/^[0-9A-Fa-f]{12}$/.test(inviteCode)) {
-        channelCode.value = inviteCode
-      }
+      await validateInviteCode(inviteCode)
     }
   } catch (error) {
     console.error('Failed to load public settings:', error)
@@ -274,6 +330,48 @@ onMounted(async () => {
     settingsLoaded.value = true
   }
 })
+
+// ==================== Invite Code Validation ====================
+
+function handleInviteCodeInput(): void {
+  const code = formData.invite_code.trim()
+
+  inviteValidation.valid = false
+  inviteValidation.invalid = false
+  inviteValidation.reason = ''
+  formData.referral_code = code
+
+  if (!code) {
+    return
+  }
+
+  if (inviteValidateTimeout) clearTimeout(inviteValidateTimeout)
+  inviteValidateTimeout = setTimeout(() => validateInviteCode(code), 300)
+}
+
+async function validateInviteCode(code: string): Promise<void> {
+  inviteValidating.value = true
+  try {
+    const { data } = await apiClient.get('/invite/validate', { params: { code } })
+    if (data.valid) {
+      inviteValidation.valid = true
+      inviteValidation.invalid = false
+      inviteValidation.type = data.type
+      inviteValidation.remainingUses = data.remaining_uses
+      formData.referral_code = code
+    } else {
+      inviteValidation.valid = false
+      inviteValidation.invalid = true
+      inviteValidation.reason = data.reason || t('auth.inviteCodeInvalid')
+    }
+  } catch {
+    inviteValidation.valid = false
+    inviteValidation.invalid = true
+    inviteValidation.reason = t('auth.inviteCodeInvalid')
+  } finally {
+    inviteValidating.value = false
+  }
+}
 
 // ==================== Turnstile Handlers ====================
 
@@ -396,13 +494,12 @@ async function handleRegister(): Promise<void> {
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
-    // Claim channel activity code if provided in URL
-    if (channelCode.value) {
+    // Claim channel activity code after successful registration
+    if (inviteValidation.valid && inviteValidation.type === 'channel' && formData.invite_code) {
       try {
-        await apiClient.post('/channel-invite/claim', { code: channelCode.value })
+        await apiClient.post('/channel-invite/claim', { code: formData.invite_code })
       } catch {
-        // Channel claim fails silently - user still registered successfully.
-        // The activity may have ended; registration+100U still apply.
+        // Channel claim fails silently - user still registered successfully
       }
     }
 

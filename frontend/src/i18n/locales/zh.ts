@@ -503,6 +503,11 @@ export default {
     invitationCodeInvalid: '邀请码无效或已被使用',
     invitationCodeValidating: '正在验证邀请码...',
     invitationCodeInvalidCannotRegister: '邀请码无效，请检查后重试',
+    inviteCodeLabel: '邀请码',
+    inviteCodePlaceholder: '请输入邀请码',
+    inviteCodeChannelValid: '渠道活动码有效，剩余 {remaining} 次',
+    inviteCodeFriendValid: '邀请码有效',
+    inviteCodeInvalid: '邀请码无效',
     linuxdo: {
       signIn: '使用 Linux.do 登录',
       orContinue: '或使用邮箱密码继续',
