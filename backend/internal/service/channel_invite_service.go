@@ -74,6 +74,12 @@ func (s *ChannelInviteService) CreateBatch(ctx context.Context, input *CreateCha
 		return nil, fmt.Errorf("create batch: %w", err)
 	}
 
+	// 自动为每个活动生成 1 个邀请码（一人一码一活动）
+	_, err := s.GenerateCodes(ctx, batch.ID, 1)
+	if err != nil {
+		return nil, fmt.Errorf("auto-generate code: %w", err)
+	}
+
 	return batch, nil
 }
 

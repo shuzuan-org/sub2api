@@ -564,8 +564,9 @@ type ChannelInviteBatch struct {
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 
-	Groups  []Group `json:"groups,omitempty"`
-	Creator *User   `json:"creator,omitempty"`
+	Groups  []Group            `json:"groups,omitempty"`
+	Codes   []ChannelInviteCode `json:"codes,omitempty"`
+	Creator *User              `json:"creator,omitempty"`
 }
 
 // ChannelInviteCode 渠道邀请码（个体码）

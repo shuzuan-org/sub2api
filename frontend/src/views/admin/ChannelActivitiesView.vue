@@ -1,60 +1,56 @@
 <template>
   <div class="space-y-6">
-    <!-- 活动列表视图 -->
-    <div v-if="!selectedBatchId">
-      <!-- 搜索和操作栏 -->
-      <div class="mb-4 flex flex-wrap items-center gap-3">
-        <input
-          v-model="searchText"
-          :placeholder="t('admin.channelActivity.searchPlaceholder')"
-          class="input w-64"
-          @keyup.enter="loadBatches"
-        />
-        <select v-model="statusFilter" class="select w-32" @change="loadBatches">
-          <option value="">{{ t('admin.channelActivity.allStatuses') }}</option>
-          <option value="active">{{ t('admin.channelActivity.statusActive') }}</option>
-          <option value="disabled">{{ t('admin.channelActivity.statusDisabled') }}</option>
-        </select>
-        <button class="btn btn-primary btn-sm" @click="loadBatches">
-          {{ t('common.search') }}
-        </button>
-        <div class="flex-1"></div>
-        <button class="btn btn-primary" @click="openCreateModal">
-          {{ t('admin.channelActivity.createActivity') }}
-        </button>
-      </div>
+    <!-- 搜索和操作栏 -->
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <input
+        v-model="searchText"
+        :placeholder="t('admin.channelActivity.searchPlaceholder')"
+        class="input w-64"
+        @keyup.enter="loadBatches"
+      />
+      <select v-model="statusFilter" class="select w-32" @change="loadBatches">
+        <option value="">{{ t('admin.channelActivity.allStatuses') }}</option>
+        <option value="active">{{ t('admin.channelActivity.statusActive') }}</option>
+        <option value="disabled">{{ t('admin.channelActivity.statusDisabled') }}</option>
+      </select>
+      <button class="btn btn-primary btn-sm" @click="loadBatches">
+        {{ t('common.search') }}
+      </button>
+      <div class="flex-1"></div>
+      <button class="btn btn-primary" @click="openCreateModal">
+        {{ t('admin.channelActivity.createActivity') }}
+      </button>
+    </div>
 
-      <!-- 活动列表表格 -->
-      <div class="card overflow-hidden">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-              <th class="px-4 py-3">ID</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.name') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.status') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.timeRange') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.bonus') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.codes') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.creator') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading" class="border-b border-gray-100 dark:border-gray-800">
-              <td colspan="8" class="px-4 py-8 text-center text-gray-500">
-                {{ t('common.loading') }}
-              </td>
-            </tr>
-            <tr v-else-if="batches.length === 0" class="border-b border-gray-100 dark:border-gray-800">
-              <td colspan="8" class="px-4 py-8 text-center text-gray-500">
-                {{ t('admin.channelActivity.noActivities') }}
-              </td>
-            </tr>
-            <tr
-              v-for="batch in batches"
-              :key="batch.id"
-              class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-            >
+    <!-- 活动列表表格 -->
+    <div class="card overflow-hidden">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+            <th class="px-4 py-3">ID</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.name') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.status') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.timeRange') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.bonus') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.inviteCode') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.usage') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.creator') }}</th>
+            <th class="px-4 py-3">{{ t('admin.channelActivity.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="loading" class="border-b border-gray-100 dark:border-gray-800">
+            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+              {{ t('common.loading') }}
+            </td>
+          </tr>
+          <tr v-else-if="batches.length === 0" class="border-b border-gray-100 dark:border-gray-800">
+            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+              {{ t('admin.channelActivity.noActivities') }}
+            </td>
+          </tr>
+          <template v-for="batch in batches" :key="batch.id">
+            <tr class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
               <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ batch.id }}</td>
               <td class="px-4 py-3 text-sm font-medium">{{ batch.name }}</td>
               <td class="px-4 py-3">
@@ -75,17 +71,26 @@
                 <span v-else class="text-gray-400">-</span>
               </td>
               <td class="px-4 py-3 text-sm">{{ batch.bonus_amount }}U</td>
+              <td class="px-4 py-3 text-xs font-mono text-blue-600 dark:text-blue-400">
+                {{ (batch.codes && batch.codes.length > 0) ? batch.codes[0].code : '-' }}
+              </td>
               <td class="px-4 py-3 text-xs text-gray-500">
-                {{ batch.used_count }} / {{ batch.code_count }}
+                <div class="flex items-center gap-2">
+                  <span>{{ batch.used_count }} / {{ batch.code_count }}</span>
+                  <button
+                    v-if="batch.used_count > 0"
+                    class="text-xs text-primary-600 hover:underline"
+                    @click="toggleUsages(batch.id)"
+                  >
+                    {{ expandedBatchId === batch.id ? t('common.collapse') : t('admin.channelActivity.viewUsages') }}
+                  </button>
+                </div>
               </td>
               <td class="px-4 py-3 text-xs text-gray-500">
                 {{ batch.creator?.email || '-' }}
               </td>
               <td class="px-4 py-3">
                 <div class="flex gap-2">
-                  <button class="btn btn-secondary btn-sm" @click="openCodeView(batch.id)">
-                    {{ t('admin.channelActivity.viewCodes') }}
-                  </button>
                   <button class="btn btn-secondary btn-sm" @click="openEditModal(batch)">
                     {{ t('common.edit') }}
                   </button>
@@ -95,143 +100,49 @@
                 </div>
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 分页 -->
-      <div v-if="totalPages > 1" class="mt-4 flex justify-center items-center gap-2">
-        <button
-          class="btn btn-secondary btn-sm"
-          :disabled="currentPage <= 1"
-          @click="changePage(currentPage - 1)"
-        >
-          {{ t('common.previous') }}
-        </button>
-        <span class="text-sm text-gray-500">{{ currentPage }} / {{ totalPages }}</span>
-        <button
-          class="btn btn-secondary btn-sm"
-          :disabled="currentPage >= totalPages"
-          @click="changePage(currentPage + 1)"
-        >
-          {{ t('common.next') }}
-        </button>
-      </div>
+            <!-- 使用记录展开行 -->
+            <tr v-if="expandedBatchId === batch.id" :key="'usage-'+batch.id" class="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+              <td colspan="9" class="px-4 py-3">
+                <div v-if="expandedUsagesLoading" class="text-xs text-gray-500">{{ t('common.loading') }}</div>
+                <div v-else-if="expandedUsages.length === 0" class="text-xs text-gray-500">{{ t('admin.channelActivity.noUsages') }}</div>
+                <table v-else class="w-full text-xs">
+                  <thead>
+                    <tr class="text-left text-gray-500 font-medium">
+                      <th class="py-1 pr-4">ID</th>
+                      <th class="py-1 pr-4">{{ t('admin.channelActivity.user') }}</th>
+                      <th class="py-1 pr-4">{{ t('admin.channelActivity.bonusGranted') }}</th>
+                      <th class="py-1 pr-4">{{ t('admin.channelActivity.claimedAt') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="u in expandedUsages" :key="u.id">
+                      <td class="py-1 pr-4 text-gray-500">{{ u.id }}</td>
+                      <td class="py-1 pr-4">{{ u.user?.email || '-' }}</td>
+                      <td class="py-1 pr-4">
+                        <span :class="['badge text-xs', u.bonus_granted ? 'badge-success' : 'badge-warning']">
+                          {{ u.bonus_granted ? t('common.yes') : t('common.no') }}
+                        </span>
+                      </td>
+                      <td class="py-1 pr-4 text-gray-500">{{ formatDate(u.claimed_at) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
 
-    <!-- 码管理子视图 -->
-    <div v-else>
-      <button class="btn btn-secondary btn-sm mb-4" @click="closeCodeView">
-        ← {{ t('admin.channelActivity.backToList') }}
+    <!-- 分页 -->
+    <div v-if="totalPages > 1" class="mt-4 flex justify-center items-center gap-2">
+      <button class="btn btn-secondary btn-sm" :disabled="currentPage <= 1" @click="changePage(currentPage - 1)">
+        {{ t('common.previous') }}
       </button>
-
-      <!-- 生成码 -->
-      <div class="card mb-4 p-4">
-        <div class="flex items-center gap-3">
-          <label class="text-sm font-medium">{{ t('admin.channelActivity.generateCodes') }}:</label>
-          <input v-model.number="generateCount" type="number" min="1" max="500" class="input w-24" />
-          <button class="btn btn-primary btn-sm" :disabled="generating" @click="handleGenerateCodes">
-            {{ generating ? t('common.loading') : t('admin.channelActivity.generate') }}
-          </button>
-        </div>
-        <p class="mt-1 text-xs text-gray-400">{{ t('admin.channelActivity.generateHint') }}</p>
-      </div>
-
-      <!-- 码列表 -->
-      <div class="card overflow-hidden mb-4">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-              <th class="px-4 py-3">ID</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.code') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.codeStatus') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.usage') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.createdAt') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="codesLoading" class="border-b border-gray-100 dark:border-gray-800">
-              <td colspan="5" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td>
-            </tr>
-            <tr v-else-if="codes.length === 0" class="border-b border-gray-100 dark:border-gray-800">
-              <td colspan="5" class="px-4 py-8 text-center text-gray-500">{{ t('admin.channelActivity.noCodes') }}</td>
-            </tr>
-            <tr
-              v-for="code in codes"
-              :key="code.id"
-              class="border-b border-gray-100 dark:border-gray-800"
-            >
-              <td class="px-4 py-3 text-xs text-gray-500">{{ code.id }}</td>
-              <td class="px-4 py-3 text-sm font-mono">{{ code.code }}</td>
-              <td class="px-4 py-3">
-                <span
-                  :class="[
-                    'badge text-xs',
-                    code.status === 'unused' ? 'badge-success' : code.status === 'used' ? 'badge-info' : 'badge-gray'
-                  ]"
-                >
-                  {{ code.status }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-xs text-gray-500">{{ code.used_count }} / {{ code.max_uses }}</td>
-              <td class="px-4 py-3 text-xs text-gray-500">{{ formatDate(code.created_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 码分页 -->
-      <div v-if="codesTotalPages > 1" class="mb-4 flex justify-center items-center gap-2">
-        <button class="btn btn-secondary btn-sm" :disabled="codesPage <= 1" @click="changeCodesPage(codesPage - 1)">{{ t('common.previous') }}</button>
-        <span class="text-sm text-gray-500">{{ codesPage }} / {{ codesTotalPages }}</span>
-        <button class="btn btn-secondary btn-sm" :disabled="codesPage >= codesTotalPages" @click="changeCodesPage(codesPage + 1)">{{ t('common.next') }}</button>
-      </div>
-
-      <!-- 使用记录 -->
-      <h4 class="text-sm font-medium mb-2">{{ t('admin.channelActivity.usageRecords') }}</h4>
-      <div class="card overflow-hidden">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
-              <th class="px-4 py-3">ID</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.user') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.code') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.bonusGranted') }}</th>
-              <th class="px-4 py-3">{{ t('admin.channelActivity.claimedAt') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="usagesLoading" class="border-b border-gray-100 dark:border-gray-800">
-              <td colspan="5" class="px-4 py-8 text-center text-gray-500">{{ t('common.loading') }}</td>
-            </tr>
-            <tr v-else-if="usages.length === 0" class="border-b border-gray-100 dark:border-gray-800">
-              <td colspan="5" class="px-4 py-8 text-center text-gray-500">{{ t('admin.channelActivity.noUsages') }}</td>
-            </tr>
-            <tr
-              v-for="usage in usages"
-              :key="usage.id"
-              class="border-b border-gray-100 dark:border-gray-800"
-            >
-              <td class="px-4 py-3 text-xs text-gray-500">{{ usage.id }}</td>
-              <td class="px-4 py-3 text-xs">{{ usage.user?.email || '-' }}</td>
-              <td class="px-4 py-3 text-xs font-mono">{{ usage.code?.code || '-' }}</td>
-              <td class="px-4 py-3">
-                <span :class="['badge text-xs', usage.bonus_granted ? 'badge-success' : 'badge-warning']">
-                  {{ usage.bonus_granted ? t('common.yes') : t('common.no') }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-xs text-gray-500">{{ formatDate(usage.claimed_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 使用记录分页 -->
-      <div v-if="usagesTotalPages > 1" class="mt-4 flex justify-center items-center gap-2">
-        <button class="btn btn-secondary btn-sm" :disabled="usagesPage <= 1" @click="changeUsagesPage(usagesPage - 1)">{{ t('common.previous') }}</button>
-        <span class="text-sm text-gray-500">{{ usagesPage }} / {{ usagesTotalPages }}</span>
-        <button class="btn btn-secondary btn-sm" :disabled="usagesPage >= usagesTotalPages" @click="changeUsagesPage(usagesPage + 1)">{{ t('common.next') }}</button>
-      </div>
+      <span class="text-sm text-gray-500">{{ currentPage }} / {{ totalPages }}</span>
+      <button class="btn btn-secondary btn-sm" :disabled="currentPage >= totalPages" @click="changePage(currentPage + 1)">
+        {{ t('common.next') }}
+      </button>
     </div>
 
     <!-- 创建/编辑活动 Modal -->
@@ -293,7 +204,6 @@
               @input="handleInviterSearch"
               @focus="handleInviterSearch"
             />
-            <!-- 搜索结果下拉 -->
             <div
               v-if="!selectedInviter && inviterResults.length > 0"
               class="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto"
@@ -360,7 +270,6 @@ import { adminAPI } from '@/api'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import type {
   ChannelInviteBatch,
-  ChannelInviteCode,
   ChannelInviteCodeUsage,
   AdminUser,
   AdminGroup
@@ -398,6 +307,28 @@ async function loadBatches() {
 function changePage(page: number) {
   currentPage.value = page
   loadBatches()
+}
+
+// ---------- 使用记录展开 ----------
+const expandedBatchId = ref<number | null>(null)
+const expandedUsages = ref<ChannelInviteCodeUsage[]>([])
+const expandedUsagesLoading = ref(false)
+
+async function toggleUsages(batchId: number) {
+  if (expandedBatchId.value === batchId) {
+    expandedBatchId.value = null
+    return
+  }
+  expandedBatchId.value = batchId
+  expandedUsagesLoading.value = true
+  try {
+    const result = await adminAPI.channelActivities.listUsages(batchId)
+    expandedUsages.value = result.items || []
+  } catch {
+    expandedUsages.value = []
+  } finally {
+    expandedUsagesLoading.value = false
+  }
 }
 
 // ---------- 创建/编辑 Modal ----------
@@ -549,88 +480,6 @@ async function handleDelete(batch: ChannelInviteBatch) {
   }
 }
 
-// ---------- 码管理 ----------
-const selectedBatchId = ref<number | null>(null)
-const codes = ref<ChannelInviteCode[]>([])
-const codesLoading = ref(false)
-const codesPage = ref(1)
-const codesTotalPages = ref(1)
-
-const usages = ref<ChannelInviteCodeUsage[]>([])
-const usagesLoading = ref(false)
-const usagesPage = ref(1)
-const usagesTotalPages = ref(1)
-
-const generateCount = ref(10)
-const generating = ref(false)
-
-function openCodeView(batchId: number) {
-  selectedBatchId.value = batchId
-  codesPage.value = 1
-  usagesPage.value = 1
-  loadCodes()
-  loadUsages()
-}
-
-function closeCodeView() {
-  selectedBatchId.value = null
-  codes.value = []
-  usages.value = []
-}
-
-async function loadCodes() {
-  if (!selectedBatchId.value) return
-  codesLoading.value = true
-  try {
-    const result = await adminAPI.channelActivities.listCodes(selectedBatchId.value, codesPage.value, pageSize)
-    codes.value = result.items || []
-    codesTotalPages.value = Math.ceil((result.total || 0) / pageSize)
-  } catch {
-    codes.value = []
-  } finally {
-    codesLoading.value = false
-  }
-}
-
-async function loadUsages() {
-  if (!selectedBatchId.value) return
-  usagesLoading.value = true
-  try {
-    const result = await adminAPI.channelActivities.listUsages(selectedBatchId.value, usagesPage.value, pageSize)
-    usages.value = result.items || []
-    usagesTotalPages.value = Math.ceil((result.total || 0) / pageSize)
-  } catch {
-    usages.value = []
-  } finally {
-    usagesLoading.value = false
-  }
-}
-
-function changeCodesPage(page: number) {
-  codesPage.value = page
-  loadCodes()
-}
-
-function changeUsagesPage(page: number) {
-  usagesPage.value = page
-  loadUsages()
-}
-
-async function handleGenerateCodes() {
-  if (!selectedBatchId.value || generateCount.value < 1 || generateCount.value > 500) return
-  generating.value = true
-  try {
-    await adminAPI.channelActivities.generateCodes(selectedBatchId.value, generateCount.value)
-    loadCodes()
-    loadBatches()
-  } catch (err: any) {
-    const msg = err?.response?.data?.detail || err?.message || t('common.error')
-    appStore.showError(msg)
-  } finally {
-    generating.value = false
-  }
-}
-
 // ---------- 工具函数 ----------
 function formatDate(d: string): string {
   if (!d) return '-'
@@ -638,9 +487,7 @@ function formatDate(d: string): string {
 }
 
 function toDatetimeLocal(d: string): string {
-  // Convert ISO string to datetime-local input format: "YYYY-MM-DDTHH:mm"
   const date = new Date(d)
-  // Convert to local timezone format
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')

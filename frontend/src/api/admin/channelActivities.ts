@@ -5,7 +5,6 @@
 import { apiClient } from '../client'
 import type {
   ChannelInviteBatch,
-  ChannelInviteCode,
   ChannelInviteCodeUsage,
   CreateChannelInviteBatchRequest,
   UpdateChannelInviteBatchRequest,
@@ -46,33 +45,6 @@ export async function deleteBatch(id: number): Promise<{ message: string }> {
   return data
 }
 
-export async function generateCodes(
-  batchId: number,
-  count: number
-): Promise<ChannelInviteCode[]> {
-  const { data } = await apiClient.post<ChannelInviteCode[]>(
-    `/admin/channel-invite/batches/${batchId}/generate-codes`,
-    { count }
-  )
-  return data
-}
-
-export async function listCodes(
-  batchId: number,
-  page: number = 1,
-  pageSize: number = 20,
-  filters?: {
-    status?: string
-    search?: string
-  }
-): Promise<BasePaginationResponse<ChannelInviteCode>> {
-  const { data } = await apiClient.get<BasePaginationResponse<ChannelInviteCode>>(
-    `/admin/channel-invite/batches/${batchId}/codes`,
-    { params: { page, page_size: pageSize, ...filters } }
-  )
-  return data
-}
-
 export async function listUsages(
   batchId: number,
   page: number = 1,
@@ -91,8 +63,6 @@ const channelActivitiesAPI = {
   createBatch,
   updateBatch,
   deleteBatch,
-  generateCodes,
-  listCodes,
   listUsages
 }
 

@@ -154,6 +154,7 @@ func (r *channelInviteRepository) ListBatches(ctx context.Context, params pagina
 
 	batches, err := q.
 		WithCreator().
+		WithCodes().
 		WithBatchGroups(func(q *dbent.ChannelInviteBatchGroupQuery) {
 			q.WithGroup()
 		}).
@@ -477,6 +478,15 @@ func channelInviteBatchEntityToService(m *dbent.ChannelInviteBatch) *service.Cha
 			}
 		}
 		b.Groups = groups
+	}
+	if m.Edges.Codes != nil {
+		codes := make([]service.ChannelInviteCode, 0, len(m.Edges.Codes))
+		for _, c := range m.Edges.Codes {
+			if s := channelInviteCodeEntityToService(c); s != nil {
+				codes = append(codes, *s)
+			}
+		}
+		b.Codes = codes
 	}
 	return b
 }

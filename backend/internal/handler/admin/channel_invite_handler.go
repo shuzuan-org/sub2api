@@ -53,11 +53,6 @@ type UpdateBatchRequest struct {
 	GroupIDs         []int64  `json:"group_ids"`
 }
 
-// GenerateCodesRequest generates invite codes in a batch
-type GenerateCodesRequest struct {
-	Count int `json:"count" binding:"required,min=1,max=500"`
-}
-
 // ListBatches GET /api/v1/admin/channel-invite/batches
 func (h *ChannelInviteHandler) ListBatches(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
@@ -198,33 +193,6 @@ func (h *ChannelInviteHandler) DeleteBatch(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "Batch deleted successfully"})
-}
-
-// GenerateCodes POST /api/v1/admin/channel-invite/batches/:id/generate-codes
-func (h *ChannelInviteHandler) GenerateCodes(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid batch ID")
-		return
-	}
-
-	var req GenerateCodesRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	codes, err := h.channelInviteSvc.GenerateCodes(c.Request.Context(), id, req.Count)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	out := make([]dto.ChannelInviteCode, 0, len(codes))
-	for i := range codes {
-		out = append(out, *dto.ChannelInviteCodeFromService(&codes[i]))
-	}
-	response.Success(c, out)
 }
 
 // ListCodes GET /api/v1/admin/channel-invite/batches/:id/codes
