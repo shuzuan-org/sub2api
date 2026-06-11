@@ -335,12 +335,6 @@ onMounted(async () => {
         await validateInvitationCodeDebounced(inviteCode)
       }
     }
-
-    // Read channel activity code from URL for auto-claim after registration
-    const channelParam = route.query.channel as string
-    if (channelParam) {
-      channelCode.value = channelParam.trim()
-    }
   } catch (error) {
     console.error('Failed to load public settings:', error)
   } finally {
@@ -547,7 +541,6 @@ async function handleRegister(): Promise<void> {
           turnstile_token: turnstileToken.value,
           invitation_code: formData.invitation_code || undefined,
           referral_code: formData.referral_code || undefined,
-          channel_code: channelCode.value || undefined,
           redirect: (route.query.redirect as string) || undefined
         })
       )

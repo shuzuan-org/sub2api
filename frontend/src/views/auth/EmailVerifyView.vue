@@ -243,7 +243,10 @@ onMounted(async () => {
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
       referralCode.value = registerData.referral_code || ''
-      channelCode.value = registerData.channel_code || ''
+      // 12-char hex referral codes are channel activity codes
+      if (/^[0-9A-Fa-f]{12}$/.test(referralCode.value)) {
+        channelCode.value = referralCode.value
+      }
       redirectPath.value = registerData.redirect || ''
       hasRegisterData.value = !!(email.value && password.value)
     } catch {
