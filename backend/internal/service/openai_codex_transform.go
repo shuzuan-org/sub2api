@@ -6,6 +6,13 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-5.5":                    "gpt-5.5",
+	"gpt-5.5-none":               "gpt-5.5",
+	"gpt-5.5-low":                "gpt-5.5",
+	"gpt-5.5-medium":             "gpt-5.5",
+	"gpt-5.5-high":               "gpt-5.5",
+	"gpt-5.5-xhigh":              "gpt-5.5",
+	"gpt-5.5-chat-latest":        "gpt-5.5",
 	"gpt-5.4":                    "gpt-5.4",
 	"gpt-5.4-mini":               "gpt-5.4-mini",
 	"gpt-5.4-nano":               "gpt-5.4-nano",
@@ -232,6 +239,9 @@ func normalizeCodexModel(model string) string {
 	}
 	if strings.Contains(normalized, "gpt-5.4-nano") || strings.Contains(normalized, "gpt 5.4 nano") {
 		return "gpt-5.4-nano"
+	}
+	if strings.Contains(normalized, "gpt-5.5") || strings.Contains(normalized, "gpt 5.5") {
+		return "gpt-5.5"
 	}
 	if strings.Contains(normalized, "gpt-5.4") || strings.Contains(normalized, "gpt 5.4") {
 		return "gpt-5.4"

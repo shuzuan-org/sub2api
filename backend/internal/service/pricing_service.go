@@ -32,6 +32,17 @@ const (
 var (
 	openAIModelDatePattern     = regexp.MustCompile(`-\d{8}$`)
 	openAIModelBasePattern     = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?)(?:-|$)`)
+	openAIGPT55FallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:               5e-06 * USDToU, // $5 per MTok → U
+		OutputCostPerToken:              3e-05 * USDToU, // $30 per MTok → U
+		CacheReadInputTokenCost:         5e-07 * USDToU, // $0.5 per MTok → U
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2.0, // >272k: input $5→$10
+		LongContextOutputCostMultiplier: 1.5, // >272k: output $30→$45
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	}
 	openAIGPT54FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:               2.5e-06 * USDToU, // $2.5 per MTok → U
 		OutputCostPerToken:              1.5e-05 * USDToU, // $15 per MTok → U
@@ -917,6 +928,12 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		logger.With(zap.String("component", "service.pricing")).
 			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-nano(static)"))
 		return openAIGPT54NanoFallbackPricing
+	}
+
+	if strings.HasPrefix(model, "gpt-5.5") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5(static)"))
+		return openAIGPT55FallbackPricing
 	}
 
 	if strings.HasPrefix(model, "gpt-5.4") {
