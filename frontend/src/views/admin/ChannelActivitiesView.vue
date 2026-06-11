@@ -73,6 +73,16 @@
               <td class="px-4 py-3 text-sm">{{ batch.bonus_amount }}U</td>
               <td class="px-4 py-3 text-xs font-mono text-blue-600 dark:text-blue-400">
                 {{ (batch.codes && batch.codes.length > 0) ? batch.codes[0].code : '-' }}
+                <button
+                  v-if="batch.codes && batch.codes.length > 0"
+                  class="ml-1 inline-flex items-center text-gray-400 hover:text-primary-600"
+                  :title="t('common.copy')"
+                  @click="copyInviteLink(batch.codes[0].code)"
+                >
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
               </td>
               <td class="px-4 py-3 text-xs text-gray-500">
                 <div class="flex items-center gap-2">
@@ -246,6 +256,7 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { adminAPI } from '@/api'
+import { useClipboard } from '@/composables/useClipboard'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import type {
   ChannelInviteBatch,
@@ -255,6 +266,7 @@ import type {
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { copyToClipboard } = useClipboard()
 
 // ---------- 活动列表 ----------
 const loading = ref(false)
@@ -433,6 +445,11 @@ function clearInviter() {
 }
 
 // ---------- 删除 ----------
+function copyInviteLink(code: string) {
+  const link = `${window.location.origin}/register?invite=${code}`
+  copyToClipboard(link, t('admin.channelActivity.linkCopied'))
+}
+
 async function handleDelete(batch: ChannelInviteBatch) {
   if (!confirm(t('admin.channelActivity.deleteConfirm', { name: batch.name }))) return
   try {
