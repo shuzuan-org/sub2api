@@ -1694,6 +1694,7 @@ export interface ChannelInviteBatch {
   created_at: string
   updated_at: string
   groups?: AdminGroup[]
+  codes?: ChannelInviteCode[]
   creator?: AdminUser
 }
 

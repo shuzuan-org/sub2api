@@ -801,6 +801,15 @@ func ChannelInviteBatchFromService(b *service.ChannelInviteBatch) *ChannelInvite
 		}
 		out.Groups = groups
 	}
+	if b.Codes != nil {
+		codes := make([]ChannelInviteCode, 0, len(b.Codes))
+		for i := range b.Codes {
+			if c := ChannelInviteCodeFromService(&b.Codes[i]); c != nil {
+				codes = append(codes, *c)
+			}
+		}
+		out.Codes = codes
+	}
 	return out
 }
 

@@ -617,7 +617,6 @@ func registerChannelInviteRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		ci.POST("/batches", h.Admin.ChannelInvite.CreateBatch)
 		ci.PUT("/batches/:id", h.Admin.ChannelInvite.UpdateBatch)
 		ci.DELETE("/batches/:id", h.Admin.ChannelInvite.DeleteBatch)
-		ci.POST("/batches/:id/generate-codes", h.Admin.ChannelInvite.GenerateCodes)
 		ci.GET("/batches/:id/codes", h.Admin.ChannelInvite.ListCodes)
 		ci.GET("/batches/:id/usages", h.Admin.ChannelInvite.ListUsages)
 	}
