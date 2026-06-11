@@ -4859,9 +4859,7 @@ export default {
         inviter: 'Inviter',
         inviterPlaceholder: 'Search by email...',
         copyText: 'Activity Copy Text',
-        copyTextPlaceholder: 'e.g. Bind and get 500U',
-        groups: 'Groups',
-        groupsHint: 'Users will be added to these groups after claiming'
+        copyTextPlaceholder: 'e.g. Bind and get 500U'
       }
     },
 

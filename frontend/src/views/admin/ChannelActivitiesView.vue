@@ -225,27 +225,6 @@
           <label class="input-label">{{ t('admin.channelActivity.form.copyText') }}</label>
           <textarea v-model="form.activity_copy_text" class="input w-full" rows="3" :placeholder="t('admin.channelActivity.form.copyTextPlaceholder')"></textarea>
         </div>
-
-        <!-- 分组关联 -->
-        <div>
-          <label class="input-label">{{ t('admin.channelActivity.form.groups') }}</label>
-          <p class="input-hint mb-1">{{ t('admin.channelActivity.form.groupsHint') }}</p>
-          <div class="max-h-32 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
-            <label
-              v-for="group in availableGroups"
-              :key="group.id"
-              class="flex items-center gap-2 text-sm py-1"
-            >
-              <input
-                type="checkbox"
-                :value="group.id"
-                v-model="form.group_ids"
-                class="rounded border-gray-300"
-              />
-              {{ group.name }}
-            </label>
-          </div>
-        </div>
       </form>
 
       <template #footer>
@@ -271,8 +250,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import type {
   ChannelInviteBatch,
   ChannelInviteCodeUsage,
-  AdminUser,
-  AdminGroup
+  AdminUser
 } from '@/types'
 
 const { t } = useI18n()
@@ -343,19 +321,7 @@ const form = ref({
   max_uses_per_code: 100,
   created_by: 0,
   activity_copy_text: '',
-  group_ids: [] as number[]
 })
-const availableGroups = ref<AdminGroup[]>([])
-
-async function loadGroups() {
-  try {
-    const result = await adminAPI.groups.list(1, 200)
-    availableGroups.value = result.data || []
-  } catch {
-    availableGroups.value = []
-  }
-}
-
 function openCreateModal() {
   editingBatch.value = null
   form.value = {
@@ -366,7 +332,6 @@ function openCreateModal() {
     max_uses_per_code: 100,
     created_by: 0,
     activity_copy_text: '',
-    group_ids: []
   }
   selectedInviter.value = null
   inviterSearch.value = ''
@@ -384,7 +349,6 @@ function openEditModal(batch: ChannelInviteBatch) {
     max_uses_per_code: batch.max_uses_per_code,
     created_by: batch.created_by,
     activity_copy_text: batch.activity_copy_text || '',
-    group_ids: (batch.groups || []).map(g => g.id)
   }
   selectedInviter.value = batch.creator || null
   inviterSearch.value = ''
@@ -407,7 +371,7 @@ async function handleSubmitForm() {
       notes: '',
       activity_copy_text: form.value.activity_copy_text,
       created_by: form.value.created_by,
-      group_ids: form.value.group_ids
+      group_ids: []
     }
 
     if (form.value.start_time) {
@@ -499,6 +463,5 @@ function toDatetimeLocal(d: string): string {
 // ---------- 初始化 ----------
 onMounted(() => {
   loadBatches()
-  loadGroups()
 })
 </script>
