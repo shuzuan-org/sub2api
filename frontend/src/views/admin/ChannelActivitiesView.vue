@@ -353,7 +353,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { adminAPI } from '@/api'
@@ -386,7 +386,7 @@ async function loadBatches() {
     if (searchText.value.trim()) filters.search = searchText.value.trim()
 
     const result = await adminAPI.channelActivities.listBatches(currentPage.value, pageSize, filters)
-    batches.value = result.data || []
+    batches.value = result.items || []
     totalPages.value = Math.ceil((result.total || 0) / pageSize)
   } catch {
     batches.value = []
@@ -419,7 +419,7 @@ const availableGroups = ref<AdminGroup[]>([])
 async function loadGroups() {
   try {
     const result = await adminAPI.groups.list(1, 200)
-    availableGroups.value = result.data || []
+    availableGroups.value = result.items || []
   } catch {
     availableGroups.value = []
   }
@@ -518,7 +518,7 @@ async function handleInviterSearch() {
     }
     try {
       const result = await adminAPI.users.list(1, 10, { search: query })
-      inviterResults.value = result.data || []
+      inviterResults.value = result.items || []
     } catch {
       inviterResults.value = []
     }
@@ -583,7 +583,7 @@ async function loadCodes() {
   codesLoading.value = true
   try {
     const result = await adminAPI.channelActivities.listCodes(selectedBatchId.value, codesPage.value, pageSize)
-    codes.value = result.data || []
+    codes.value = result.items || []
     codesTotalPages.value = Math.ceil((result.total || 0) / pageSize)
   } catch {
     codes.value = []
@@ -597,7 +597,7 @@ async function loadUsages() {
   usagesLoading.value = true
   try {
     const result = await adminAPI.channelActivities.listUsages(selectedBatchId.value, usagesPage.value, pageSize)
-    usages.value = result.data || []
+    usages.value = result.items || []
     usagesTotalPages.value = Math.ceil((result.total || 0) / pageSize)
   } catch {
     usages.value = []
