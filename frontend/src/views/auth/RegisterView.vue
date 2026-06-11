@@ -31,40 +31,8 @@
 
       <!-- Registration Form -->
       <form v-else @submit.prevent="handleRegister" class="space-y-5">
-        <!-- Registration Mode Toggle -->
-        <div
-          v-if="phoneRegistrationEnabled"
-          class="flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
-        >
-          <button
-            type="button"
-            :class="[
-              'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              registrationMode === 'email'
-                ? 'bg-white text-gray-900 shadow dark:bg-dark-600 dark:text-white'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="registrationMode = 'email'"
-          >
-            {{ t('auth.emailPasswordLogin') }}
-          </button>
-          <button
-            type="button"
-            :class="[
-              'flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              registrationMode === 'phone'
-                ? 'bg-white text-gray-900 shadow dark:bg-dark-600 dark:text-white'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="registrationMode = 'phone'"
-          >
-            {{ t('auth.phoneLogin') }}
-          </button>
-        </div>
-
-        <template v-if="registrationMode === 'email'">
-          <!-- Email Input -->
-          <div>
+        <!-- Email Input -->
+        <div>
           <label for="email" class="input-label">
             {{ t('auth.emailLabel') }}
           </label>
@@ -90,8 +58,8 @@
           </p>
         </div>
 
-          <!-- Password Input -->
-          <div>
+        <!-- Password Input -->
+        <div>
           <label for="password" class="input-label">
             {{ t('auth.passwordLabel') }}
           </label>
@@ -126,69 +94,6 @@
             {{ t('auth.passwordHint') }}
           </p>
         </div>
-
-        </template>
-
-        <template v-if="registrationMode === 'phone'">
-          <!-- Phone Input -->
-          <div>
-            <label for="register_phone" class="input-label">
-              {{ t('auth.phoneLabel') }}
-            </label>
-            <div class="relative">
-              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                <Icon name="key" size="md" class="text-gray-400 dark:text-dark-500" />
-              </div>
-              <input
-                id="register_phone"
-                v-model="phoneFormData.phone"
-                type="tel"
-                required
-                autocomplete="tel"
-                :disabled="isLoading"
-                class="input pl-11"
-                :class="{ 'input-error': errors.phone }"
-                :placeholder="t('auth.phonePlaceholder')"
-              />
-            </div>
-            <p v-if="errors.phone" class="input-error-text">
-              {{ errors.phone }}
-            </p>
-          </div>
-
-          <!-- Phone Verify Code Input -->
-          <div>
-            <label for="register_phone_code" class="input-label">
-              {{ t('auth.verificationCode') }}
-            </label>
-            <div class="flex gap-2">
-              <input
-                id="register_phone_code"
-                v-model="phoneFormData.verifyCode"
-                type="text"
-                required
-                inputmode="numeric"
-                maxlength="6"
-                autocomplete="one-time-code"
-                :disabled="isLoading"
-                class="input"
-                :class="{ 'input-error': errors.phone_verify_code }"
-                :placeholder="t('auth.verificationCodeHint')"
-              />
-              <button
-                type="button"
-                :disabled="isLoading || sendPhoneCodeDisabled"
-                class="btn btn-secondary whitespace-nowrap"
-                @click="handleSendPhoneRegisterCode"
-              >
-                {{ sendPhoneCodeButtonText }}
-              </button>
-            </div>
-            <p v-if="errors.phone_verify_code" class="input-error-text">
-              {{ errors.phone_verify_code }}
-            </p>
-          </div>
-        </template>
 
         <!-- Invitation Code Input (Optional when enabled) -->
         <div v-if="invitationCodeEnabled">
@@ -305,7 +210,7 @@
           {{
             isLoading
               ? t('auth.processing')
-              : registrationMode === 'email' && emailVerifyEnabled
+              : emailVerifyEnabled
                 ? t('auth.continue')
                 : t('auth.createAccount')
           }}
@@ -329,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
@@ -337,7 +242,7 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
-import { getPublicSettings, validateInvitationCode, sendPhoneRegisterCode } from '@/api/auth'
+import { getPublicSettings, validateInvitationCode } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import {
   isRegistrationEmailSuffixAllowed,
@@ -359,8 +264,6 @@ const isLoading = ref<boolean>(false)
 const settingsLoaded = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
-const registrationMode = ref<'email' | 'phone'>('email')
-const phoneRegistrationEnabled = ref<boolean>(false)
 
 // Public settings
 const registrationEnabled = ref<boolean>(true)
@@ -392,29 +295,12 @@ const formData = reactive({
   referral_code: ''
 })
 
-const phoneFormData = reactive({
-  phone: '',
-  verifyCode: ''
-})
-
 const errors = reactive({
   email: '',
   password: '',
-  phone: '',
-  phone_verify_code: '',
   turnstile: '',
   invitation_code: ''
 })
-
-const sendPhoneCodeCountdown = ref<number>(0)
-const sendPhoneCodeDisabled = computed(() => sendPhoneCodeCountdown.value > 0)
-const sendPhoneCodeButtonText = computed(() => {
-  if (sendPhoneCodeCountdown.value > 0) {
-    return t('auth.resendAfter', { seconds: sendPhoneCodeCountdown.value })
-  }
-  return t('auth.sendCode')
-})
-let sendPhoneCodeTimer: ReturnType<typeof setInterval> | null = null
 
 // ==================== Lifecycle ====================
 
@@ -428,7 +314,6 @@ onMounted(async () => {
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     siteName.value = settings.site_name || 'Sub2API'
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
-    phoneRegistrationEnabled.value = settings.phone_login_enabled
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
@@ -454,9 +339,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (invitationValidateTimeout) {
     clearTimeout(invitationValidateTimeout)
-  }
-  if (sendPhoneCodeTimer) {
-    clearInterval(sendPhoneCodeTimer)
   }
 })
 
@@ -565,49 +447,32 @@ function validateForm(): boolean {
   // Reset errors
   errors.email = ''
   errors.password = ''
-  errors.phone = ''
-  errors.phone_verify_code = ''
   errors.turnstile = ''
   errors.invitation_code = ''
 
   let isValid = true
 
-  if (registrationMode.value === 'email') {
-    // Email validation
-    if (!formData.email.trim()) {
-      errors.email = t('auth.emailRequired')
-      isValid = false
-    } else if (!validateEmail(formData.email)) {
-      errors.email = t('auth.invalidEmail')
-      isValid = false
-    } else if (
-      !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
-    ) {
-      errors.email = buildEmailSuffixNotAllowedMessage()
-      isValid = false
-    }
+  // Email validation
+  if (!formData.email.trim()) {
+    errors.email = t('auth.emailRequired')
+    isValid = false
+  } else if (!validateEmail(formData.email)) {
+    errors.email = t('auth.invalidEmail')
+    isValid = false
+  } else if (
+    !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
+  ) {
+    errors.email = buildEmailSuffixNotAllowedMessage()
+    isValid = false
+  }
 
-    // Password validation
-    if (!formData.password) {
-      errors.password = t('auth.passwordRequired')
-      isValid = false
-    } else if (formData.password.length < 6) {
-      errors.password = t('auth.passwordMinLength')
-      isValid = false
-    }
-  } else {
-    if (!phoneFormData.phone.trim()) {
-      errors.phone = t('auth.phoneRequired')
-      isValid = false
-    } else if (!/^1[3-9]\d{9}$/.test(phoneFormData.phone.trim())) {
-      errors.phone = t('auth.invalidPhone')
-      isValid = false
-    }
-
-    if (!/^\d{6}$/.test(phoneFormData.verifyCode.trim())) {
-      errors.phone_verify_code = t('auth.invalidCode')
-      isValid = false
-    }
+  // Password validation
+  if (!formData.password) {
+    errors.password = t('auth.passwordRequired')
+    isValid = false
+  } else if (formData.password.length < 6) {
+    errors.password = t('auth.passwordMinLength')
+    isValid = false
   }
 
   // Turnstile validation
@@ -617,50 +482,6 @@ function validateForm(): boolean {
   }
 
   return isValid
-}
-
-
-function startPhoneCodeCountdown(seconds: number): void {
-  sendPhoneCodeCountdown.value = seconds
-  if (sendPhoneCodeTimer) {
-    clearInterval(sendPhoneCodeTimer)
-  }
-  sendPhoneCodeTimer = setInterval(() => {
-    if (sendPhoneCodeCountdown.value > 0) {
-      sendPhoneCodeCountdown.value--
-    } else if (sendPhoneCodeTimer) {
-      clearInterval(sendPhoneCodeTimer)
-      sendPhoneCodeTimer = null
-    }
-  }, 1000)
-}
-
-async function handleSendPhoneRegisterCode(): Promise<void> {
-  errors.phone = ''
-  errorMessage.value = ''
-
-  if (!/^1[3-9]\d{9}$/.test(phoneFormData.phone.trim())) {
-    errors.phone = t('auth.invalidPhone')
-    return
-  }
-  if (turnstileEnabled.value && !turnstileToken.value) {
-    errors.turnstile = t('auth.completeVerification')
-    return
-  }
-
-  try {
-    const result = await sendPhoneRegisterCode({
-      phone: phoneFormData.phone.trim(),
-      turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
-    })
-    startPhoneCodeCountdown(result.countdown)
-    appStore.showSuccess(t('auth.sendCodeSuccess'))
-  } catch (error: unknown) {
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.sendCodeFailed')
-    })
-    appStore.showError(errorMessage.value)
-  }
 }
 
 // ==================== Form Handlers ====================
@@ -703,20 +524,6 @@ async function handleRegister(): Promise<void> {
   isLoading.value = true
 
   try {
-    if (registrationMode.value === 'phone') {
-      await authStore.registerWithPhoneCode({
-        phone: phoneFormData.phone.trim(),
-        verify_code: phoneFormData.verifyCode.trim(),
-        invitation_code: formData.invitation_code || undefined,
-        turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined
-      })
-
-      appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
-      const redirectTo = (route.query.redirect as string) || '/dashboard'
-      await router.push(redirectTo)
-      return
-    }
-
     // If email verification is enabled, redirect to verification page
     if (emailVerifyEnabled.value) {
       // Store registration data in sessionStorage
