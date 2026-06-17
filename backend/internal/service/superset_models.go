@@ -13,6 +13,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/modelsuperset"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,6 +49,7 @@ func accountUpstreamModelsCacheKey(accountID int64) string {
 type supersetCacheEntry struct {
 	ids     []string
 	origins map[string]string
+	metas   map[string]modelsuperset.ModelMeta // client-facing id → real upstream caps
 }
 
 // GetSupersetModels returns the deduplicated client-facing model ids for the group's
@@ -58,11 +60,11 @@ type supersetCacheEntry struct {
 // Concurrent misses for the same group collapse through singleflight: the aggregation
 // fans out real upstream /v1/models requests (and may trigger OAuth refresh), so without
 // this a cache expiry under load would self-DDoS the account pool.
-func (s *GatewayService) GetSupersetModels(ctx context.Context, groupID *int64) ([]string, map[string]string) {
+func (s *GatewayService) GetSupersetModels(ctx context.Context, groupID *int64) ([]string, map[string]string, map[string]modelsuperset.ModelMeta) {
 	cacheKey := supersetModelsCacheKey(groupID)
 	if entry, ok := s.lookupSupersetCache(cacheKey); ok {
 		modelsListCacheHitTotal.Add(1)
-		return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins)
+		return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins), cloneModelMetaMap(entry.metas)
 	}
 	modelsListCacheMissTotal.Add(1)
 
@@ -90,7 +92,7 @@ func (s *GatewayService) GetSupersetModels(ctx context.Context, groupID *int64) 
 		return entry, nil
 	})
 	entry, _ := v.(supersetCacheEntry)
-	return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins)
+	return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins), cloneModelMetaMap(entry.metas)
 }
 
 func (s *GatewayService) lookupSupersetCache(cacheKey string) (supersetCacheEntry, bool) {
@@ -125,46 +127,61 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 		return supersetCacheEntry{}
 	}
 
-	// Decide each account's exposed id set. An account WITH a model_mapping exposes its
-	// keys (client-facing names) and is NOT fetched — its raw upstream catalog would be
-	// discarded by reconciliation anyway, so fetching it just burns an upstream round
-	// trip (and possibly an OAuth refresh). Only no-mapping accounts hit the network.
+	// Decide each account's exposed id set and its model_mapping. Every account is
+	// fetched now (mapped accounts too) so we can attach REAL upstream metadata
+	// (max_input_tokens) to the client-facing id — for a mapped account that means
+	// looking up the mapping's VALUE (the true provider model) in the upstream catalog
+	// and hanging its caps on the mapping KEY. A mapped account still EXPOSES only its
+	// keys; its raw upstream ids never reach the client.
 	exposed := make([][]string, len(accounts))
+	mappingOf := make([]map[string]string, len(accounts))
+	fetched := make([]map[string]modelsuperset.ModelMeta, len(accounts))
 	var fetchIdx []int
 	for i := range accounts {
 		if mapping := accounts[i].GetModelMapping(); len(mapping) > 0 {
 			exposed[i] = mapKeys(mapping)
-		} else {
-			fetchIdx = append(fetchIdx, i)
+			mappingOf[i] = mapping
 		}
+		fetchIdx = append(fetchIdx, i)
 	}
 
-	// Fetch no-mapping accounts concurrently with per-account failure isolation: one
-	// account's error/timeout must not fail the whole listing.
+	// Fetch accounts concurrently with per-account failure isolation: one account's
+	// error/timeout must not fail the whole listing. nil httpUpstream (unit tests)
+	// short-circuits to no metadata — a mapped account then still exposes its keys
+	// (just without real caps), a no-mapping account contributes nothing.
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(supersetFanoutLimit)
 	for _, idx := range fetchIdx {
 		idx := idx
 		acc := accounts[idx]
 		g.Go(func() error {
+			if s.httpUpstream == nil {
+				return nil
+			}
 			cctx, cancel := context.WithTimeout(gctx, supersetUpstreamTimeout)
 			defer cancel()
-			ids, ferr := s.fetchAccountUpstreamModels(cctx, &acc)
+			metas, ferr := s.fetchAccountUpstreamModels(cctx, &acc)
 			if ferr != nil {
 				logger.L().Warn("superset: account upstream models fetch failed",
 					zap.Int64("account_id", acc.ID),
 					zap.String("platform", acc.Platform),
 					zap.Error(ferr))
 			}
-			exposed[idx] = ids
+			fetched[idx] = metas
+			// No-mapping accounts expose the upstream ids directly.
+			if mappingOf[idx] == nil {
+				exposed[idx] = sortedMetaKeys(metas)
+			}
 			return nil // never propagate — failure isolation
 		})
 	}
 	_ = g.Wait() // per-account errors are swallowed above; Wait error is always nil
 
 	// Fuse: dedup across accounts. On an id collision, anthropic wins the origin (drives
-	// capability gating).
+	// capability gating). Also attach real upstream metadata to each client-facing id,
+	// reverse-looking-up the mapping value for mapped accounts.
 	origins := make(map[string]string)
+	metaByID := make(map[string]modelsuperset.ModelMeta)
 	for i := range accounts {
 		platform := accounts[i].Platform
 		for _, id := range exposed[i] {
@@ -173,6 +190,18 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 			}
 			if existing, ok := origins[id]; !ok || (existing != domain.PlatformAnthropic && platform == domain.PlatformAnthropic) {
 				origins[id] = platform
+			}
+			upstreamID := id
+			if m := mappingOf[i]; m != nil {
+				if v, ok := m[id]; ok {
+					upstreamID = v
+				}
+			}
+			if meta, ok := fetched[i][upstreamID]; ok && meta.MaxInputTokens > 0 {
+				// Write first non-zero; prefer anthropic-origin when filling an existing 0.
+				if cur, exists := metaByID[id]; !exists || cur.MaxInputTokens == 0 {
+					metaByID[id] = meta
+				}
 			}
 		}
 	}
@@ -185,41 +214,51 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	return supersetCacheEntry{ids: ids, origins: origins}
+	return supersetCacheEntry{ids: ids, origins: origins, metas: metaByID}
 }
 
-// fetchAccountUpstreamModels fetches one account's upstream /v1/models id list,
-// dispatched by platform, cached per account.
-func (s *GatewayService) fetchAccountUpstreamModels(ctx context.Context, account *Account) ([]string, error) {
+// sortedMetaKeys returns the map's keys sorted, for a stable exposed-id list.
+func sortedMetaKeys(m map[string]modelsuperset.ModelMeta) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// fetchAccountUpstreamModels fetches one account's upstream /v1/models catalog with
+// per-model metadata (max_input_tokens etc.), dispatched by platform, cached per account.
+func (s *GatewayService) fetchAccountUpstreamModels(ctx context.Context, account *Account) (map[string]modelsuperset.ModelMeta, error) {
 	cacheKey := accountUpstreamModelsCacheKey(account.ID)
 	if s.modelsListCache != nil {
 		if cached, found := s.modelsListCache.Get(cacheKey); found {
-			if ids, ok := cached.([]string); ok {
-				return cloneStringSlice(ids), nil
+			if metas, ok := cached.(map[string]modelsuperset.ModelMeta); ok {
+				return cloneModelMetaMap(metas), nil
 			}
 		}
 	}
 
-	var ids []string
+	var metas map[string]modelsuperset.ModelMeta
 	var err error
 	switch account.Platform {
 	case domain.PlatformAnthropic:
-		ids, err = s.fetchAnthropicModels(ctx, account)
+		metas, err = s.fetchAnthropicModels(ctx, account)
 	case domain.PlatformOpenAI:
-		ids, err = s.fetchOpenAIModels(ctx, account)
+		metas, err = s.fetchOpenAIModels(ctx, account)
 	default:
 		// Should be unreachable: only no-mapping anthropic/openai accounts are fetched.
 		// Return an error rather than a dishonest (nil, nil) that reads as "success, empty".
 		return nil, fmt.Errorf("superset: unsupported platform for upstream fetch: %s", account.Platform)
 	}
 
-	if err == nil && len(ids) > 0 && s.modelsListCache != nil {
-		s.modelsListCache.Set(cacheKey, cloneStringSlice(ids), supersetModelsTTL)
+	if err == nil && len(metas) > 0 && s.modelsListCache != nil {
+		s.modelsListCache.Set(cacheKey, cloneModelMetaMap(metas), supersetModelsTTL)
 	}
-	return ids, err
+	return metas, err
 }
 
-func (s *GatewayService) fetchAnthropicModels(ctx context.Context, account *Account) ([]string, error) {
+func (s *GatewayService) fetchAnthropicModels(ctx context.Context, account *Account) (map[string]modelsuperset.ModelMeta, error) {
 	token, tokenType, err := s.GetAccessToken(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
@@ -243,7 +282,7 @@ func (s *GatewayService) fetchAnthropicModels(ctx context.Context, account *Acco
 	return s.doFetchModels(ctx, account, strings.TrimRight(base, "/")+"/v1/models", setAuth)
 }
 
-func (s *GatewayService) fetchOpenAIModels(ctx context.Context, account *Account) ([]string, error) {
+func (s *GatewayService) fetchOpenAIModels(ctx context.Context, account *Account) (map[string]modelsuperset.ModelMeta, error) {
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
@@ -271,13 +310,13 @@ func (s *GatewayService) fetchOpenAIModels(ctx context.Context, account *Account
 // with has_more absent/false, so the loop terminates after one iteration for it.
 // modelsPageLimit caps total pages as a backstop against an upstream that never sets
 // has_more=false.
-func (s *GatewayService) doFetchModels(ctx context.Context, account *Account, endpoint string, setAuth func(http.Header)) ([]string, error) {
+func (s *GatewayService) doFetchModels(ctx context.Context, account *Account, endpoint string, setAuth func(http.Header)) (map[string]modelsuperset.ModelMeta, error) {
 	proxyURL := ""
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 
-	var ids []string
+	out := make(map[string]modelsuperset.ModelMeta)
 	afterID := ""
 	for page := 0; page < modelsPageLimit; page++ {
 		u, err := url.Parse(endpoint)
@@ -303,8 +342,12 @@ func (s *GatewayService) doFetchModels(ctx context.Context, account *Account, en
 			return nil, err
 		}
 		for _, m := range body.Data {
-			if m.ID != "" {
-				ids = append(ids, m.ID)
+			if m.ID == "" {
+				continue
+			}
+			out[m.ID] = modelsuperset.ModelMeta{
+				MaxInputTokens:  firstNonZero(m.MaxInputTokens, m.MaxModelLen, m.ContextLength),
+				MaxOutputTokens: m.MaxTokens,
 			}
 		}
 		if !body.HasMore || body.LastID == "" {
@@ -312,12 +355,26 @@ func (s *GatewayService) doFetchModels(ctx context.Context, account *Account, en
 		}
 		afterID = body.LastID
 	}
-	return ids, nil
+	return out, nil
+}
+
+// firstNonZero returns the first non-zero value, or 0 if all are zero.
+func firstNonZero(vals ...int) int {
+	for _, v := range vals {
+		if v != 0 {
+			return v
+		}
+	}
+	return 0
 }
 
 type modelsPage struct {
 	Data []struct {
-		ID string `json:"id"`
+		ID             string `json:"id"`
+		MaxInputTokens int    `json:"max_input_tokens"` // Anthropic /v1/models
+		MaxModelLen    int    `json:"max_model_len"`    // OpenAI / SGLang native
+		MaxTokens      int    `json:"max_tokens"`       // output cap, when upstream reports it
+		ContextLength  int    `json:"context_length"`   // LiteLLM / OpenRouter style
 	} `json:"data"`
 	HasMore bool   `json:"has_more"`
 	LastID  string `json:"last_id"`
@@ -369,6 +426,20 @@ func cloneOriginMap(src map[string]string) map[string]string {
 		return nil
 	}
 	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+// cloneModelMetaMap deep-copies a model-meta map. ModelMeta is a value type, so a
+// shallow per-entry copy is a full deep copy. Required because cached/singleflight
+// values are shared references that callers must never mutate.
+func cloneModelMetaMap(src map[string]modelsuperset.ModelMeta) map[string]modelsuperset.ModelMeta {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]modelsuperset.ModelMeta, len(src))
 	for k, v := range src {
 		dst[k] = v
 	}

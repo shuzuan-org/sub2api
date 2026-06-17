@@ -97,7 +97,7 @@ func TestGetSupersetModels_FusesAndDedups(t *testing.T) {
 	up := &realDoUpstream{client: &http.Client{}}
 	s := newSupersetService(t, repo, up)
 
-	ids, origins := s.GetSupersetModels(context.Background(), supersetGroup())
+	ids, origins, _ := s.GetSupersetModels(context.Background(), supersetGroup())
 	want := map[string]string{
 		"claude-opus-4-8": PlatformAnthropic,
 		"gpt-5":           PlatformOpenAI,
@@ -113,14 +113,48 @@ func TestGetSupersetModels_FusesAndDedups(t *testing.T) {
 	}
 }
 
-func TestGetSupersetModels_MappedAccountNotFetched(t *testing.T) {
-	// An account WITH a model_mapping must expose its keys WITHOUT ever hitting upstream
-	// (the upstream catalog would be discarded by reconciliation anyway). The OpenAI
-	// account has no mapping and is fetched normally.
+func TestGetSupersetModels_NoMappingPropagatesMaxInputTokens(t *testing.T) {
+	// No-mapping anthropic account: the upstream's real max_input_tokens must be carried
+	// through to metas (not dropped, not re-guessed).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":[{"id":"minimax-m2.7","max_input_tokens":196608}]}`))
+	}))
+	defer srv.Close()
+	accounts := []Account{apikeyAccount(1, PlatformAnthropic, srv.URL, "ak", nil)}
+	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
+
+	ids, _, metas := s.GetSupersetModels(context.Background(), supersetGroup())
+	if len(ids) != 1 || ids[0] != "minimax-m2.7" {
+		t.Fatalf("ids=%v want [minimax-m2.7]", ids)
+	}
+	if metas["minimax-m2.7"].MaxInputTokens != 196608 {
+		t.Errorf("metas[minimax-m2.7].MaxInputTokens=%d want 196608 (real upstream passthrough)", metas["minimax-m2.7"].MaxInputTokens)
+	}
+}
+
+func TestGetSupersetModels_OpenAIMaxModelLen(t *testing.T) {
+	// OpenAI/SGLang-style catalog reports max_model_len; it normalizes into MaxInputTokens.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"object":"list","data":[{"id":"local-model","max_model_len":131072}]}`))
+	}))
+	defer srv.Close()
+	accounts := []Account{apikeyAccount(1, PlatformOpenAI, srv.URL, "ak", nil)}
+	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
+
+	_, _, metas := s.GetSupersetModels(context.Background(), supersetGroup())
+	if metas["local-model"].MaxInputTokens != 131072 {
+		t.Errorf("max_model_len not normalized: got %d want 131072", metas["local-model"].MaxInputTokens)
+	}
+}
+
+func TestGetSupersetModels_MappedAccountFetchedForMetadata(t *testing.T) {
+	// An account WITH a model_mapping still EXPOSES only its keys (raw upstream ids never
+	// reach the client), but it IS now fetched so we can attach the real upstream
+	// max_input_tokens of the mapping VALUE to the mapping KEY.
 	var anthropicHits atomic.Int64
 	anthropicSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		anthropicHits.Add(1)
-		w.Write([]byte(`{"data":[{"id":"raw-upstream"}]}`))
+		w.Write([]byte(`{"data":[{"id":"upstream-x","max_input_tokens":196608}]}`))
 	}))
 	defer anthropicSrv.Close()
 	okSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +168,7 @@ func TestGetSupersetModels_MappedAccountNotFetched(t *testing.T) {
 	}
 	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
 
-	ids, origins := s.GetSupersetModels(context.Background(), supersetGroup())
+	ids, origins, metas := s.GetSupersetModels(context.Background(), supersetGroup())
 	got := make(map[string]bool)
 	for _, id := range ids {
 		got[id] = true
@@ -145,14 +179,19 @@ func TestGetSupersetModels_MappedAccountNotFetched(t *testing.T) {
 	if !got["gpt-5"] {
 		t.Error("expected openai 'gpt-5' from successful fetch")
 	}
-	if got["raw-upstream"] {
+	if got["upstream-x"] {
 		t.Error("mapped account's raw upstream id must NOT appear")
 	}
 	if origins["claude-mapped"] != PlatformAnthropic {
 		t.Errorf("origin=%q want anthropic", origins["claude-mapped"])
 	}
-	if hits := anthropicHits.Load(); hits != 0 {
-		t.Errorf("mapped account was fetched %d times; want 0 (no upstream call for mapped accounts)", hits)
+	// mapped account IS fetched now (so we can harvest metadata).
+	if hits := anthropicHits.Load(); hits < 1 {
+		t.Errorf("mapped account fetched %d times; want >=1 (needed for metadata)", hits)
+	}
+	// The mapping VALUE's real window (196608) is attached to the KEY.
+	if metas["claude-mapped"].MaxInputTokens != 196608 {
+		t.Errorf("metas[claude-mapped].MaxInputTokens=%d want 196608 (reverse-looked-up from value)", metas["claude-mapped"].MaxInputTokens)
 	}
 }
 
@@ -174,7 +213,7 @@ func TestGetSupersetModels_NoMappingFetchFailureContributesNothing(t *testing.T)
 	}
 	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
 
-	ids, _ := s.GetSupersetModels(context.Background(), supersetGroup())
+	ids, _, _ := s.GetSupersetModels(context.Background(), supersetGroup())
 	if len(ids) != 1 || ids[0] != "gpt-5" {
 		t.Errorf("want only [gpt-5] (failed account drops out), got %v", ids)
 	}
@@ -192,7 +231,7 @@ func TestGetSupersetModels_MappingReconciliationExposesKeys(t *testing.T) {
 	}
 	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
 
-	ids, _ := s.GetSupersetModels(context.Background(), supersetGroup())
+	ids, _, _ := s.GetSupersetModels(context.Background(), supersetGroup())
 	got := make(map[string]bool)
 	for _, id := range ids {
 		got[id] = true
@@ -229,7 +268,7 @@ func TestGetSupersetModels_FollowsPagination(t *testing.T) {
 	accounts := []Account{apikeyAccount(1, PlatformAnthropic, srv.URL, "ak", nil)}
 	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
 
-	ids, _ := s.GetSupersetModels(context.Background(), supersetGroup())
+	ids, _, _ := s.GetSupersetModels(context.Background(), supersetGroup())
 	got := make(map[string]bool)
 	for _, id := range ids {
 		got[id] = true
@@ -257,9 +296,9 @@ func TestGetSupersetModels_AllEmptyReturnsNil(t *testing.T) {
 	accounts := []Account{apikeyAccount(1, PlatformAnthropic, failSrv.URL, "ak", nil)}
 	s := newSupersetService(t, newGroupAwareMockRepo(accounts), &realDoUpstream{client: &http.Client{}})
 
-	ids, origins := s.GetSupersetModels(context.Background(), supersetGroup())
-	if ids != nil || origins != nil {
-		t.Errorf("want nil,nil got ids=%v origins=%v", ids, origins)
+	ids, origins, metas := s.GetSupersetModels(context.Background(), supersetGroup())
+	if ids != nil || origins != nil || metas != nil {
+		t.Errorf("want nil,nil,nil got ids=%v origins=%v metas=%v", ids, origins, metas)
 	}
 }
 
@@ -273,12 +312,12 @@ func TestGetSupersetModels_CachedSecondCall(t *testing.T) {
 	up := &realDoUpstream{client: &http.Client{}}
 	s := newSupersetService(t, newGroupAwareMockRepo(accounts), up)
 
-	_, _ = s.GetSupersetModels(context.Background(), supersetGroup())
+	_, _, _ = s.GetSupersetModels(context.Background(), supersetGroup())
 	callsAfterFirst := up.doCalls.Load()
 	if callsAfterFirst == 0 {
 		t.Fatal("expected at least one upstream Do on first call")
 	}
-	_, _ = s.GetSupersetModels(context.Background(), supersetGroup())
+	_, _, _ = s.GetSupersetModels(context.Background(), supersetGroup())
 	if up.doCalls.Load() != callsAfterFirst {
 		t.Errorf("second call should hit cache, doCalls went %d→%d", callsAfterFirst, up.doCalls.Load())
 	}
@@ -304,7 +343,7 @@ func TestGetSupersetModels_ConcurrentMissesCollapse(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			ids, _ := s.GetSupersetModels(context.Background(), supersetGroup())
+			ids, _, _ := s.GetSupersetModels(context.Background(), supersetGroup())
 			if len(ids) != 1 || ids[0] != "claude-opus-4-8" {
 				t.Errorf("got ids=%v", ids)
 			}

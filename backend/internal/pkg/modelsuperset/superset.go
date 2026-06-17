@@ -51,6 +51,14 @@ type Model struct {
 	Capabilities   map[string]any `json:"capabilities,omitempty"`
 }
 
+// ModelMeta carries the REAL upstream-reported capability numbers for one model id,
+// harvested from the upstream /v1/models catalog. A zero value means "upstream did
+// not report it" (unknown) — which BuildModel treats differently from a real cap.
+type ModelMeta struct {
+	MaxInputTokens  int // upstream max_input_tokens / max_model_len / context_length; 0 = unknown
+	MaxOutputTokens int // upstream max_tokens (output cap); 0 = unknown
+}
+
 // List is the listing envelope. OpenAI's {object:"list", data} and Anthropic's
 // pagination triple (first_id/last_id/has_more) coexist; both protocols read `data`.
 //
@@ -146,7 +154,7 @@ func capObj(supported bool) map[string]any { return map[string]any{"supported": 
 // BuildModel derives a superset object for a model id. capabilities + max_input_tokens
 // are emitted ONLY for an Anthropic-origin Claude-family model (the honest case); for any
 // other origin/family the capabilities tree is omitted and max_input_tokens stays 0.
-func BuildModel(id string, origin Origin) Model {
+func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 	m := Model{
 		ID:          id,
 		Object:      "model",
@@ -159,13 +167,33 @@ func BuildModel(id string, origin Origin) Model {
 	}
 
 	normalized := NormalizeModelName(id)
-	if origin != OriginAnthropic || !isClaudeFamily(normalized) {
-		// Non-Claude / non-Anthropic origin: emit only the protocol-neutral keys. Do not
-		// assert a Claude window or Claude capabilities about a backend we can't verify.
+	claude := origin == OriginAnthropic && isClaudeFamily(normalized)
+
+	// max_input_tokens is a neutral number: prefer the REAL upstream value (the true
+	// provider's window, even when the client-facing id is a Claude name backed by
+	// minimax etc.). When upstream didn't report it, only a Claude-family model falls
+	// back to the family guess; a non-Claude model stays 0 (honest "unknown"). This is
+	// purely additive — with no upstream meta, behavior is unchanged.
+	switch {
+	case meta.MaxInputTokens > 0:
+		m.MaxInputTokens = meta.MaxInputTokens
+	case claude:
+		m.MaxInputTokens = modelContextWindow(normalized)
+	}
+	// Output cap: only the real upstream value, never fabricated.
+	if meta.MaxOutputTokens > 0 {
+		m.MaxTokens = meta.MaxOutputTokens
+	}
+
+	// Capabilities stay decoupled from max_input_tokens: the Claude capability tree is
+	// Anthropic-specific schema, so emit it ONLY for Claude-family ids (emitting it for
+	// a minimax/gpt backend would be a lie). A client requesting `claude-opus-4-8`
+	// expects Claude-protocol capabilities even if the backend is minimax — sub2api
+	// adapts at the protocol layer — so emitting them here is correct.
+	if !claude {
 		return m
 	}
 
-	m.MaxInputTokens = modelContextWindow(normalized)
 	effortMax := modelMatchesAnyBase(normalized, effortMaxBases...)
 	m.Capabilities = map[string]any{
 		"batch":              capObj(true),
@@ -201,15 +229,16 @@ func BuildModel(id string, origin Origin) Model {
 }
 
 // BuildList builds the listing envelope from pre-deduplicated ids. ids are sorted here
-// for a stable response; origins maps each id to its source platform.
-func BuildList(ids []string, origins map[string]Origin) List {
+// for a stable response; origins maps each id to its source platform; metas carries the
+// real upstream caps per id (nil/zero entry = unknown).
+func BuildList(ids []string, origins map[string]Origin, metas map[string]ModelMeta) List {
 	sorted := make([]string, len(ids))
 	copy(sorted, ids)
 	sort.Strings(sorted)
 
 	data := make([]Model, 0, len(sorted))
 	for _, id := range sorted {
-		data = append(data, BuildModel(id, origins[id]))
+		data = append(data, BuildModel(id, origins[id], metas[id]))
 	}
 
 	list := List{Object: "list", Data: data, HasMore: false}

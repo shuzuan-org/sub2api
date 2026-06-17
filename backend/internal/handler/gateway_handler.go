@@ -888,9 +888,9 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 
 	// anthropic+openai: fuse real upstream catalogs into a dual-protocol superset.
-	ids, origins := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
 	if len(ids) > 0 {
-		list := modelsuperset.BuildList(ids, toSupersetOrigins(origins))
+		list := modelsuperset.BuildList(ids, toSupersetOrigins(origins), metas)
 		if remaining, unit, ok := h.callerRemaining(c); ok {
 			list.Remaining = &remaining
 			list.Unit = unit
@@ -925,9 +925,9 @@ func (h *GatewayHandler) Model(c *gin.Context) {
 		groupID = &apiKey.Group.ID
 	}
 
-	ids, origins := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
 	if key, origin, ok := modelsuperset.MatchModelID(id, ids, toSupersetOrigins(origins)); ok {
-		obj := modelsuperset.BuildModel(key, origin)
+		obj := modelsuperset.BuildModel(key, origin, metas[key])
 		obj.ID = id // round-trip the client's exact spelling; DisplayName stays canonical
 		c.JSON(http.StatusOK, obj)
 		return

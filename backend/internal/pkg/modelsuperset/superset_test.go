@@ -54,7 +54,7 @@ func TestModelContextWindow(t *testing.T) {
 }
 
 func TestBuildModel_AnthropicClaude_FullTree(t *testing.T) {
-	m := BuildModel("claude-opus-4-8", OriginAnthropic)
+	m := BuildModel("claude-opus-4-8", OriginAnthropic, ModelMeta{})
 	if m.Capabilities == nil {
 		t.Fatal("expected capabilities for anthropic claude model")
 	}
@@ -71,7 +71,7 @@ func TestBuildModel_AnthropicClaude_FullTree(t *testing.T) {
 }
 
 func TestBuildModel_Haiku_EffortMaxFalse(t *testing.T) {
-	m := BuildModel("claude-haiku-4-5", OriginAnthropic)
+	m := BuildModel("claude-haiku-4-5", OriginAnthropic, ModelMeta{})
 	if m.MaxInputTokens != 200000 {
 		t.Errorf("haiku max_input_tokens=%d want 200000", m.MaxInputTokens)
 	}
@@ -82,7 +82,7 @@ func TestBuildModel_Haiku_EffortMaxFalse(t *testing.T) {
 }
 
 func TestBuildModel_OpenAIOrigin_NoCapabilities(t *testing.T) {
-	m := BuildModel("gpt-5", OriginOpenAI)
+	m := BuildModel("gpt-5", OriginOpenAI, ModelMeta{})
 	if m.Capabilities != nil {
 		t.Error("openai-origin model must NOT carry a Claude capabilities tree")
 	}
@@ -104,7 +104,7 @@ func TestBuildModel_OpenAIOrigin_NoCapabilities(t *testing.T) {
 
 func TestBuildModel_AnthropicOrigin_NonClaude_NoCapabilities(t *testing.T) {
 	// An anthropic account that somehow exposes a non-claude id: still don't fabricate.
-	m := BuildModel("some-other-model", OriginAnthropic)
+	m := BuildModel("some-other-model", OriginAnthropic, ModelMeta{})
 	if m.Capabilities != nil {
 		t.Error("non-claude id must NOT carry capabilities even from anthropic origin")
 	}
@@ -118,7 +118,7 @@ func TestBuildList_Envelope(t *testing.T) {
 		"claude-opus-4-8": OriginAnthropic,
 		"gpt-5":           OriginOpenAI,
 	}
-	list := BuildList([]string{"gpt-5", "claude-opus-4-8"}, origins)
+	list := BuildList([]string{"gpt-5", "claude-opus-4-8"}, origins, nil)
 	if list.Object != "list" {
 		t.Errorf("object=%q want list", list.Object)
 	}
@@ -157,5 +157,47 @@ func TestMatchModelID(t *testing.T) {
 	// empty
 	if _, _, ok := MatchModelID("", ids, origins); ok {
 		t.Error("empty id should not match")
+	}
+}
+
+func TestBuildModel_UpstreamOverridesGuess(t *testing.T) {
+	// Claude-family id backed by a smaller real window (e.g. minimax-m2.7=196608):
+	// the real upstream value must win over the 1M family guess.
+	m := BuildModel("claude-opus-4-8", OriginAnthropic, ModelMeta{MaxInputTokens: 196608})
+	if m.MaxInputTokens != 196608 {
+		t.Errorf("max_input_tokens=%d want 196608 (real upstream over guess)", m.MaxInputTokens)
+	}
+	if m.Capabilities == nil {
+		t.Error("claude id should still emit capabilities (decoupled from window)")
+	}
+}
+
+func TestBuildModel_NonClaudeWithUpstreamMeta(t *testing.T) {
+	// Non-claude id with a real upstream window: surface the number, but NEVER a Claude
+	// capability tree (decoupling).
+	m := BuildModel("minimax-m2.7", OriginOpenAI, ModelMeta{MaxInputTokens: 131072})
+	if m.MaxInputTokens != 131072 {
+		t.Errorf("max_input_tokens=%d want 131072", m.MaxInputTokens)
+	}
+	if m.Capabilities != nil {
+		t.Error("non-claude id must not carry capabilities even with real meta")
+	}
+}
+
+func TestBuildModel_ClaudeNoMetaFallback(t *testing.T) {
+	// No upstream meta → Claude family falls back to the family guess (no regression).
+	if m := BuildModel("claude-opus-4-8", OriginAnthropic, ModelMeta{}); m.MaxInputTokens != 1000000 {
+		t.Errorf("opus fallback=%d want 1000000", m.MaxInputTokens)
+	}
+	// Non-claude with no meta stays 0 (honest unknown).
+	if m := BuildModel("minimax-m2.7", OriginOpenAI, ModelMeta{}); m.MaxInputTokens != 0 {
+		t.Errorf("non-claude no-meta=%d want 0", m.MaxInputTokens)
+	}
+}
+
+func TestBuildModel_OutputCapPassthrough(t *testing.T) {
+	m := BuildModel("minimax-m2.7", OriginOpenAI, ModelMeta{MaxInputTokens: 131072, MaxOutputTokens: 8192})
+	if m.MaxTokens != 8192 {
+		t.Errorf("max_tokens=%d want 8192 (real output cap)", m.MaxTokens)
 	}
 }
