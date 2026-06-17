@@ -22,6 +22,7 @@ import (
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/modelsuperset"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -838,8 +839,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 // Models handles listing available models
 // GET /v1/models
-// Returns models based on account configurations (model_mapping whitelist)
-// Falls back to default models if no whitelist is configured
+//
+// For anthropic+openai groups it fuses each account's REAL upstream /v1/models catalog
+// into a dual-protocol superset (usable by both Claude Code and Codex clients) and
+// attaches the caller's remaining subscription quota at the envelope level. Sora and
+// DeepSeek keep their legacy single-protocol shapes.
 func (h *GatewayHandler) Models(c *gin.Context) {
 	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 
@@ -854,6 +858,7 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		platform = forcedPlatform
 	}
 
+	// Sora: unchanged legacy shape.
 	if platform == service.PlatformSora {
 		c.JSON(http.StatusOK, gin.H{
 			"object": "list",
@@ -862,36 +867,8 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
-	// Get available models from account configurations (without platform filter)
-	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, "")
-
-	if len(availableModels) > 0 {
-		// Build model list from whitelist
-		models := make([]claude.Model, 0, len(availableModels))
-		for _, modelID := range availableModels {
-			models = append(models, claude.Model{
-				ID:          modelID,
-				Type:        "model",
-				DisplayName: modelID,
-				CreatedAt:   "2024-01-01T00:00:00Z",
-			})
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   models,
-		})
-		return
-	}
-
-	// Fallback to default models
-	if platform == "openai" {
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   openai.DefaultModels,
-		})
-		return
-	}
-
+	// DeepSeek: unchanged legacy shape (moved above the superset path so it is never
+	// routed through anthropic/openai fusion).
 	if platform == service.PlatformDeepSeek {
 		models := make([]claude.Model, 0, len(service.DeepSeekDefaultModels))
 		for _, m := range service.DeepSeekDefaultModels {
@@ -910,11 +887,83 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
+	// anthropic+openai: fuse real upstream catalogs into a dual-protocol superset.
+	ids, origins := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	if len(ids) > 0 {
+		list := modelsuperset.BuildList(ids, toSupersetOrigins(origins))
+		if remaining, unit, ok := h.callerRemaining(c); ok {
+			list.Remaining = &remaining
+			list.Unit = unit
+		}
+		c.JSON(http.StatusOK, list)
+		return
+	}
+
+	// Fallback to default models when the group contributes nothing.
+	if platform == "openai" {
+		c.JSON(http.StatusOK, gin.H{
+			"object": "list",
+			"data":   openai.DefaultModels,
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"object": "list",
 		"data":   claude.DefaultModels,
 	})
 }
+
+// Model handles GET /v1/models/{id} — single-model superset lookup, sharing the listing
+// set so existence never disagrees with GET /v1/models. Unknown ids return an
+// Anthropic-style 404.
+func (h *GatewayHandler) Model(c *gin.Context) {
+	id := c.Param("id")
+
+	var groupID *int64
+	if apiKey, _ := middleware2.GetAPIKeyFromContext(c); apiKey != nil && apiKey.Group != nil {
+		groupID = &apiKey.Group.ID
+	}
+
+	ids, origins := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	if key, origin, ok := modelsuperset.MatchModelID(id, ids, toSupersetOrigins(origins)); ok {
+		obj := modelsuperset.BuildModel(key, origin)
+		obj.ID = id // round-trip the client's exact spelling; DisplayName stays canonical
+		c.JSON(http.StatusOK, obj)
+		return
+	}
+	h.errorResponse(c, http.StatusNotFound, "not_found_error", "model: "+id+" not found")
+}
+
+// toSupersetOrigins maps platform strings to modelsuperset.Origin (default OpenAI for
+// any non-anthropic platform, which gates capabilities conservatively).
+func toSupersetOrigins(origins map[string]string) map[string]modelsuperset.Origin {
+	out := make(map[string]modelsuperset.Origin, len(origins))
+	for id, platform := range origins {
+		if platform == service.PlatformAnthropic {
+			out[id] = modelsuperset.OriginAnthropic
+		} else {
+			out[id] = modelsuperset.OriginOpenAI
+		}
+	}
+	return out
+}
+
+// callerRemaining returns the caller's remaining quota (USD) for the /v1/models
+// envelope: subscription bottleneck if subscribed, else wallet balance. ok=false when
+// neither is available (envelope then omits remaining/unit).
+func (h *GatewayHandler) callerRemaining(c *gin.Context) (remaining float64, unit string, ok bool) {
+	if sub, has := middleware2.GetSubscriptionFromContext(c); has && sub != nil && sub.Plan != nil {
+		return h.calculateSubscriptionRemaining(sub.Plan, sub), "USD", true
+	}
+	if subject, has := middleware2.GetAuthSubjectFromContext(c); has {
+		if user, err := h.userService.GetByID(c.Request.Context(), subject.UserID); err == nil && user != nil {
+			return user.Balance, "USD", true
+		}
+	}
+	return 0, "", false
+}
+
 
 // AntigravityModels 返回 Antigravity 支持的全部模型
 // GET /antigravity/models

@@ -954,6 +954,26 @@ func (r *stubUserRepoForHandler) ListUsersByGroupAllowed(context.Context, int64)
 func (r *stubUserRepoForHandler) AddGroupToAllowedGroups(context.Context, int64, int64) error {
 	return nil
 }
+func (r *stubUserRepoForHandler) GetByPhone(context.Context, string) (*service.User, error) {
+	return nil, nil
+}
+func (r *stubUserRepoForHandler) ExistsByPhone(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (r *stubUserRepoForHandler) GetByPhoneNumber(context.Context, string) (*service.User, error) {
+	return nil, nil
+}
+func (r *stubUserRepoForHandler) ExistsByPhoneNumber(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (r *stubUserRepoForHandler) BindPhoneAndGrantBonus(context.Context, int64, string, float64) (*service.User, error) {
+	return nil, nil
+}
+func (r *stubUserRepoForHandler) GetByReferralCode(context.Context, string) (*service.User, error) {
+	return nil, nil
+}
+func (r *stubUserRepoForHandler) SetReferralCode(context.Context, int64, string) error { return nil }
+func (r *stubUserRepoForHandler) SetReferredBy(context.Context, int64, int64) error    { return nil }
 
 // ==================== NewSoraClientHandler ====================
 
