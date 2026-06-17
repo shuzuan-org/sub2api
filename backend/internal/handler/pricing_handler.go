@@ -108,7 +108,8 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 	var result []PublicGroupPricing
 
 	for _, g := range groups {
-		if g.IsExclusive {
+		// 公开定价页只展示 public 分组：subscriber/private 对无订阅公众无意义。
+		if g.Visibility != service.VisibilityPublic {
 			continue
 		}
 		if skipPlatforms[strings.ToLower(g.Platform)] {

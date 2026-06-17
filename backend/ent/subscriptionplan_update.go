@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
@@ -298,6 +299,21 @@ func (_u *SubscriptionPlanUpdate) AddRedeemCodes(v ...*RedeemCode) *Subscription
 	return _u.AddRedeemCodeIDs(ids...)
 }
 
+// AddVisibleGroupIDs adds the "visible_groups" edge to the Group entity by IDs.
+func (_u *SubscriptionPlanUpdate) AddVisibleGroupIDs(ids ...int64) *SubscriptionPlanUpdate {
+	_u.mutation.AddVisibleGroupIDs(ids...)
+	return _u
+}
+
+// AddVisibleGroups adds the "visible_groups" edges to the Group entity.
+func (_u *SubscriptionPlanUpdate) AddVisibleGroups(v ...*Group) *SubscriptionPlanUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVisibleGroupIDs(ids...)
+}
+
 // Mutation returns the SubscriptionPlanMutation object of the builder.
 func (_u *SubscriptionPlanUpdate) Mutation() *SubscriptionPlanMutation {
 	return _u.mutation
@@ -343,6 +359,27 @@ func (_u *SubscriptionPlanUpdate) RemoveRedeemCodes(v ...*RedeemCode) *Subscript
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRedeemCodeIDs(ids...)
+}
+
+// ClearVisibleGroups clears all "visible_groups" edges to the Group entity.
+func (_u *SubscriptionPlanUpdate) ClearVisibleGroups() *SubscriptionPlanUpdate {
+	_u.mutation.ClearVisibleGroups()
+	return _u
+}
+
+// RemoveVisibleGroupIDs removes the "visible_groups" edge to Group entities by IDs.
+func (_u *SubscriptionPlanUpdate) RemoveVisibleGroupIDs(ids ...int64) *SubscriptionPlanUpdate {
+	_u.mutation.RemoveVisibleGroupIDs(ids...)
+	return _u
+}
+
+// RemoveVisibleGroups removes "visible_groups" edges to Group entities.
+func (_u *SubscriptionPlanUpdate) RemoveVisibleGroups(v ...*Group) *SubscriptionPlanUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVisibleGroupIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -579,6 +616,63 @@ func (_u *SubscriptionPlanUpdate) sqlSave(ctx context.Context) (_node int, err e
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VisibleGroupsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   subscriptionplan.VisibleGroupsTable,
+			Columns: subscriptionplan.VisibleGroupsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVisibleGroupsIDs(); len(nodes) > 0 && !_u.mutation.VisibleGroupsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   subscriptionplan.VisibleGroupsTable,
+			Columns: subscriptionplan.VisibleGroupsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VisibleGroupsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   subscriptionplan.VisibleGroupsTable,
+			Columns: subscriptionplan.VisibleGroupsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
@@ -869,6 +963,21 @@ func (_u *SubscriptionPlanUpdateOne) AddRedeemCodes(v ...*RedeemCode) *Subscript
 	return _u.AddRedeemCodeIDs(ids...)
 }
 
+// AddVisibleGroupIDs adds the "visible_groups" edge to the Group entity by IDs.
+func (_u *SubscriptionPlanUpdateOne) AddVisibleGroupIDs(ids ...int64) *SubscriptionPlanUpdateOne {
+	_u.mutation.AddVisibleGroupIDs(ids...)
+	return _u
+}
+
+// AddVisibleGroups adds the "visible_groups" edges to the Group entity.
+func (_u *SubscriptionPlanUpdateOne) AddVisibleGroups(v ...*Group) *SubscriptionPlanUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVisibleGroupIDs(ids...)
+}
+
 // Mutation returns the SubscriptionPlanMutation object of the builder.
 func (_u *SubscriptionPlanUpdateOne) Mutation() *SubscriptionPlanMutation {
 	return _u.mutation
@@ -914,6 +1023,27 @@ func (_u *SubscriptionPlanUpdateOne) RemoveRedeemCodes(v ...*RedeemCode) *Subscr
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveRedeemCodeIDs(ids...)
+}
+
+// ClearVisibleGroups clears all "visible_groups" edges to the Group entity.
+func (_u *SubscriptionPlanUpdateOne) ClearVisibleGroups() *SubscriptionPlanUpdateOne {
+	_u.mutation.ClearVisibleGroups()
+	return _u
+}
+
+// RemoveVisibleGroupIDs removes the "visible_groups" edge to Group entities by IDs.
+func (_u *SubscriptionPlanUpdateOne) RemoveVisibleGroupIDs(ids ...int64) *SubscriptionPlanUpdateOne {
+	_u.mutation.RemoveVisibleGroupIDs(ids...)
+	return _u
+}
+
+// RemoveVisibleGroups removes "visible_groups" edges to Group entities.
+func (_u *SubscriptionPlanUpdateOne) RemoveVisibleGroups(v ...*Group) *SubscriptionPlanUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVisibleGroupIDs(ids...)
 }
 
 // Where appends a list predicates to the SubscriptionPlanUpdate builder.
@@ -1180,6 +1310,63 @@ func (_u *SubscriptionPlanUpdateOne) sqlSave(ctx context.Context) (_node *Subscr
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VisibleGroupsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   subscriptionplan.VisibleGroupsTable,
+			Columns: subscriptionplan.VisibleGroupsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVisibleGroupsIDs(); len(nodes) > 0 && !_u.mutation.VisibleGroupsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   subscriptionplan.VisibleGroupsTable,
+			Columns: subscriptionplan.VisibleGroupsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VisibleGroupsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   subscriptionplan.VisibleGroupsTable,
+			Columns: subscriptionplan.VisibleGroupsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &SubscriptionPlan{config: _u.config}

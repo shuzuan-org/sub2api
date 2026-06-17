@@ -24,6 +24,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/groupvisibleplan"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
@@ -65,6 +66,7 @@ const (
 	TypeChannelInviteCodeUsage  = "ChannelInviteCodeUsage"
 	TypeErrorPassthroughRule    = "ErrorPassthroughRule"
 	TypeGroup                   = "Group"
+	TypeGroupVisiblePlan        = "GroupVisiblePlan"
 	TypeIdempotencyRecord       = "IdempotencyRecord"
 	TypePromoCode               = "PromoCode"
 	TypePromoCodeUsage          = "PromoCodeUsage"
@@ -12852,7 +12854,7 @@ type GroupMutation struct {
 	description                             *string
 	rate_multiplier                         *float64
 	addrate_multiplier                      *float64
-	is_exclusive                            *bool
+	visibility                              *string
 	status                                  *string
 	platform                                *string
 	image_price_1k                          *float64
@@ -12898,6 +12900,9 @@ type GroupMutation struct {
 	allowed_users                           map[int64]struct{}
 	removedallowed_users                    map[int64]struct{}
 	clearedallowed_users                    bool
+	visible_plans                           map[int64]struct{}
+	removedvisible_plans                    map[int64]struct{}
+	clearedvisible_plans                    bool
 	channel_invite_batch_groups             map[int64]struct{}
 	removedchannel_invite_batch_groups      map[int64]struct{}
 	clearedchannel_invite_batch_groups      bool
@@ -13266,40 +13271,40 @@ func (m *GroupMutation) ResetRateMultiplier() {
 	m.addrate_multiplier = nil
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (m *GroupMutation) SetIsExclusive(b bool) {
-	m.is_exclusive = &b
+// SetVisibility sets the "visibility" field.
+func (m *GroupMutation) SetVisibility(s string) {
+	m.visibility = &s
 }
 
-// IsExclusive returns the value of the "is_exclusive" field in the mutation.
-func (m *GroupMutation) IsExclusive() (r bool, exists bool) {
-	v := m.is_exclusive
+// Visibility returns the value of the "visibility" field in the mutation.
+func (m *GroupMutation) Visibility() (r string, exists bool) {
+	v := m.visibility
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldIsExclusive returns the old "is_exclusive" field's value of the Group entity.
+// OldVisibility returns the old "visibility" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldIsExclusive(ctx context.Context) (v bool, err error) {
+func (m *GroupMutation) OldVisibility(ctx context.Context) (v string, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldIsExclusive is only allowed on UpdateOne operations")
+		return v, errors.New("OldVisibility is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldIsExclusive requires an ID field in the mutation")
+		return v, errors.New("OldVisibility requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldIsExclusive: %w", err)
+		return v, fmt.Errorf("querying old value for OldVisibility: %w", err)
 	}
-	return oldValue.IsExclusive, nil
+	return oldValue.Visibility, nil
 }
 
-// ResetIsExclusive resets all changes to the "is_exclusive" field.
-func (m *GroupMutation) ResetIsExclusive() {
-	m.is_exclusive = nil
+// ResetVisibility resets all changes to the "visibility" field.
+func (m *GroupMutation) ResetVisibility() {
+	m.visibility = nil
 }
 
 // SetStatus sets the "status" field.
@@ -14612,6 +14617,60 @@ func (m *GroupMutation) ResetAllowedUsers() {
 	m.removedallowed_users = nil
 }
 
+// AddVisiblePlanIDs adds the "visible_plans" edge to the SubscriptionPlan entity by ids.
+func (m *GroupMutation) AddVisiblePlanIDs(ids ...int64) {
+	if m.visible_plans == nil {
+		m.visible_plans = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.visible_plans[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVisiblePlans clears the "visible_plans" edge to the SubscriptionPlan entity.
+func (m *GroupMutation) ClearVisiblePlans() {
+	m.clearedvisible_plans = true
+}
+
+// VisiblePlansCleared reports if the "visible_plans" edge to the SubscriptionPlan entity was cleared.
+func (m *GroupMutation) VisiblePlansCleared() bool {
+	return m.clearedvisible_plans
+}
+
+// RemoveVisiblePlanIDs removes the "visible_plans" edge to the SubscriptionPlan entity by IDs.
+func (m *GroupMutation) RemoveVisiblePlanIDs(ids ...int64) {
+	if m.removedvisible_plans == nil {
+		m.removedvisible_plans = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.visible_plans, ids[i])
+		m.removedvisible_plans[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVisiblePlans returns the removed IDs of the "visible_plans" edge to the SubscriptionPlan entity.
+func (m *GroupMutation) RemovedVisiblePlansIDs() (ids []int64) {
+	for id := range m.removedvisible_plans {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VisiblePlansIDs returns the "visible_plans" edge IDs in the mutation.
+func (m *GroupMutation) VisiblePlansIDs() (ids []int64) {
+	for id := range m.visible_plans {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVisiblePlans resets all changes to the "visible_plans" edge.
+func (m *GroupMutation) ResetVisiblePlans() {
+	m.visible_plans = nil
+	m.clearedvisible_plans = false
+	m.removedvisible_plans = nil
+}
+
 // AddChannelInviteBatchGroupIDs adds the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity by ids.
 func (m *GroupMutation) AddChannelInviteBatchGroupIDs(ids ...int64) {
 	if m.channel_invite_batch_groups == nil {
@@ -14719,8 +14778,8 @@ func (m *GroupMutation) Fields() []string {
 	if m.rate_multiplier != nil {
 		fields = append(fields, group.FieldRateMultiplier)
 	}
-	if m.is_exclusive != nil {
-		fields = append(fields, group.FieldIsExclusive)
+	if m.visibility != nil {
+		fields = append(fields, group.FieldVisibility)
 	}
 	if m.status != nil {
 		fields = append(fields, group.FieldStatus)
@@ -14802,8 +14861,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.Description()
 	case group.FieldRateMultiplier:
 		return m.RateMultiplier()
-	case group.FieldIsExclusive:
-		return m.IsExclusive()
+	case group.FieldVisibility:
+		return m.Visibility()
 	case group.FieldStatus:
 		return m.Status()
 	case group.FieldPlatform:
@@ -14865,8 +14924,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldDescription(ctx)
 	case group.FieldRateMultiplier:
 		return m.OldRateMultiplier(ctx)
-	case group.FieldIsExclusive:
-		return m.OldIsExclusive(ctx)
+	case group.FieldVisibility:
+		return m.OldVisibility(ctx)
 	case group.FieldStatus:
 		return m.OldStatus(ctx)
 	case group.FieldPlatform:
@@ -14958,12 +15017,12 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRateMultiplier(v)
 		return nil
-	case group.FieldIsExclusive:
-		v, ok := value.(bool)
+	case group.FieldVisibility:
+		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetIsExclusive(v)
+		m.SetVisibility(v)
 		return nil
 	case group.FieldStatus:
 		v, ok := value.(string)
@@ -15394,8 +15453,8 @@ func (m *GroupMutation) ResetField(name string) error {
 	case group.FieldRateMultiplier:
 		m.ResetRateMultiplier()
 		return nil
-	case group.FieldIsExclusive:
-		m.ResetIsExclusive()
+	case group.FieldVisibility:
+		m.ResetVisibility()
 		return nil
 	case group.FieldStatus:
 		m.ResetStatus()
@@ -15463,7 +15522,7 @@ func (m *GroupMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *GroupMutation) AddedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.api_keys != nil {
 		edges = append(edges, group.EdgeAPIKeys)
 	}
@@ -15475,6 +15534,9 @@ func (m *GroupMutation) AddedEdges() []string {
 	}
 	if m.allowed_users != nil {
 		edges = append(edges, group.EdgeAllowedUsers)
+	}
+	if m.visible_plans != nil {
+		edges = append(edges, group.EdgeVisiblePlans)
 	}
 	if m.channel_invite_batch_groups != nil {
 		edges = append(edges, group.EdgeChannelInviteBatchGroups)
@@ -15510,6 +15572,12 @@ func (m *GroupMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case group.EdgeVisiblePlans:
+		ids := make([]ent.Value, 0, len(m.visible_plans))
+		for id := range m.visible_plans {
+			ids = append(ids, id)
+		}
+		return ids
 	case group.EdgeChannelInviteBatchGroups:
 		ids := make([]ent.Value, 0, len(m.channel_invite_batch_groups))
 		for id := range m.channel_invite_batch_groups {
@@ -15522,7 +15590,7 @@ func (m *GroupMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *GroupMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.removedapi_keys != nil {
 		edges = append(edges, group.EdgeAPIKeys)
 	}
@@ -15534,6 +15602,9 @@ func (m *GroupMutation) RemovedEdges() []string {
 	}
 	if m.removedallowed_users != nil {
 		edges = append(edges, group.EdgeAllowedUsers)
+	}
+	if m.removedvisible_plans != nil {
+		edges = append(edges, group.EdgeVisiblePlans)
 	}
 	if m.removedchannel_invite_batch_groups != nil {
 		edges = append(edges, group.EdgeChannelInviteBatchGroups)
@@ -15569,6 +15640,12 @@ func (m *GroupMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case group.EdgeVisiblePlans:
+		ids := make([]ent.Value, 0, len(m.removedvisible_plans))
+		for id := range m.removedvisible_plans {
+			ids = append(ids, id)
+		}
+		return ids
 	case group.EdgeChannelInviteBatchGroups:
 		ids := make([]ent.Value, 0, len(m.removedchannel_invite_batch_groups))
 		for id := range m.removedchannel_invite_batch_groups {
@@ -15581,7 +15658,7 @@ func (m *GroupMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *GroupMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.clearedapi_keys {
 		edges = append(edges, group.EdgeAPIKeys)
 	}
@@ -15593,6 +15670,9 @@ func (m *GroupMutation) ClearedEdges() []string {
 	}
 	if m.clearedallowed_users {
 		edges = append(edges, group.EdgeAllowedUsers)
+	}
+	if m.clearedvisible_plans {
+		edges = append(edges, group.EdgeVisiblePlans)
 	}
 	if m.clearedchannel_invite_batch_groups {
 		edges = append(edges, group.EdgeChannelInviteBatchGroups)
@@ -15612,6 +15692,8 @@ func (m *GroupMutation) EdgeCleared(name string) bool {
 		return m.clearedaccounts
 	case group.EdgeAllowedUsers:
 		return m.clearedallowed_users
+	case group.EdgeVisiblePlans:
+		return m.clearedvisible_plans
 	case group.EdgeChannelInviteBatchGroups:
 		return m.clearedchannel_invite_batch_groups
 	}
@@ -15642,11 +15724,431 @@ func (m *GroupMutation) ResetEdge(name string) error {
 	case group.EdgeAllowedUsers:
 		m.ResetAllowedUsers()
 		return nil
+	case group.EdgeVisiblePlans:
+		m.ResetVisiblePlans()
+		return nil
 	case group.EdgeChannelInviteBatchGroups:
 		m.ResetChannelInviteBatchGroups()
 		return nil
 	}
 	return fmt.Errorf("unknown Group edge %s", name)
+}
+
+// GroupVisiblePlanMutation represents an operation that mutates the GroupVisiblePlan nodes in the graph.
+type GroupVisiblePlanMutation struct {
+	config
+	op            Op
+	typ           string
+	created_at    *time.Time
+	clearedFields map[string]struct{}
+	group         *int64
+	clearedgroup  bool
+	plan          *int64
+	clearedplan   bool
+	done          bool
+	oldValue      func(context.Context) (*GroupVisiblePlan, error)
+	predicates    []predicate.GroupVisiblePlan
+}
+
+var _ ent.Mutation = (*GroupVisiblePlanMutation)(nil)
+
+// groupvisibleplanOption allows management of the mutation configuration using functional options.
+type groupvisibleplanOption func(*GroupVisiblePlanMutation)
+
+// newGroupVisiblePlanMutation creates new mutation for the GroupVisiblePlan entity.
+func newGroupVisiblePlanMutation(c config, op Op, opts ...groupvisibleplanOption) *GroupVisiblePlanMutation {
+	m := &GroupVisiblePlanMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGroupVisiblePlan,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GroupVisiblePlanMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GroupVisiblePlanMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *GroupVisiblePlanMutation) SetGroupID(i int64) {
+	m.group = &i
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *GroupVisiblePlanMutation) GroupID() (r int64, exists bool) {
+	v := m.group
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *GroupVisiblePlanMutation) ResetGroupID() {
+	m.group = nil
+}
+
+// SetPlanID sets the "plan_id" field.
+func (m *GroupVisiblePlanMutation) SetPlanID(i int64) {
+	m.plan = &i
+}
+
+// PlanID returns the value of the "plan_id" field in the mutation.
+func (m *GroupVisiblePlanMutation) PlanID() (r int64, exists bool) {
+	v := m.plan
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPlanID resets all changes to the "plan_id" field.
+func (m *GroupVisiblePlanMutation) ResetPlanID() {
+	m.plan = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *GroupVisiblePlanMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *GroupVisiblePlanMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *GroupVisiblePlanMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearGroup clears the "group" edge to the Group entity.
+func (m *GroupVisiblePlanMutation) ClearGroup() {
+	m.clearedgroup = true
+	m.clearedFields[groupvisibleplan.FieldGroupID] = struct{}{}
+}
+
+// GroupCleared reports if the "group" edge to the Group entity was cleared.
+func (m *GroupVisiblePlanMutation) GroupCleared() bool {
+	return m.clearedgroup
+}
+
+// GroupIDs returns the "group" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// GroupID instead. It exists only for internal usage by the builders.
+func (m *GroupVisiblePlanMutation) GroupIDs() (ids []int64) {
+	if id := m.group; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetGroup resets all changes to the "group" edge.
+func (m *GroupVisiblePlanMutation) ResetGroup() {
+	m.group = nil
+	m.clearedgroup = false
+}
+
+// ClearPlan clears the "plan" edge to the SubscriptionPlan entity.
+func (m *GroupVisiblePlanMutation) ClearPlan() {
+	m.clearedplan = true
+	m.clearedFields[groupvisibleplan.FieldPlanID] = struct{}{}
+}
+
+// PlanCleared reports if the "plan" edge to the SubscriptionPlan entity was cleared.
+func (m *GroupVisiblePlanMutation) PlanCleared() bool {
+	return m.clearedplan
+}
+
+// PlanIDs returns the "plan" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PlanID instead. It exists only for internal usage by the builders.
+func (m *GroupVisiblePlanMutation) PlanIDs() (ids []int64) {
+	if id := m.plan; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPlan resets all changes to the "plan" edge.
+func (m *GroupVisiblePlanMutation) ResetPlan() {
+	m.plan = nil
+	m.clearedplan = false
+}
+
+// Where appends a list predicates to the GroupVisiblePlanMutation builder.
+func (m *GroupVisiblePlanMutation) Where(ps ...predicate.GroupVisiblePlan) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GroupVisiblePlanMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GroupVisiblePlanMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GroupVisiblePlan, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GroupVisiblePlanMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GroupVisiblePlanMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GroupVisiblePlan).
+func (m *GroupVisiblePlanMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GroupVisiblePlanMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.group != nil {
+		fields = append(fields, groupvisibleplan.FieldGroupID)
+	}
+	if m.plan != nil {
+		fields = append(fields, groupvisibleplan.FieldPlanID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, groupvisibleplan.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GroupVisiblePlanMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case groupvisibleplan.FieldGroupID:
+		return m.GroupID()
+	case groupvisibleplan.FieldPlanID:
+		return m.PlanID()
+	case groupvisibleplan.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GroupVisiblePlanMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	return nil, errors.New("edge schema GroupVisiblePlan does not support getting old values")
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GroupVisiblePlanMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case groupvisibleplan.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case groupvisibleplan.FieldPlanID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPlanID(v)
+		return nil
+	case groupvisibleplan.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GroupVisiblePlan field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GroupVisiblePlanMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GroupVisiblePlanMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GroupVisiblePlanMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown GroupVisiblePlan numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GroupVisiblePlanMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GroupVisiblePlanMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GroupVisiblePlanMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown GroupVisiblePlan nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GroupVisiblePlanMutation) ResetField(name string) error {
+	switch name {
+	case groupvisibleplan.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case groupvisibleplan.FieldPlanID:
+		m.ResetPlanID()
+		return nil
+	case groupvisibleplan.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown GroupVisiblePlan field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GroupVisiblePlanMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.group != nil {
+		edges = append(edges, groupvisibleplan.EdgeGroup)
+	}
+	if m.plan != nil {
+		edges = append(edges, groupvisibleplan.EdgePlan)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GroupVisiblePlanMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case groupvisibleplan.EdgeGroup:
+		if id := m.group; id != nil {
+			return []ent.Value{*id}
+		}
+	case groupvisibleplan.EdgePlan:
+		if id := m.plan; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GroupVisiblePlanMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GroupVisiblePlanMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GroupVisiblePlanMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedgroup {
+		edges = append(edges, groupvisibleplan.EdgeGroup)
+	}
+	if m.clearedplan {
+		edges = append(edges, groupvisibleplan.EdgePlan)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GroupVisiblePlanMutation) EdgeCleared(name string) bool {
+	switch name {
+	case groupvisibleplan.EdgeGroup:
+		return m.clearedgroup
+	case groupvisibleplan.EdgePlan:
+		return m.clearedplan
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GroupVisiblePlanMutation) ClearEdge(name string) error {
+	switch name {
+	case groupvisibleplan.EdgeGroup:
+		m.ClearGroup()
+		return nil
+	case groupvisibleplan.EdgePlan:
+		m.ClearPlan()
+		return nil
+	}
+	return fmt.Errorf("unknown GroupVisiblePlan unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GroupVisiblePlanMutation) ResetEdge(name string) error {
+	switch name {
+	case groupvisibleplan.EdgeGroup:
+		m.ResetGroup()
+		return nil
+	case groupvisibleplan.EdgePlan:
+		m.ResetPlan()
+		return nil
+	}
+	return fmt.Errorf("unknown GroupVisiblePlan edge %s", name)
 }
 
 // IdempotencyRecordMutation represents an operation that mutates the IdempotencyRecord nodes in the graph.
@@ -21277,6 +21779,9 @@ type SubscriptionPlanMutation struct {
 	redeem_codes             map[int64]struct{}
 	removedredeem_codes      map[int64]struct{}
 	clearedredeem_codes      bool
+	visible_groups           map[int64]struct{}
+	removedvisible_groups    map[int64]struct{}
+	clearedvisible_groups    bool
 	done                     bool
 	oldValue                 func(context.Context) (*SubscriptionPlan, error)
 	predicates               []predicate.SubscriptionPlan
@@ -22158,6 +22663,60 @@ func (m *SubscriptionPlanMutation) ResetRedeemCodes() {
 	m.removedredeem_codes = nil
 }
 
+// AddVisibleGroupIDs adds the "visible_groups" edge to the Group entity by ids.
+func (m *SubscriptionPlanMutation) AddVisibleGroupIDs(ids ...int64) {
+	if m.visible_groups == nil {
+		m.visible_groups = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.visible_groups[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVisibleGroups clears the "visible_groups" edge to the Group entity.
+func (m *SubscriptionPlanMutation) ClearVisibleGroups() {
+	m.clearedvisible_groups = true
+}
+
+// VisibleGroupsCleared reports if the "visible_groups" edge to the Group entity was cleared.
+func (m *SubscriptionPlanMutation) VisibleGroupsCleared() bool {
+	return m.clearedvisible_groups
+}
+
+// RemoveVisibleGroupIDs removes the "visible_groups" edge to the Group entity by IDs.
+func (m *SubscriptionPlanMutation) RemoveVisibleGroupIDs(ids ...int64) {
+	if m.removedvisible_groups == nil {
+		m.removedvisible_groups = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.visible_groups, ids[i])
+		m.removedvisible_groups[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVisibleGroups returns the removed IDs of the "visible_groups" edge to the Group entity.
+func (m *SubscriptionPlanMutation) RemovedVisibleGroupsIDs() (ids []int64) {
+	for id := range m.removedvisible_groups {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VisibleGroupsIDs returns the "visible_groups" edge IDs in the mutation.
+func (m *SubscriptionPlanMutation) VisibleGroupsIDs() (ids []int64) {
+	for id := range m.visible_groups {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVisibleGroups resets all changes to the "visible_groups" edge.
+func (m *SubscriptionPlanMutation) ResetVisibleGroups() {
+	m.visible_groups = nil
+	m.clearedvisible_groups = false
+	m.removedvisible_groups = nil
+}
+
 // Where appends a list predicates to the SubscriptionPlanMutation builder.
 func (m *SubscriptionPlanMutation) Where(ps ...predicate.SubscriptionPlan) {
 	m.predicates = append(m.predicates, ps...)
@@ -22609,12 +23168,15 @@ func (m *SubscriptionPlanMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *SubscriptionPlanMutation) AddedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.subscriptions != nil {
 		edges = append(edges, subscriptionplan.EdgeSubscriptions)
 	}
 	if m.redeem_codes != nil {
 		edges = append(edges, subscriptionplan.EdgeRedeemCodes)
+	}
+	if m.visible_groups != nil {
+		edges = append(edges, subscriptionplan.EdgeVisibleGroups)
 	}
 	return edges
 }
@@ -22635,18 +23197,27 @@ func (m *SubscriptionPlanMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case subscriptionplan.EdgeVisibleGroups:
+		ids := make([]ent.Value, 0, len(m.visible_groups))
+		for id := range m.visible_groups {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *SubscriptionPlanMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.removedsubscriptions != nil {
 		edges = append(edges, subscriptionplan.EdgeSubscriptions)
 	}
 	if m.removedredeem_codes != nil {
 		edges = append(edges, subscriptionplan.EdgeRedeemCodes)
+	}
+	if m.removedvisible_groups != nil {
+		edges = append(edges, subscriptionplan.EdgeVisibleGroups)
 	}
 	return edges
 }
@@ -22667,18 +23238,27 @@ func (m *SubscriptionPlanMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case subscriptionplan.EdgeVisibleGroups:
+		ids := make([]ent.Value, 0, len(m.removedvisible_groups))
+		for id := range m.removedvisible_groups {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *SubscriptionPlanMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.clearedsubscriptions {
 		edges = append(edges, subscriptionplan.EdgeSubscriptions)
 	}
 	if m.clearedredeem_codes {
 		edges = append(edges, subscriptionplan.EdgeRedeemCodes)
+	}
+	if m.clearedvisible_groups {
+		edges = append(edges, subscriptionplan.EdgeVisibleGroups)
 	}
 	return edges
 }
@@ -22691,6 +23271,8 @@ func (m *SubscriptionPlanMutation) EdgeCleared(name string) bool {
 		return m.clearedsubscriptions
 	case subscriptionplan.EdgeRedeemCodes:
 		return m.clearedredeem_codes
+	case subscriptionplan.EdgeVisibleGroups:
+		return m.clearedvisible_groups
 	}
 	return false
 }
@@ -22712,6 +23294,9 @@ func (m *SubscriptionPlanMutation) ResetEdge(name string) error {
 		return nil
 	case subscriptionplan.EdgeRedeemCodes:
 		m.ResetRedeemCodes()
+		return nil
+	case subscriptionplan.EdgeVisibleGroups:
+		m.ResetVisibleGroups()
 		return nil
 	}
 	return fmt.Errorf("unknown SubscriptionPlan edge %s", name)

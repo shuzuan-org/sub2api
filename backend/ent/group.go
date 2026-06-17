@@ -30,8 +30,8 @@ type Group struct {
 	Description *string `json:"description,omitempty"`
 	// RateMultiplier holds the value of the "rate_multiplier" field.
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
-	// IsExclusive holds the value of the "is_exclusive" field.
-	IsExclusive bool `json:"is_exclusive,omitempty"`
+	// Visibility holds the value of the "visibility" field.
+	Visibility string `json:"visibility,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// Platform holds the value of the "platform" field.
@@ -88,15 +88,19 @@ type GroupEdges struct {
 	Accounts []*Account `json:"accounts,omitempty"`
 	// AllowedUsers holds the value of the allowed_users edge.
 	AllowedUsers []*User `json:"allowed_users,omitempty"`
+	// VisiblePlans holds the value of the visible_plans edge.
+	VisiblePlans []*SubscriptionPlan `json:"visible_plans,omitempty"`
 	// ChannelInviteBatchGroups holds the value of the channel_invite_batch_groups edge.
 	ChannelInviteBatchGroups []*ChannelInviteBatchGroup `json:"channel_invite_batch_groups,omitempty"`
 	// AccountGroups holds the value of the account_groups edge.
 	AccountGroups []*AccountGroup `json:"account_groups,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
+	// GroupVisiblePlans holds the value of the group_visible_plans edge.
+	GroupVisiblePlans []*GroupVisiblePlan `json:"group_visible_plans,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [7]bool
+	loadedTypes [9]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -135,10 +139,19 @@ func (e GroupEdges) AllowedUsersOrErr() ([]*User, error) {
 	return nil, &NotLoadedError{edge: "allowed_users"}
 }
 
+// VisiblePlansOrErr returns the VisiblePlans value or an error if the edge
+// was not loaded in eager-loading.
+func (e GroupEdges) VisiblePlansOrErr() ([]*SubscriptionPlan, error) {
+	if e.loadedTypes[4] {
+		return e.VisiblePlans, nil
+	}
+	return nil, &NotLoadedError{edge: "visible_plans"}
+}
+
 // ChannelInviteBatchGroupsOrErr returns the ChannelInviteBatchGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) ChannelInviteBatchGroupsOrErr() ([]*ChannelInviteBatchGroup, error) {
-	if e.loadedTypes[4] {
+	if e.loadedTypes[5] {
 		return e.ChannelInviteBatchGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "channel_invite_batch_groups"}
@@ -147,7 +160,7 @@ func (e GroupEdges) ChannelInviteBatchGroupsOrErr() ([]*ChannelInviteBatchGroup,
 // AccountGroupsOrErr returns the AccountGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[6] {
 		return e.AccountGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "account_groups"}
@@ -156,10 +169,19 @@ func (e GroupEdges) AccountGroupsOrErr() ([]*AccountGroup, error) {
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e GroupEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[6] {
+	if e.loadedTypes[7] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
+}
+
+// GroupVisiblePlansOrErr returns the GroupVisiblePlans value or an error if the edge
+// was not loaded in eager-loading.
+func (e GroupEdges) GroupVisiblePlansOrErr() ([]*GroupVisiblePlan, error) {
+	if e.loadedTypes[8] {
+		return e.GroupVisiblePlans, nil
+	}
+	return nil, &NotLoadedError{edge: "group_visible_plans"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -169,13 +191,13 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldModelRouting, group.FieldSupportedModelScopes:
 			values[i] = new([]byte)
-		case group.FieldIsExclusive, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch:
+		case group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldSoraImagePrice360, group.FieldSoraImagePrice540, group.FieldSoraVideoPricePerRequest, group.FieldSoraVideoPricePerRequestHd:
 			values[i] = new(sql.NullFloat64)
 		case group.FieldID, group.FieldSoraStorageQuotaBytes, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldStatus, group.FieldPlatform, group.FieldDefaultMappedModel:
+		case group.FieldName, group.FieldDescription, group.FieldVisibility, group.FieldStatus, group.FieldPlatform, group.FieldDefaultMappedModel:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -238,11 +260,11 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RateMultiplier = value.Float64
 			}
-		case group.FieldIsExclusive:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field is_exclusive", values[i])
+		case group.FieldVisibility:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field visibility", values[i])
 			} else if value.Valid {
-				_m.IsExclusive = value.Bool
+				_m.Visibility = value.String
 			}
 		case group.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -410,6 +432,11 @@ func (_m *Group) QueryAllowedUsers() *UserQuery {
 	return NewGroupClient(_m.config).QueryAllowedUsers(_m)
 }
 
+// QueryVisiblePlans queries the "visible_plans" edge of the Group entity.
+func (_m *Group) QueryVisiblePlans() *SubscriptionPlanQuery {
+	return NewGroupClient(_m.config).QueryVisiblePlans(_m)
+}
+
 // QueryChannelInviteBatchGroups queries the "channel_invite_batch_groups" edge of the Group entity.
 func (_m *Group) QueryChannelInviteBatchGroups() *ChannelInviteBatchGroupQuery {
 	return NewGroupClient(_m.config).QueryChannelInviteBatchGroups(_m)
@@ -423,6 +450,11 @@ func (_m *Group) QueryAccountGroups() *AccountGroupQuery {
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the Group entity.
 func (_m *Group) QueryUserAllowedGroups() *UserAllowedGroupQuery {
 	return NewGroupClient(_m.config).QueryUserAllowedGroups(_m)
+}
+
+// QueryGroupVisiblePlans queries the "group_visible_plans" edge of the Group entity.
+func (_m *Group) QueryGroupVisiblePlans() *GroupVisiblePlanQuery {
+	return NewGroupClient(_m.config).QueryGroupVisiblePlans(_m)
 }
 
 // Update returns a builder for updating this Group.
@@ -470,8 +502,8 @@ func (_m *Group) String() string {
 	builder.WriteString("rate_multiplier=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateMultiplier))
 	builder.WriteString(", ")
-	builder.WriteString("is_exclusive=")
-	builder.WriteString(fmt.Sprintf("%v", _m.IsExclusive))
+	builder.WriteString("visibility=")
+	builder.WriteString(_m.Visibility)
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)

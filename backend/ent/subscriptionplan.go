@@ -55,9 +55,13 @@ type SubscriptionPlanEdges struct {
 	Subscriptions []*UserSubscription `json:"subscriptions,omitempty"`
 	// RedeemCodes holds the value of the redeem_codes edge.
 	RedeemCodes []*RedeemCode `json:"redeem_codes,omitempty"`
+	// VisibleGroups holds the value of the visible_groups edge.
+	VisibleGroups []*Group `json:"visible_groups,omitempty"`
+	// GroupVisiblePlans holds the value of the group_visible_plans edge.
+	GroupVisiblePlans []*GroupVisiblePlan `json:"group_visible_plans,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [4]bool
 }
 
 // SubscriptionsOrErr returns the Subscriptions value or an error if the edge
@@ -76,6 +80,24 @@ func (e SubscriptionPlanEdges) RedeemCodesOrErr() ([]*RedeemCode, error) {
 		return e.RedeemCodes, nil
 	}
 	return nil, &NotLoadedError{edge: "redeem_codes"}
+}
+
+// VisibleGroupsOrErr returns the VisibleGroups value or an error if the edge
+// was not loaded in eager-loading.
+func (e SubscriptionPlanEdges) VisibleGroupsOrErr() ([]*Group, error) {
+	if e.loadedTypes[2] {
+		return e.VisibleGroups, nil
+	}
+	return nil, &NotLoadedError{edge: "visible_groups"}
+}
+
+// GroupVisiblePlansOrErr returns the GroupVisiblePlans value or an error if the edge
+// was not loaded in eager-loading.
+func (e SubscriptionPlanEdges) GroupVisiblePlansOrErr() ([]*GroupVisiblePlan, error) {
+	if e.loadedTypes[3] {
+		return e.GroupVisiblePlans, nil
+	}
+	return nil, &NotLoadedError{edge: "group_visible_plans"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -217,6 +239,16 @@ func (_m *SubscriptionPlan) QuerySubscriptions() *UserSubscriptionQuery {
 // QueryRedeemCodes queries the "redeem_codes" edge of the SubscriptionPlan entity.
 func (_m *SubscriptionPlan) QueryRedeemCodes() *RedeemCodeQuery {
 	return NewSubscriptionPlanClient(_m.config).QueryRedeemCodes(_m)
+}
+
+// QueryVisibleGroups queries the "visible_groups" edge of the SubscriptionPlan entity.
+func (_m *SubscriptionPlan) QueryVisibleGroups() *GroupQuery {
+	return NewSubscriptionPlanClient(_m.config).QueryVisibleGroups(_m)
+}
+
+// QueryGroupVisiblePlans queries the "group_visible_plans" edge of the SubscriptionPlan entity.
+func (_m *SubscriptionPlan) QueryGroupVisiblePlans() *GroupVisiblePlanQuery {
+	return NewSubscriptionPlanClient(_m.config).QueryGroupVisiblePlans(_m)
 }
 
 // Update returns a builder for updating this SubscriptionPlan.

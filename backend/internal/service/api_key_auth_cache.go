@@ -41,6 +41,11 @@ type APIKeyAuthGroupSnapshot struct {
 	Name                            string   `json:"name"`
 	Platform                        string   `json:"platform"`
 	Status                          string   `json:"status"`
+	// Visibility 三档可见性（public/subscriber/private）。鉴权热路径据此判定 subscriber 分组校验，
+	// 必须进缓存快照——否则缓存命中时该字段为空，subscriber 过期拒绝会被静默跳过。
+	Visibility string `json:"visibility,omitempty"`
+	// VisiblePlanIDs subscriber 分组绑定的订阅计划集合（仅 subscriber 档非空）。
+	VisiblePlanIDs                  []int64  `json:"visible_plan_ids,omitempty"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`
 	ImagePrice1K                    *float64 `json:"image_price_1k,omitempty"`
 	ImagePrice2K                    *float64 `json:"image_price_2k,omitempty"`

@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 )
@@ -115,16 +116,16 @@ func (_u *GroupUpdate) AddRateMultiplier(v float64) *GroupUpdate {
 	return _u
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (_u *GroupUpdate) SetIsExclusive(v bool) *GroupUpdate {
-	_u.mutation.SetIsExclusive(v)
+// SetVisibility sets the "visibility" field.
+func (_u *GroupUpdate) SetVisibility(v string) *GroupUpdate {
+	_u.mutation.SetVisibility(v)
 	return _u
 }
 
-// SetNillableIsExclusive sets the "is_exclusive" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableIsExclusive(v *bool) *GroupUpdate {
+// SetNillableVisibility sets the "visibility" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVisibility(v *string) *GroupUpdate {
 	if v != nil {
-		_u.SetIsExclusive(*v)
+		_u.SetVisibility(*v)
 	}
 	return _u
 }
@@ -596,6 +597,21 @@ func (_u *GroupUpdate) AddAllowedUsers(v ...*User) *GroupUpdate {
 	return _u.AddAllowedUserIDs(ids...)
 }
 
+// AddVisiblePlanIDs adds the "visible_plans" edge to the SubscriptionPlan entity by IDs.
+func (_u *GroupUpdate) AddVisiblePlanIDs(ids ...int64) *GroupUpdate {
+	_u.mutation.AddVisiblePlanIDs(ids...)
+	return _u
+}
+
+// AddVisiblePlans adds the "visible_plans" edges to the SubscriptionPlan entity.
+func (_u *GroupUpdate) AddVisiblePlans(v ...*SubscriptionPlan) *GroupUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVisiblePlanIDs(ids...)
+}
+
 // AddChannelInviteBatchGroupIDs adds the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity by IDs.
 func (_u *GroupUpdate) AddChannelInviteBatchGroupIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddChannelInviteBatchGroupIDs(ids...)
@@ -700,6 +716,27 @@ func (_u *GroupUpdate) RemoveAllowedUsers(v ...*User) *GroupUpdate {
 	return _u.RemoveAllowedUserIDs(ids...)
 }
 
+// ClearVisiblePlans clears all "visible_plans" edges to the SubscriptionPlan entity.
+func (_u *GroupUpdate) ClearVisiblePlans() *GroupUpdate {
+	_u.mutation.ClearVisiblePlans()
+	return _u
+}
+
+// RemoveVisiblePlanIDs removes the "visible_plans" edge to SubscriptionPlan entities by IDs.
+func (_u *GroupUpdate) RemoveVisiblePlanIDs(ids ...int64) *GroupUpdate {
+	_u.mutation.RemoveVisiblePlanIDs(ids...)
+	return _u
+}
+
+// RemoveVisiblePlans removes "visible_plans" edges to SubscriptionPlan entities.
+func (_u *GroupUpdate) RemoveVisiblePlans(v ...*SubscriptionPlan) *GroupUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVisiblePlanIDs(ids...)
+}
+
 // ClearChannelInviteBatchGroups clears all "channel_invite_batch_groups" edges to the ChannelInviteBatchGroup entity.
 func (_u *GroupUpdate) ClearChannelInviteBatchGroups() *GroupUpdate {
 	_u.mutation.ClearChannelInviteBatchGroups()
@@ -770,6 +807,11 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Group.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Visibility(); ok {
+		if err := group.VisibilityValidator(v); err != nil {
+			return &ValidationError{Name: "visibility", err: fmt.Errorf(`ent: validator failed for field "Group.visibility": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := group.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Group.status": %w`, err)}
@@ -824,8 +866,8 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(group.FieldRateMultiplier, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.IsExclusive(); ok {
-		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
+	if value, ok := _u.mutation.Visibility(); ok {
+		_spec.SetField(group.FieldVisibility, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
@@ -1159,6 +1201,63 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		edge.Target.Fields = specE.Fields
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.VisiblePlansCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVisiblePlansIDs(); len(nodes) > 0 && !_u.mutation.VisiblePlansCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VisiblePlansIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.ChannelInviteBatchGroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1305,16 +1404,16 @@ func (_u *GroupUpdateOne) AddRateMultiplier(v float64) *GroupUpdateOne {
 	return _u
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (_u *GroupUpdateOne) SetIsExclusive(v bool) *GroupUpdateOne {
-	_u.mutation.SetIsExclusive(v)
+// SetVisibility sets the "visibility" field.
+func (_u *GroupUpdateOne) SetVisibility(v string) *GroupUpdateOne {
+	_u.mutation.SetVisibility(v)
 	return _u
 }
 
-// SetNillableIsExclusive sets the "is_exclusive" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableIsExclusive(v *bool) *GroupUpdateOne {
+// SetNillableVisibility sets the "visibility" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVisibility(v *string) *GroupUpdateOne {
 	if v != nil {
-		_u.SetIsExclusive(*v)
+		_u.SetVisibility(*v)
 	}
 	return _u
 }
@@ -1786,6 +1885,21 @@ func (_u *GroupUpdateOne) AddAllowedUsers(v ...*User) *GroupUpdateOne {
 	return _u.AddAllowedUserIDs(ids...)
 }
 
+// AddVisiblePlanIDs adds the "visible_plans" edge to the SubscriptionPlan entity by IDs.
+func (_u *GroupUpdateOne) AddVisiblePlanIDs(ids ...int64) *GroupUpdateOne {
+	_u.mutation.AddVisiblePlanIDs(ids...)
+	return _u
+}
+
+// AddVisiblePlans adds the "visible_plans" edges to the SubscriptionPlan entity.
+func (_u *GroupUpdateOne) AddVisiblePlans(v ...*SubscriptionPlan) *GroupUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddVisiblePlanIDs(ids...)
+}
+
 // AddChannelInviteBatchGroupIDs adds the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity by IDs.
 func (_u *GroupUpdateOne) AddChannelInviteBatchGroupIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddChannelInviteBatchGroupIDs(ids...)
@@ -1890,6 +2004,27 @@ func (_u *GroupUpdateOne) RemoveAllowedUsers(v ...*User) *GroupUpdateOne {
 	return _u.RemoveAllowedUserIDs(ids...)
 }
 
+// ClearVisiblePlans clears all "visible_plans" edges to the SubscriptionPlan entity.
+func (_u *GroupUpdateOne) ClearVisiblePlans() *GroupUpdateOne {
+	_u.mutation.ClearVisiblePlans()
+	return _u
+}
+
+// RemoveVisiblePlanIDs removes the "visible_plans" edge to SubscriptionPlan entities by IDs.
+func (_u *GroupUpdateOne) RemoveVisiblePlanIDs(ids ...int64) *GroupUpdateOne {
+	_u.mutation.RemoveVisiblePlanIDs(ids...)
+	return _u
+}
+
+// RemoveVisiblePlans removes "visible_plans" edges to SubscriptionPlan entities.
+func (_u *GroupUpdateOne) RemoveVisiblePlans(v ...*SubscriptionPlan) *GroupUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveVisiblePlanIDs(ids...)
+}
+
 // ClearChannelInviteBatchGroups clears all "channel_invite_batch_groups" edges to the ChannelInviteBatchGroup entity.
 func (_u *GroupUpdateOne) ClearChannelInviteBatchGroups() *GroupUpdateOne {
 	_u.mutation.ClearChannelInviteBatchGroups()
@@ -1973,6 +2108,11 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Group.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Visibility(); ok {
+		if err := group.VisibilityValidator(v); err != nil {
+			return &ValidationError{Name: "visibility", err: fmt.Errorf(`ent: validator failed for field "Group.visibility": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := group.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Group.status": %w`, err)}
@@ -2044,8 +2184,8 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(group.FieldRateMultiplier, field.TypeFloat64, value)
 	}
-	if value, ok := _u.mutation.IsExclusive(); ok {
-		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
+	if value, ok := _u.mutation.Visibility(); ok {
+		_spec.SetField(group.FieldVisibility, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
@@ -2374,6 +2514,63 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &UserAllowedGroupCreate{config: _u.config, mutation: newUserAllowedGroupMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.VisiblePlansCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedVisiblePlansIDs(); len(nodes) > 0 && !_u.mutation.VisiblePlansCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.VisiblePlansIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _u.config, mutation: newGroupVisiblePlanMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields

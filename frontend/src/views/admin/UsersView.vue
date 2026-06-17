@@ -788,7 +788,7 @@ const getUserGroups = (user: AdminUser) => {
   const publicGroups: AdminGroup[] = []
   for (const g of allGroups.value) {
     if (g.status !== 'active') continue
-    if (g.is_exclusive) {
+    if (g.visibility === 'private') {
       if (user.allowed_groups?.includes(g.id)) {
         exclusive.push(g)
       }
@@ -805,7 +805,7 @@ const groupFilterOptions = computed(() => {
     { value: '', label: t('admin.users.allGroups') }
   ]
   for (const g of allGroups.value) {
-    if (g.status !== 'active' || !g.is_exclusive) continue
+    if (g.status !== 'active' || g.visibility !== 'private') continue
     options.push({ value: g.name, label: g.name })
   }
   return options

@@ -11,7 +11,14 @@ type Group struct {
 	Description    string
 	Platform       string
 	RateMultiplier float64
-	IsExclusive    bool
+	// Visibility 可见性三档：public / subscriber / private（取代旧布尔 is_exclusive）
+	Visibility string
+	// IsExclusive 派生只读属性：Visibility == private。
+	// 保留供现存依赖"专属分组"语义的逻辑使用，写库不再使用此字段。
+	IsExclusive bool
+	// VisiblePlanIDs 当 Visibility == subscriber 时，绑定的订阅计划 ID 集合；
+	// 用户持有其中任一 plan 的有效订阅即可见可绑定（OR 语义）。
+	VisiblePlanIDs []int64
 	Status         string
 	Hydrated       bool // indicates the group was loaded from a trusted repository source
 
@@ -66,6 +73,18 @@ type Group struct {
 
 func (g *Group) IsActive() bool {
 	return g.Status == StatusActive
+}
+
+// IsPrivate reports whether the group is private (admin-assigned members only).
+// Equivalent to the legacy is_exclusive=true behavior.
+func (g *Group) IsPrivate() bool {
+	return g.Visibility == VisibilityPrivate
+}
+
+// IsSubscriberOnly reports whether the group is visible only to holders of a
+// matching active subscription plan.
+func (g *Group) IsSubscriberOnly() bool {
+	return g.Visibility == VisibilitySubscriber
 }
 
 // GetImagePrice 根据 image_size 返回对应的图片生成价格

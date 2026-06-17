@@ -13,6 +13,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/groupvisibleplan"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
@@ -22,13 +24,15 @@ import (
 // SubscriptionPlanQuery is the builder for querying SubscriptionPlan entities.
 type SubscriptionPlanQuery struct {
 	config
-	ctx               *QueryContext
-	order             []subscriptionplan.OrderOption
-	inters            []Interceptor
-	predicates        []predicate.SubscriptionPlan
-	withSubscriptions *UserSubscriptionQuery
-	withRedeemCodes   *RedeemCodeQuery
-	modifiers         []func(*sql.Selector)
+	ctx                   *QueryContext
+	order                 []subscriptionplan.OrderOption
+	inters                []Interceptor
+	predicates            []predicate.SubscriptionPlan
+	withSubscriptions     *UserSubscriptionQuery
+	withRedeemCodes       *RedeemCodeQuery
+	withVisibleGroups     *GroupQuery
+	withGroupVisiblePlans *GroupVisiblePlanQuery
+	modifiers             []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -102,6 +106,50 @@ func (_q *SubscriptionPlanQuery) QueryRedeemCodes() *RedeemCodeQuery {
 			sqlgraph.From(subscriptionplan.Table, subscriptionplan.FieldID, selector),
 			sqlgraph.To(redeemcode.Table, redeemcode.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, subscriptionplan.RedeemCodesTable, subscriptionplan.RedeemCodesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryVisibleGroups chains the current query on the "visible_groups" edge.
+func (_q *SubscriptionPlanQuery) QueryVisibleGroups() *GroupQuery {
+	query := (&GroupClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(subscriptionplan.Table, subscriptionplan.FieldID, selector),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, subscriptionplan.VisibleGroupsTable, subscriptionplan.VisibleGroupsPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryGroupVisiblePlans chains the current query on the "group_visible_plans" edge.
+func (_q *SubscriptionPlanQuery) QueryGroupVisiblePlans() *GroupVisiblePlanQuery {
+	query := (&GroupVisiblePlanClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(subscriptionplan.Table, subscriptionplan.FieldID, selector),
+			sqlgraph.To(groupvisibleplan.Table, groupvisibleplan.PlanColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, subscriptionplan.GroupVisiblePlansTable, subscriptionplan.GroupVisiblePlansColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -296,13 +344,15 @@ func (_q *SubscriptionPlanQuery) Clone() *SubscriptionPlanQuery {
 		return nil
 	}
 	return &SubscriptionPlanQuery{
-		config:            _q.config,
-		ctx:               _q.ctx.Clone(),
-		order:             append([]subscriptionplan.OrderOption{}, _q.order...),
-		inters:            append([]Interceptor{}, _q.inters...),
-		predicates:        append([]predicate.SubscriptionPlan{}, _q.predicates...),
-		withSubscriptions: _q.withSubscriptions.Clone(),
-		withRedeemCodes:   _q.withRedeemCodes.Clone(),
+		config:                _q.config,
+		ctx:                   _q.ctx.Clone(),
+		order:                 append([]subscriptionplan.OrderOption{}, _q.order...),
+		inters:                append([]Interceptor{}, _q.inters...),
+		predicates:            append([]predicate.SubscriptionPlan{}, _q.predicates...),
+		withSubscriptions:     _q.withSubscriptions.Clone(),
+		withRedeemCodes:       _q.withRedeemCodes.Clone(),
+		withVisibleGroups:     _q.withVisibleGroups.Clone(),
+		withGroupVisiblePlans: _q.withGroupVisiblePlans.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -328,6 +378,28 @@ func (_q *SubscriptionPlanQuery) WithRedeemCodes(opts ...func(*RedeemCodeQuery))
 		opt(query)
 	}
 	_q.withRedeemCodes = query
+	return _q
+}
+
+// WithVisibleGroups tells the query-builder to eager-load the nodes that are connected to
+// the "visible_groups" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *SubscriptionPlanQuery) WithVisibleGroups(opts ...func(*GroupQuery)) *SubscriptionPlanQuery {
+	query := (&GroupClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withVisibleGroups = query
+	return _q
+}
+
+// WithGroupVisiblePlans tells the query-builder to eager-load the nodes that are connected to
+// the "group_visible_plans" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *SubscriptionPlanQuery) WithGroupVisiblePlans(opts ...func(*GroupVisiblePlanQuery)) *SubscriptionPlanQuery {
+	query := (&GroupVisiblePlanClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withGroupVisiblePlans = query
 	return _q
 }
 
@@ -409,9 +481,11 @@ func (_q *SubscriptionPlanQuery) sqlAll(ctx context.Context, hooks ...queryHook)
 	var (
 		nodes       = []*SubscriptionPlan{}
 		_spec       = _q.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [4]bool{
 			_q.withSubscriptions != nil,
 			_q.withRedeemCodes != nil,
+			_q.withVisibleGroups != nil,
+			_q.withGroupVisiblePlans != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -448,6 +522,22 @@ func (_q *SubscriptionPlanQuery) sqlAll(ctx context.Context, hooks ...queryHook)
 		if err := _q.loadRedeemCodes(ctx, query, nodes,
 			func(n *SubscriptionPlan) { n.Edges.RedeemCodes = []*RedeemCode{} },
 			func(n *SubscriptionPlan, e *RedeemCode) { n.Edges.RedeemCodes = append(n.Edges.RedeemCodes, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withVisibleGroups; query != nil {
+		if err := _q.loadVisibleGroups(ctx, query, nodes,
+			func(n *SubscriptionPlan) { n.Edges.VisibleGroups = []*Group{} },
+			func(n *SubscriptionPlan, e *Group) { n.Edges.VisibleGroups = append(n.Edges.VisibleGroups, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withGroupVisiblePlans; query != nil {
+		if err := _q.loadGroupVisiblePlans(ctx, query, nodes,
+			func(n *SubscriptionPlan) { n.Edges.GroupVisiblePlans = []*GroupVisiblePlan{} },
+			func(n *SubscriptionPlan, e *GroupVisiblePlan) {
+				n.Edges.GroupVisiblePlans = append(n.Edges.GroupVisiblePlans, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -512,6 +602,97 @@ func (_q *SubscriptionPlanQuery) loadRedeemCodes(ctx context.Context, query *Red
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "plan_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *SubscriptionPlanQuery) loadVisibleGroups(ctx context.Context, query *GroupQuery, nodes []*SubscriptionPlan, init func(*SubscriptionPlan), assign func(*SubscriptionPlan, *Group)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int64]*SubscriptionPlan)
+	nids := make(map[int64]map[*SubscriptionPlan]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(subscriptionplan.VisibleGroupsTable)
+		s.Join(joinT).On(s.C(group.FieldID), joinT.C(subscriptionplan.VisibleGroupsPrimaryKey[0]))
+		s.Where(sql.InValues(joinT.C(subscriptionplan.VisibleGroupsPrimaryKey[1]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(subscriptionplan.VisibleGroupsPrimaryKey[1]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := values[0].(*sql.NullInt64).Int64
+				inValue := values[1].(*sql.NullInt64).Int64
+				if nids[inValue] == nil {
+					nids[inValue] = map[*SubscriptionPlan]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*Group](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "visible_groups" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
+}
+func (_q *SubscriptionPlanQuery) loadGroupVisiblePlans(ctx context.Context, query *GroupVisiblePlanQuery, nodes []*SubscriptionPlan, init func(*SubscriptionPlan), assign func(*SubscriptionPlan, *GroupVisiblePlan)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*SubscriptionPlan)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(groupvisibleplan.FieldPlanID)
+	}
+	query.Where(predicate.GroupVisiblePlan(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(subscriptionplan.GroupVisiblePlansColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.PlanID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "plan_id" returned %v for node %v`, fk, n)
 		}
 		assign(node, n)
 	}

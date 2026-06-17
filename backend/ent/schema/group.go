@@ -45,8 +45,11 @@ func (Group) Fields() []ent.Field {
 		field.Float("rate_multiplier").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
-		field.Bool("is_exclusive").
-			Default(false),
+		// 可见性三档：public（公开）/ subscriber（订阅会员可见）/ private（私有，仅管理员分配）
+		// 取代旧的布尔 is_exclusive：is_exclusive=true → private，false → public
+		field.String("visibility").
+			MaxLen(20).
+			Default(domain.VisibilityPublic),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
@@ -152,6 +155,9 @@ func (Group) Edges() []ent.Edge {
 		edge.From("allowed_users", User.Type).
 			Ref("allowed_groups").
 			Through("user_allowed_groups", UserAllowedGroup.Type),
+		// subscriber 可见性：分组绑定的订阅计划集合（用户持有其中任一 plan 的有效订阅即可见）
+		edge.To("visible_plans", SubscriptionPlan.Type).
+			Through("group_visible_plans", GroupVisiblePlan.Type),
 		edge.To("channel_invite_batch_groups", ChannelInviteBatchGroup.Type),
 		// 注意：fallback_group_id 直接作为字段使用，不定义 edge
 		// 这样允许多个分组指向同一个降级分组（M2O 关系）
@@ -163,7 +169,7 @@ func (Group) Indexes() []ent.Index {
 		// name 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("platform"),
-		index.Fields("is_exclusive"),
+		index.Fields("visibility"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),
 	}

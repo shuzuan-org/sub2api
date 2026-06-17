@@ -78,13 +78,20 @@ func mustCreateGroup(t *testing.T, client *dbent.Client, g *service.Group) *serv
 	if g.Status == "" {
 		g.Status = service.StatusActive
 	}
+	if g.Visibility == "" {
+		if g.IsExclusive {
+			g.Visibility = service.VisibilityPrivate
+		} else {
+			g.Visibility = service.VisibilityPublic
+		}
+	}
 
 	create := client.Group.Create().
 		SetName(g.Name).
 		SetPlatform(g.Platform).
 		SetStatus(g.Status).
 		SetRateMultiplier(g.RateMultiplier).
-		SetIsExclusive(g.IsExclusive)
+		SetVisibility(g.Visibility)
 	if g.Description != "" {
 		create.SetDescription(g.Description)
 	}

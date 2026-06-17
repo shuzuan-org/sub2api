@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 )
@@ -103,16 +104,16 @@ func (_c *GroupCreate) SetNillableRateMultiplier(v *float64) *GroupCreate {
 	return _c
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (_c *GroupCreate) SetIsExclusive(v bool) *GroupCreate {
-	_c.mutation.SetIsExclusive(v)
+// SetVisibility sets the "visibility" field.
+func (_c *GroupCreate) SetVisibility(v string) *GroupCreate {
+	_c.mutation.SetVisibility(v)
 	return _c
 }
 
-// SetNillableIsExclusive sets the "is_exclusive" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableIsExclusive(v *bool) *GroupCreate {
+// SetNillableVisibility sets the "visibility" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableVisibility(v *string) *GroupCreate {
 	if v != nil {
-		_c.SetIsExclusive(*v)
+		_c.SetVisibility(*v)
 	}
 	return _c
 }
@@ -441,6 +442,21 @@ func (_c *GroupCreate) AddAllowedUsers(v ...*User) *GroupCreate {
 	return _c.AddAllowedUserIDs(ids...)
 }
 
+// AddVisiblePlanIDs adds the "visible_plans" edge to the SubscriptionPlan entity by IDs.
+func (_c *GroupCreate) AddVisiblePlanIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddVisiblePlanIDs(ids...)
+	return _c
+}
+
+// AddVisiblePlans adds the "visible_plans" edges to the SubscriptionPlan entity.
+func (_c *GroupCreate) AddVisiblePlans(v ...*SubscriptionPlan) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddVisiblePlanIDs(ids...)
+}
+
 // AddChannelInviteBatchGroupIDs adds the "channel_invite_batch_groups" edge to the ChannelInviteBatchGroup entity by IDs.
 func (_c *GroupCreate) AddChannelInviteBatchGroupIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddChannelInviteBatchGroupIDs(ids...)
@@ -511,9 +527,9 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
-	if _, ok := _c.mutation.IsExclusive(); !ok {
-		v := group.DefaultIsExclusive
-		_c.mutation.SetIsExclusive(v)
+	if _, ok := _c.mutation.Visibility(); !ok {
+		v := group.DefaultVisibility
+		_c.mutation.SetVisibility(v)
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := group.DefaultStatus
@@ -577,8 +593,13 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "Group.rate_multiplier"`)}
 	}
-	if _, ok := _c.mutation.IsExclusive(); !ok {
-		return &ValidationError{Name: "is_exclusive", err: errors.New(`ent: missing required field "Group.is_exclusive"`)}
+	if _, ok := _c.mutation.Visibility(); !ok {
+		return &ValidationError{Name: "visibility", err: errors.New(`ent: missing required field "Group.visibility"`)}
+	}
+	if v, ok := _c.mutation.Visibility(); ok {
+		if err := group.VisibilityValidator(v); err != nil {
+			return &ValidationError{Name: "visibility", err: fmt.Errorf(`ent: validator failed for field "Group.visibility": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Group.status"`)}
@@ -676,9 +697,9 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldRateMultiplier, field.TypeFloat64, value)
 		_node.RateMultiplier = value
 	}
-	if value, ok := _c.mutation.IsExclusive(); ok {
-		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
-		_node.IsExclusive = value
+	if value, ok := _c.mutation.Visibility(); ok {
+		_spec.SetField(group.FieldVisibility, field.TypeString, value)
+		_node.Visibility = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
@@ -832,6 +853,26 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		edge.Target.Fields = specE.Fields
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.VisiblePlansIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   group.VisiblePlansTable,
+			Columns: group.VisiblePlansPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &GroupVisiblePlanCreate{config: _c.config, mutation: newGroupVisiblePlanMutation(_c.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	if nodes := _c.mutation.ChannelInviteBatchGroupsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -978,15 +1019,15 @@ func (u *GroupUpsert) AddRateMultiplier(v float64) *GroupUpsert {
 	return u
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (u *GroupUpsert) SetIsExclusive(v bool) *GroupUpsert {
-	u.Set(group.FieldIsExclusive, v)
+// SetVisibility sets the "visibility" field.
+func (u *GroupUpsert) SetVisibility(v string) *GroupUpsert {
+	u.Set(group.FieldVisibility, v)
 	return u
 }
 
-// UpdateIsExclusive sets the "is_exclusive" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateIsExclusive() *GroupUpsert {
-	u.SetExcluded(group.FieldIsExclusive)
+// UpdateVisibility sets the "visibility" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateVisibility() *GroupUpsert {
+	u.SetExcluded(group.FieldVisibility)
 	return u
 }
 
@@ -1492,17 +1533,17 @@ func (u *GroupUpsertOne) UpdateRateMultiplier() *GroupUpsertOne {
 	})
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (u *GroupUpsertOne) SetIsExclusive(v bool) *GroupUpsertOne {
+// SetVisibility sets the "visibility" field.
+func (u *GroupUpsertOne) SetVisibility(v string) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.SetIsExclusive(v)
+		s.SetVisibility(v)
 	})
 }
 
-// UpdateIsExclusive sets the "is_exclusive" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateIsExclusive() *GroupUpsertOne {
+// UpdateVisibility sets the "visibility" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateVisibility() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.UpdateIsExclusive()
+		s.UpdateVisibility()
 	})
 }
 
@@ -2235,17 +2276,17 @@ func (u *GroupUpsertBulk) UpdateRateMultiplier() *GroupUpsertBulk {
 	})
 }
 
-// SetIsExclusive sets the "is_exclusive" field.
-func (u *GroupUpsertBulk) SetIsExclusive(v bool) *GroupUpsertBulk {
+// SetVisibility sets the "visibility" field.
+func (u *GroupUpsertBulk) SetVisibility(v string) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.SetIsExclusive(v)
+		s.SetVisibility(v)
 	})
 }
 
-// UpdateIsExclusive sets the "is_exclusive" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateIsExclusive() *GroupUpsertBulk {
+// UpdateVisibility sets the "visibility" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateVisibility() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.UpdateIsExclusive()
+		s.UpdateVisibility()
 	})
 }
 

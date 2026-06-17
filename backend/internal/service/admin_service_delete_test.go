@@ -204,8 +204,16 @@ func (s *groupRepoStub) List(ctx context.Context, params pagination.PaginationPa
 	panic("unexpected List call")
 }
 
-func (s *groupRepoStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]Group, *pagination.PaginationResult, error) {
+func (s *groupRepoStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search, visibility string) ([]Group, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
+}
+
+func (s *groupRepoStub) LoadVisiblePlansByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+
+func (s *groupRepoStub) SetVisiblePlans(ctx context.Context, groupID int64, planIDs []int64) error {
+	return nil
 }
 
 func (s *groupRepoStub) ListActive(ctx context.Context) ([]Group, error) {

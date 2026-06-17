@@ -9,6 +9,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -146,6 +147,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldName,
 				group.FieldPlatform,
 				group.FieldStatus,
+				group.FieldVisibility,
 				group.FieldRateMultiplier,
 				group.FieldImagePrice1k,
 				group.FieldImagePrice2k,
@@ -164,6 +166,10 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldAllowMessagesDispatch,
 				group.FieldDefaultMappedModel,
 			)
+			// 加载 subscriber 可见性所需的绑定计划 ID（仅取 ID，轻量）
+			q.WithVisiblePlans(func(pq *dbent.SubscriptionPlanQuery) {
+				pq.Select(subscriptionplan.FieldID)
+			})
 		}).
 		Only(ctx)
 	if err != nil {
@@ -630,13 +636,22 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 	if g == nil {
 		return nil
 	}
+	var visiblePlanIDs []int64
+	if len(g.Edges.VisiblePlans) > 0 {
+		visiblePlanIDs = make([]int64, 0, len(g.Edges.VisiblePlans))
+		for _, p := range g.Edges.VisiblePlans {
+			visiblePlanIDs = append(visiblePlanIDs, p.ID)
+		}
+	}
 	return &service.Group{
 		ID:                              g.ID,
 		Name:                            g.Name,
 		Description:                     derefString(g.Description),
 		Platform:                        g.Platform,
 		RateMultiplier:                  g.RateMultiplier,
-		IsExclusive:                     g.IsExclusive,
+		Visibility:                      g.Visibility,
+		IsExclusive:                     g.Visibility == service.VisibilityPrivate,
+		VisiblePlanIDs:                  visiblePlanIDs,
 		Status:                          g.Status,
 		Hydrated:                        true,
 		ImagePrice1K:                    g.ImagePrice1k,

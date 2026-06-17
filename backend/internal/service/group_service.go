@@ -22,7 +22,7 @@ type GroupRepository interface {
 	DeleteCascade(ctx context.Context, id int64) ([]int64, error)
 
 	List(ctx context.Context, params pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error)
-	ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]Group, *pagination.PaginationResult, error)
+	ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search, visibility string) ([]Group, *pagination.PaginationResult, error)
 	ListActive(ctx context.Context) ([]Group, error)
 	ListActiveByPlatform(ctx context.Context, platform string) ([]Group, error)
 
@@ -35,6 +35,11 @@ type GroupRepository interface {
 	BindAccountsToGroup(ctx context.Context, groupID int64, accountIDs []int64) error
 	// UpdateSortOrders 批量更新分组排序
 	UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
+
+	// LoadVisiblePlansByGroupIDs 批量加载分组绑定的订阅计划 ID（subscriber 可见性用）。
+	LoadVisiblePlansByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
+	// SetVisiblePlans 全量替换某分组绑定的订阅计划集合。
+	SetVisiblePlans(ctx context.Context, groupID int64, planIDs []int64) error
 }
 
 // GroupSortOrderUpdate 分组排序更新
@@ -48,7 +53,12 @@ type CreateGroupRequest struct {
 	Name           string  `json:"name"`
 	Description    string  `json:"description"`
 	RateMultiplier float64 `json:"rate_multiplier"`
-	IsExclusive    bool    `json:"is_exclusive"`
+	// Visibility 可见性三档：public / subscriber / private。空值时由 IsExclusive 回退派生。
+	Visibility string `json:"visibility"`
+	// IsExclusive 已废弃：仅当 Visibility 为空时用于兼容回退（true→private，false→public）。
+	IsExclusive bool `json:"is_exclusive"`
+	// VisiblePlanIDs 当 Visibility==subscriber 时绑定的订阅计划集合。
+	VisiblePlanIDs []int64 `json:"visible_plan_ids"`
 }
 
 // UpdateGroupRequest 更新分组请求
@@ -56,8 +66,27 @@ type UpdateGroupRequest struct {
 	Name           *string  `json:"name"`
 	Description    *string  `json:"description"`
 	RateMultiplier *float64 `json:"rate_multiplier"`
-	IsExclusive    *bool    `json:"is_exclusive"`
+	// Visibility 可见性三档；与 IsExclusive 二选一（优先 Visibility）。
+	Visibility *string `json:"visibility"`
+	// IsExclusive 已废弃：仅当 Visibility 未提供时用于兼容回退。
+	IsExclusive *bool `json:"is_exclusive"`
+	// VisiblePlanIDs 非 nil 时全量替换分组绑定的订阅计划集合。
+	VisiblePlanIDs *[]int64 `json:"visible_plan_ids"`
 	Status         *string  `json:"status"`
+}
+
+// ResolveVisibility 将请求中的 visibility/is_exclusive 归一为三档枚举值。
+// 优先 visibility；为空时由 is_exclusive 回退（true→private，false→public）。
+func ResolveVisibility(visibility string, isExclusive bool) string {
+	switch visibility {
+	case VisibilityPublic, VisibilitySubscriber, VisibilityPrivate:
+		return visibility
+	default:
+		if isExclusive {
+			return VisibilityPrivate
+		}
+		return VisibilityPublic
+	}
 }
 
 // GroupService 分组管理服务
@@ -85,18 +114,30 @@ func (s *GroupService) Create(ctx context.Context, req CreateGroupRequest) (*Gro
 		return nil, ErrGroupExists
 	}
 
+	// 解析三档可见性（优先 Visibility，回退 IsExclusive）
+	visibility := ResolveVisibility(req.Visibility, req.IsExclusive)
+
 	// 创建分组
 	group := &Group{
-		Name:             req.Name,
-		Description:      req.Description,
-		Platform:         PlatformAnthropic,
-		RateMultiplier:   req.RateMultiplier,
-		IsExclusive:      req.IsExclusive,
-		Status:           StatusActive,
+		Name:           req.Name,
+		Description:    req.Description,
+		Platform:       PlatformAnthropic,
+		RateMultiplier: req.RateMultiplier,
+		Visibility:     visibility,
+		IsExclusive:    visibility == VisibilityPrivate,
+		Status:         StatusActive,
 	}
 
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
+	}
+
+	// subscriber 可见性：写入绑定的订阅计划集合。
+	if visibility == VisibilitySubscriber && len(req.VisiblePlanIDs) > 0 {
+		if err := s.groupRepo.SetVisiblePlans(ctx, group.ID, req.VisiblePlanIDs); err != nil {
+			return nil, fmt.Errorf("set visible plans: %w", err)
+		}
+		group.VisiblePlanIDs = req.VisiblePlanIDs
 	}
 
 	return group, nil
@@ -157,9 +198,13 @@ func (s *GroupService) Update(ctx context.Context, id int64, req UpdateGroupRequ
 		group.RateMultiplier = *req.RateMultiplier
 	}
 
-	if req.IsExclusive != nil {
-		group.IsExclusive = *req.IsExclusive
+	// 可见性：优先 Visibility，回退 IsExclusive。
+	if req.Visibility != nil {
+		group.Visibility = ResolveVisibility(*req.Visibility, false)
+	} else if req.IsExclusive != nil {
+		group.Visibility = ResolveVisibility("", *req.IsExclusive)
 	}
+	group.IsExclusive = group.Visibility == VisibilityPrivate
 
 	if req.Status != nil {
 		group.Status = *req.Status
@@ -168,6 +213,25 @@ func (s *GroupService) Update(ctx context.Context, id int64, req UpdateGroupRequ
 	if err := s.groupRepo.Update(ctx, group); err != nil {
 		return nil, fmt.Errorf("update group: %w", err)
 	}
+
+	// subscriber 可见性绑定计划：非 nil 即全量替换。非 subscriber 档则清空绑定。
+	if req.VisiblePlanIDs != nil {
+		planIDs := *req.VisiblePlanIDs
+		if group.Visibility != VisibilitySubscriber {
+			planIDs = nil
+		}
+		if err := s.groupRepo.SetVisiblePlans(ctx, id, planIDs); err != nil {
+			return nil, fmt.Errorf("set visible plans: %w", err)
+		}
+		group.VisiblePlanIDs = planIDs
+	} else if group.Visibility != VisibilitySubscriber {
+		// 切换到非 subscriber 档时，清理残留绑定。
+		if err := s.groupRepo.SetVisiblePlans(ctx, id, nil); err != nil {
+			return nil, fmt.Errorf("clear visible plans: %w", err)
+		}
+		group.VisiblePlanIDs = nil
+	}
+
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, id)
 	}
@@ -210,6 +274,7 @@ func (s *GroupService) GetStats(ctx context.Context, id int64) (map[string]any, 
 		"id":              group.ID,
 		"name":            group.Name,
 		"rate_multiplier": group.RateMultiplier,
+		"visibility":      group.Visibility,
 		"is_exclusive":    group.IsExclusive,
 		"status":          group.Status,
 		"account_count":   accountCount,

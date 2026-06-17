@@ -405,6 +405,9 @@ export interface Group {
   description: string | null
   platform: GroupPlatform
   rate_multiplier: number
+  // 可见性三档：public（公开）/ subscriber（订阅会员可见）/ private（私有）
+  visibility: 'public' | 'subscriber' | 'private'
+  // @deprecated 派生字段（visibility==='private'），仅向后兼容保留
   is_exclusive: boolean
   status: 'active' | 'inactive'
   // 图片生成计费配置（仅 antigravity 平台使用）
@@ -451,6 +454,9 @@ export interface AdminGroup extends Group {
 
   // 分组排序
   sort_order: number
+
+  // subscriber 可见性绑定的订阅计划 ID 集合
+  visible_plan_ids?: number[]
 }
 
 export interface ApiKey {
@@ -516,7 +522,10 @@ export interface CreateGroupRequest {
   description?: string | null
   platform?: GroupPlatform
   rate_multiplier?: number
+  visibility?: 'public' | 'subscriber' | 'private'
+  // @deprecated 仅当未传 visibility 时回退使用
   is_exclusive?: boolean
+  visible_plan_ids?: number[]
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -540,7 +549,10 @@ export interface UpdateGroupRequest {
   description?: string | null
   platform?: GroupPlatform
   rate_multiplier?: number
+  visibility?: 'public' | 'subscriber' | 'private'
+  // @deprecated 仅当未传 visibility 时回退使用
   is_exclusive?: boolean
+  visible_plan_ids?: number[]
   status?: 'active' | 'inactive'
   image_price_1k?: number | null
   image_price_2k?: number | null

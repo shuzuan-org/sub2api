@@ -34,7 +34,7 @@ type AdminService interface {
 	GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error)
 
 	// Group management
-	ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool) ([]Group, int64, error)
+	ListGroups(ctx context.Context, page, pageSize int, platform, status, search, visibility string) ([]Group, int64, error)
 	GetAllGroups(ctx context.Context) ([]Group, error)
 	GetAllGroupsByPlatform(ctx context.Context, platform string) ([]Group, error)
 	GetGroup(ctx context.Context, id int64) (*Group, error)
@@ -138,11 +138,16 @@ type UpdateUserInput struct {
 }
 
 type CreateGroupInput struct {
-	Name             string
-	Description      string
-	Platform         string
-	RateMultiplier   float64
-	IsExclusive      bool
+	Name           string
+	Description    string
+	Platform       string
+	RateMultiplier float64
+	// Visibility 可见性三档：public / subscriber / private。空值时由 IsExclusive 回退派生。
+	Visibility string
+	// IsExclusive 已废弃：仅当 Visibility 为空时用于兼容回退。
+	IsExclusive bool
+	// VisiblePlanIDs 当 Visibility==subscriber 时绑定的订阅计划集合。
+	VisiblePlanIDs []int64
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K *float64
 	ImagePrice2K *float64
@@ -172,12 +177,17 @@ type CreateGroupInput struct {
 }
 
 type UpdateGroupInput struct {
-	Name             string
-	Description      string
-	Platform         string
-	RateMultiplier   *float64 // 使用指针以支持设置为0
-	IsExclusive      *bool
-	Status           string
+	Name           string
+	Description    string
+	Platform       string
+	RateMultiplier *float64 // 使用指针以支持设置为0
+	// Visibility 可见性三档；与 IsExclusive 二选一（优先 Visibility）。
+	Visibility *string
+	// IsExclusive 已废弃：仅当 Visibility 未提供时用于兼容回退。
+	IsExclusive *bool
+	// VisiblePlanIDs 非 nil 时全量替换分组绑定的订阅计划集合。
+	VisiblePlanIDs *[]int64
+	Status         string
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K *float64
 	ImagePrice2K *float64
@@ -827,9 +837,9 @@ func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int
 }
 
 // Group management implementations
-func (s *adminServiceImpl) ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool) ([]Group, int64, error) {
+func (s *adminServiceImpl) ListGroups(ctx context.Context, page, pageSize int, platform, status, search, visibility string) ([]Group, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	groups, result, err := s.groupRepo.ListWithFilters(ctx, params, platform, status, search, isExclusive)
+	groups, result, err := s.groupRepo.ListWithFilters(ctx, params, platform, status, search, visibility)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -918,12 +928,14 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		}
 	}
 
+	visibility := ResolveVisibility(input.Visibility, input.IsExclusive)
 	group := &Group{
 		Name:                            input.Name,
 		Description:                     input.Description,
 		Platform:                        platform,
 		RateMultiplier:                  input.RateMultiplier,
-		IsExclusive:                     input.IsExclusive,
+		Visibility:                      visibility,
+		IsExclusive:                     visibility == VisibilityPrivate,
 		Status:                          StatusActive,
 		ImagePrice1K:                    imagePrice1K,
 		ImagePrice2K:                    imagePrice2K,
@@ -942,8 +954,32 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		AllowMessagesDispatch:           input.AllowMessagesDispatch,
 		DefaultMappedModel:              input.DefaultMappedModel,
 	}
-	if err := s.groupRepo.Create(ctx, group); err != nil {
-		return nil, err
+
+	// subscriber 分组绑定 plan 时，group 落库与绑定必须原子化：
+	// 否则 SetVisiblePlans 失败会留下一个"已创建但无绑定 plan"的幽灵分组（谁都看不到）。
+	needTx := visibility == VisibilitySubscriber && len(input.VisiblePlanIDs) > 0 && s.entClient != nil
+	if needTx {
+		tx, err := s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("begin transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		opCtx := dbent.NewTxContext(ctx, tx)
+
+		if err := s.groupRepo.Create(opCtx, group); err != nil {
+			return nil, err
+		}
+		if err := s.groupRepo.SetVisiblePlans(opCtx, group.ID, input.VisiblePlanIDs); err != nil {
+			return nil, fmt.Errorf("set visible plans: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+		group.VisiblePlanIDs = input.VisiblePlanIDs
+	} else {
+		if err := s.groupRepo.Create(ctx, group); err != nil {
+			return nil, err
+		}
 	}
 
 	// 如果有需要复制的账号，绑定到新分组
@@ -1054,9 +1090,13 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.RateMultiplier != nil {
 		group.RateMultiplier = *input.RateMultiplier
 	}
-	if input.IsExclusive != nil {
-		group.IsExclusive = *input.IsExclusive
+	// 可见性：优先 Visibility，回退 IsExclusive。
+	if input.Visibility != nil {
+		group.Visibility = ResolveVisibility(*input.Visibility, false)
+	} else if input.IsExclusive != nil {
+		group.Visibility = ResolveVisibility("", *input.IsExclusive)
 	}
+	group.IsExclusive = group.Visibility == VisibilityPrivate
 	if input.Status != "" {
 		group.Status = input.Status
 	}
@@ -1142,11 +1182,52 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.DefaultMappedModel = *input.DefaultMappedModel
 	}
 
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return nil, err
+	// 计算是否需要同步 subscriber 绑定计划，以及目标 plan 集合。
+	//   - 显式传入 VisiblePlanIDs：全量替换（非 subscriber 档则清空）
+	//   - 未传但切换到非 subscriber 档：清空残留绑定
+	syncPlans := false
+	var planIDs []int64
+	if input.VisiblePlanIDs != nil {
+		syncPlans = true
+		if group.Visibility == VisibilitySubscriber {
+			planIDs = *input.VisiblePlanIDs
+		}
+	} else if group.Visibility != VisibilitySubscriber {
+		syncPlans = true
 	}
 
-	// 如果指定了复制账号的源分组，同步绑定（替换当前分组的账号）
+	// group 落库与 plan 绑定同步必须原子化：避免 Update 成功但 SetVisiblePlans 失败，
+	// 导致分组可见性已变更、绑定却处于半更新（先删后插中途失败 → 绑定丢失）状态。
+	if syncPlans && s.entClient != nil {
+		tx, err := s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("begin transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		opCtx := dbent.NewTxContext(ctx, tx)
+
+		if err := s.groupRepo.Update(opCtx, group); err != nil {
+			return nil, err
+		}
+		if err := s.groupRepo.SetVisiblePlans(opCtx, id, planIDs); err != nil {
+			return nil, fmt.Errorf("set visible plans: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+		group.VisiblePlanIDs = planIDs
+	} else {
+		if err := s.groupRepo.Update(ctx, group); err != nil {
+			return nil, err
+		}
+		if syncPlans {
+			// entClient 不可用时退化为非事务（保持原有行为，不阻断更新）。
+			if err := s.groupRepo.SetVisiblePlans(ctx, id, planIDs); err != nil {
+				return nil, fmt.Errorf("set visible plans: %w", err)
+			}
+			group.VisiblePlanIDs = planIDs
+		}
+	}
 	if len(input.CopyAccountsFromGroupIDs) > 0 {
 		// 去重源分组 IDs
 		seen := make(map[int64]struct{})
@@ -1282,8 +1363,13 @@ func (s *adminServiceImpl) ListGroupMembers(ctx context.Context, groupID int64) 
 // AddGroupMember 给分组添加授权用户
 func (s *adminServiceImpl) AddGroupMember(ctx context.Context, groupID, userID int64) error {
 	// 验证分组存在
-	if _, err := s.groupRepo.GetByID(ctx, groupID); err != nil {
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
 		return err
+	}
+	// 成员授权机制仅适用于 private 分组：public 无需授权，subscriber 走订阅判定。
+	if !group.IsPrivate() {
+		return infraerrors.BadRequest("GROUP_NOT_PRIVATE", "group members can only be managed for private groups")
 	}
 	// 验证用户存在
 	if _, err := s.userRepo.GetByID(ctx, userID); err != nil {
@@ -1340,7 +1426,7 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		apiKey.Group = group
 
 		// 专属分组：使用事务保证「添加分组权限」与「更新 API Key」的原子性
-		if group.IsExclusive {
+		if group.IsPrivate() {
 			opCtx := ctx
 			var tx *dbent.Tx
 			if s.entClient == nil {
@@ -1409,7 +1495,7 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 	if newGroup.Status != StatusActive {
 		return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
 	}
-	if !newGroup.IsExclusive {
+	if !newGroup.IsPrivate() {
 		return nil, infraerrors.BadRequest("GROUP_NOT_EXCLUSIVE", "target group is not exclusive")
 	}
 

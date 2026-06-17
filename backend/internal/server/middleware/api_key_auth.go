@@ -188,6 +188,16 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				return
 			}
 
+			// 分组可见性校验（与计费解耦）：subscriber 分组要求用户持有匹配 plan 的有效订阅。
+			// 必须在下方 ValidateMergedState 可能把 mergedState 置 nil 之前取活跃 plan 集合——
+			// 可见性只关心订阅是否有效（未过期），不关心是否超限。
+			if apiKey.Group != nil && apiKey.Group.Visibility == service.VisibilitySubscriber {
+				if !subscriberPlansMatch(apiKey.Group.VisiblePlanIDs, mergedState.ActivePlanIDs()) {
+					AbortWithError(c, 403, "SUBSCRIPTION_REQUIRED", "此分组仅对持有指定订阅的用户开放")
+					return
+				}
+			}
+
 			// 订阅模式：验证合并限额
 			if mergedState != nil && mergedState.FIFOTarget() != nil {
 				needsMaintenance, validateErr := subscriptionService.ValidateMergedState(mergedState)
@@ -281,6 +291,24 @@ func resolveBearerCredential(c *gin.Context, apiKeyService *service.APIKeyServic
 func containsScope(scopes []string, target string) bool {
 	for _, scope := range scopes {
 		if scope == target {
+			return true
+		}
+	}
+	return false
+}
+
+// subscriberPlansMatch 判断用户活跃订阅的 plan 集合与分组绑定 plan 集合是否有交集（OR 语义）。
+// 任一为空即视为不匹配（subscriber 分组未绑定 plan 时无人可访问，安全默认）。
+func subscriberPlansMatch(groupPlanIDs, userPlanIDs []int64) bool {
+	if len(groupPlanIDs) == 0 || len(userPlanIDs) == 0 {
+		return false
+	}
+	want := make(map[int64]struct{}, len(groupPlanIDs))
+	for _, id := range groupPlanIDs {
+		want[id] = struct{}{}
+	}
+	for _, id := range userPlanIDs {
+		if _, ok := want[id]; ok {
 			return true
 		}
 	}

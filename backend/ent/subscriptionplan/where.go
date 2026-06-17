@@ -846,6 +846,52 @@ func HasRedeemCodesWith(preds ...predicate.RedeemCode) predicate.SubscriptionPla
 	})
 }
 
+// HasVisibleGroups applies the HasEdge predicate on the "visible_groups" edge.
+func HasVisibleGroups() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, VisibleGroupsTable, VisibleGroupsPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVisibleGroupsWith applies the HasEdge predicate on the "visible_groups" edge with a given conditions (other predicates).
+func HasVisibleGroupsWith(preds ...predicate.Group) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(func(s *sql.Selector) {
+		step := newVisibleGroupsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasGroupVisiblePlans applies the HasEdge predicate on the "group_visible_plans" edge.
+func HasGroupVisiblePlans() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, GroupVisiblePlansTable, GroupVisiblePlansColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasGroupVisiblePlansWith applies the HasEdge predicate on the "group_visible_plans" edge with a given conditions (other predicates).
+func HasGroupVisiblePlansWith(preds ...predicate.GroupVisiblePlan) predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(func(s *sql.Selector) {
+		step := newGroupVisiblePlansStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.SubscriptionPlan) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.AndPredicates(predicates...))

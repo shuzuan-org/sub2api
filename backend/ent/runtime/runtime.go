@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/groupvisibleplan"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -547,10 +548,12 @@ func init() {
 	groupDescRateMultiplier := groupFields[2].Descriptor()
 	// group.DefaultRateMultiplier holds the default value on creation for the rate_multiplier field.
 	group.DefaultRateMultiplier = groupDescRateMultiplier.Default.(float64)
-	// groupDescIsExclusive is the schema descriptor for is_exclusive field.
-	groupDescIsExclusive := groupFields[3].Descriptor()
-	// group.DefaultIsExclusive holds the default value on creation for the is_exclusive field.
-	group.DefaultIsExclusive = groupDescIsExclusive.Default.(bool)
+	// groupDescVisibility is the schema descriptor for visibility field.
+	groupDescVisibility := groupFields[3].Descriptor()
+	// group.DefaultVisibility holds the default value on creation for the visibility field.
+	group.DefaultVisibility = groupDescVisibility.Default.(string)
+	// group.VisibilityValidator is a validator for the "visibility" field. It is called by the builders before save.
+	group.VisibilityValidator = groupDescVisibility.Validators[0].(func(string) error)
 	// groupDescStatus is the schema descriptor for status field.
 	groupDescStatus := groupFields[4].Descriptor()
 	// group.DefaultStatus holds the default value on creation for the status field.
@@ -597,6 +600,12 @@ func init() {
 	group.DefaultDefaultMappedModel = groupDescDefaultMappedModel.Default.(string)
 	// group.DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
 	group.DefaultMappedModelValidator = groupDescDefaultMappedModel.Validators[0].(func(string) error)
+	groupvisibleplanFields := schema.GroupVisiblePlan{}.Fields()
+	_ = groupvisibleplanFields
+	// groupvisibleplanDescCreatedAt is the schema descriptor for created_at field.
+	groupvisibleplanDescCreatedAt := groupvisibleplanFields[2].Descriptor()
+	// groupvisibleplan.DefaultCreatedAt holds the default value on creation for the created_at field.
+	groupvisibleplan.DefaultCreatedAt = groupvisibleplanDescCreatedAt.Default.(func() time.Time)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
 	idempotencyrecordMixinFields0 := idempotencyrecordMixin[0].Fields()
 	_ = idempotencyrecordMixinFields0

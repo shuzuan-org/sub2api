@@ -18,7 +18,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/channelinvitebatchgroup"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/groupvisibleplan"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
@@ -35,9 +37,11 @@ type GroupQuery struct {
 	withUsageLogs                *UsageLogQuery
 	withAccounts                 *AccountQuery
 	withAllowedUsers             *UserQuery
+	withVisiblePlans             *SubscriptionPlanQuery
 	withChannelInviteBatchGroups *ChannelInviteBatchGroupQuery
 	withAccountGroups            *AccountGroupQuery
 	withUserAllowedGroups        *UserAllowedGroupQuery
+	withGroupVisiblePlans        *GroupVisiblePlanQuery
 	modifiers                    []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -163,6 +167,28 @@ func (_q *GroupQuery) QueryAllowedUsers() *UserQuery {
 	return query
 }
 
+// QueryVisiblePlans chains the current query on the "visible_plans" edge.
+func (_q *GroupQuery) QueryVisiblePlans() *SubscriptionPlanQuery {
+	query := (&SubscriptionPlanClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, selector),
+			sqlgraph.To(subscriptionplan.Table, subscriptionplan.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, group.VisiblePlansTable, group.VisiblePlansPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // QueryChannelInviteBatchGroups chains the current query on the "channel_invite_batch_groups" edge.
 func (_q *GroupQuery) QueryChannelInviteBatchGroups() *ChannelInviteBatchGroupQuery {
 	query := (&ChannelInviteBatchGroupClient{config: _q.config}).Query()
@@ -222,6 +248,28 @@ func (_q *GroupQuery) QueryUserAllowedGroups() *UserAllowedGroupQuery {
 			sqlgraph.From(group.Table, group.FieldID, selector),
 			sqlgraph.To(userallowedgroup.Table, userallowedgroup.GroupColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, group.UserAllowedGroupsTable, group.UserAllowedGroupsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryGroupVisiblePlans chains the current query on the "group_visible_plans" edge.
+func (_q *GroupQuery) QueryGroupVisiblePlans() *GroupVisiblePlanQuery {
+	query := (&GroupVisiblePlanClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, selector),
+			sqlgraph.To(groupvisibleplan.Table, groupvisibleplan.GroupColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, group.GroupVisiblePlansTable, group.GroupVisiblePlansColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -425,9 +473,11 @@ func (_q *GroupQuery) Clone() *GroupQuery {
 		withUsageLogs:                _q.withUsageLogs.Clone(),
 		withAccounts:                 _q.withAccounts.Clone(),
 		withAllowedUsers:             _q.withAllowedUsers.Clone(),
+		withVisiblePlans:             _q.withVisiblePlans.Clone(),
 		withChannelInviteBatchGroups: _q.withChannelInviteBatchGroups.Clone(),
 		withAccountGroups:            _q.withAccountGroups.Clone(),
 		withUserAllowedGroups:        _q.withUserAllowedGroups.Clone(),
+		withGroupVisiblePlans:        _q.withGroupVisiblePlans.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -478,6 +528,17 @@ func (_q *GroupQuery) WithAllowedUsers(opts ...func(*UserQuery)) *GroupQuery {
 	return _q
 }
 
+// WithVisiblePlans tells the query-builder to eager-load the nodes that are connected to
+// the "visible_plans" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *GroupQuery) WithVisiblePlans(opts ...func(*SubscriptionPlanQuery)) *GroupQuery {
+	query := (&SubscriptionPlanClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withVisiblePlans = query
+	return _q
+}
+
 // WithChannelInviteBatchGroups tells the query-builder to eager-load the nodes that are connected to
 // the "channel_invite_batch_groups" edge. The optional arguments are used to configure the query builder of the edge.
 func (_q *GroupQuery) WithChannelInviteBatchGroups(opts ...func(*ChannelInviteBatchGroupQuery)) *GroupQuery {
@@ -508,6 +569,17 @@ func (_q *GroupQuery) WithUserAllowedGroups(opts ...func(*UserAllowedGroupQuery)
 		opt(query)
 	}
 	_q.withUserAllowedGroups = query
+	return _q
+}
+
+// WithGroupVisiblePlans tells the query-builder to eager-load the nodes that are connected to
+// the "group_visible_plans" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *GroupQuery) WithGroupVisiblePlans(opts ...func(*GroupVisiblePlanQuery)) *GroupQuery {
+	query := (&GroupVisiblePlanClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withGroupVisiblePlans = query
 	return _q
 }
 
@@ -589,14 +661,16 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 	var (
 		nodes       = []*Group{}
 		_spec       = _q.querySpec()
-		loadedTypes = [7]bool{
+		loadedTypes = [9]bool{
 			_q.withAPIKeys != nil,
 			_q.withUsageLogs != nil,
 			_q.withAccounts != nil,
 			_q.withAllowedUsers != nil,
+			_q.withVisiblePlans != nil,
 			_q.withChannelInviteBatchGroups != nil,
 			_q.withAccountGroups != nil,
 			_q.withUserAllowedGroups != nil,
+			_q.withGroupVisiblePlans != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -648,6 +722,13 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 			return nil, err
 		}
 	}
+	if query := _q.withVisiblePlans; query != nil {
+		if err := _q.loadVisiblePlans(ctx, query, nodes,
+			func(n *Group) { n.Edges.VisiblePlans = []*SubscriptionPlan{} },
+			func(n *Group, e *SubscriptionPlan) { n.Edges.VisiblePlans = append(n.Edges.VisiblePlans, e) }); err != nil {
+			return nil, err
+		}
+	}
 	if query := _q.withChannelInviteBatchGroups; query != nil {
 		if err := _q.loadChannelInviteBatchGroups(ctx, query, nodes,
 			func(n *Group) { n.Edges.ChannelInviteBatchGroups = []*ChannelInviteBatchGroup{} },
@@ -668,6 +749,13 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 		if err := _q.loadUserAllowedGroups(ctx, query, nodes,
 			func(n *Group) { n.Edges.UserAllowedGroups = []*UserAllowedGroup{} },
 			func(n *Group, e *UserAllowedGroup) { n.Edges.UserAllowedGroups = append(n.Edges.UserAllowedGroups, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withGroupVisiblePlans; query != nil {
+		if err := _q.loadGroupVisiblePlans(ctx, query, nodes,
+			func(n *Group) { n.Edges.GroupVisiblePlans = []*GroupVisiblePlan{} },
+			func(n *Group, e *GroupVisiblePlan) { n.Edges.GroupVisiblePlans = append(n.Edges.GroupVisiblePlans, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -862,6 +950,67 @@ func (_q *GroupQuery) loadAllowedUsers(ctx context.Context, query *UserQuery, no
 	}
 	return nil
 }
+func (_q *GroupQuery) loadVisiblePlans(ctx context.Context, query *SubscriptionPlanQuery, nodes []*Group, init func(*Group), assign func(*Group, *SubscriptionPlan)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int64]*Group)
+	nids := make(map[int64]map[*Group]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(group.VisiblePlansTable)
+		s.Join(joinT).On(s.C(subscriptionplan.FieldID), joinT.C(group.VisiblePlansPrimaryKey[1]))
+		s.Where(sql.InValues(joinT.C(group.VisiblePlansPrimaryKey[0]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(group.VisiblePlansPrimaryKey[0]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := values[0].(*sql.NullInt64).Int64
+				inValue := values[1].(*sql.NullInt64).Int64
+				if nids[inValue] == nil {
+					nids[inValue] = map[*Group]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*SubscriptionPlan](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "visible_plans" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
+}
 func (_q *GroupQuery) loadChannelInviteBatchGroups(ctx context.Context, query *ChannelInviteBatchGroupQuery, nodes []*Group, init func(*Group), assign func(*Group, *ChannelInviteBatchGroup)) error {
 	fks := make([]driver.Value, 0, len(nodes))
 	nodeids := make(map[int64]*Group)
@@ -937,6 +1086,36 @@ func (_q *GroupQuery) loadUserAllowedGroups(ctx context.Context, query *UserAllo
 	}
 	query.Where(predicate.UserAllowedGroup(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(group.UserAllowedGroupsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.GroupID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, fk, n)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *GroupQuery) loadGroupVisiblePlans(ctx context.Context, query *GroupVisiblePlanQuery, nodes []*Group, init func(*Group), assign func(*Group, *GroupVisiblePlan)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*Group)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(groupvisibleplan.FieldGroupID)
+	}
+	query.Where(predicate.GroupVisiblePlan(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(group.GroupVisiblePlansColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

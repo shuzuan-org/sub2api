@@ -27,8 +27,8 @@ const (
 	FieldDescription = "description"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
-	// FieldIsExclusive holds the string denoting the is_exclusive field in the database.
-	FieldIsExclusive = "is_exclusive"
+	// FieldVisibility holds the string denoting the visibility field in the database.
+	FieldVisibility = "visibility"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldPlatform holds the string denoting the platform field in the database.
@@ -77,12 +77,16 @@ const (
 	EdgeAccounts = "accounts"
 	// EdgeAllowedUsers holds the string denoting the allowed_users edge name in mutations.
 	EdgeAllowedUsers = "allowed_users"
+	// EdgeVisiblePlans holds the string denoting the visible_plans edge name in mutations.
+	EdgeVisiblePlans = "visible_plans"
 	// EdgeChannelInviteBatchGroups holds the string denoting the channel_invite_batch_groups edge name in mutations.
 	EdgeChannelInviteBatchGroups = "channel_invite_batch_groups"
 	// EdgeAccountGroups holds the string denoting the account_groups edge name in mutations.
 	EdgeAccountGroups = "account_groups"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
+	// EdgeGroupVisiblePlans holds the string denoting the group_visible_plans edge name in mutations.
+	EdgeGroupVisiblePlans = "group_visible_plans"
 	// Table holds the table name of the group in the database.
 	Table = "groups"
 	// APIKeysTable is the table that holds the api_keys relation/edge.
@@ -109,6 +113,11 @@ const (
 	// AllowedUsersInverseTable is the table name for the User entity.
 	// It exists in this package in order to avoid circular dependency with the "user" package.
 	AllowedUsersInverseTable = "users"
+	// VisiblePlansTable is the table that holds the visible_plans relation/edge. The primary key declared below.
+	VisiblePlansTable = "group_visible_plans"
+	// VisiblePlansInverseTable is the table name for the SubscriptionPlan entity.
+	// It exists in this package in order to avoid circular dependency with the "subscriptionplan" package.
+	VisiblePlansInverseTable = "subscription_plans"
 	// ChannelInviteBatchGroupsTable is the table that holds the channel_invite_batch_groups relation/edge.
 	ChannelInviteBatchGroupsTable = "channel_invite_batch_groups"
 	// ChannelInviteBatchGroupsInverseTable is the table name for the ChannelInviteBatchGroup entity.
@@ -130,6 +139,13 @@ const (
 	UserAllowedGroupsInverseTable = "user_allowed_groups"
 	// UserAllowedGroupsColumn is the table column denoting the user_allowed_groups relation/edge.
 	UserAllowedGroupsColumn = "group_id"
+	// GroupVisiblePlansTable is the table that holds the group_visible_plans relation/edge.
+	GroupVisiblePlansTable = "group_visible_plans"
+	// GroupVisiblePlansInverseTable is the table name for the GroupVisiblePlan entity.
+	// It exists in this package in order to avoid circular dependency with the "groupvisibleplan" package.
+	GroupVisiblePlansInverseTable = "group_visible_plans"
+	// GroupVisiblePlansColumn is the table column denoting the group_visible_plans relation/edge.
+	GroupVisiblePlansColumn = "group_id"
 )
 
 // Columns holds all SQL columns for group fields.
@@ -141,7 +157,7 @@ var Columns = []string{
 	FieldName,
 	FieldDescription,
 	FieldRateMultiplier,
-	FieldIsExclusive,
+	FieldVisibility,
 	FieldStatus,
 	FieldPlatform,
 	FieldImagePrice1k,
@@ -171,6 +187,9 @@ var (
 	// AllowedUsersPrimaryKey and AllowedUsersColumn2 are the table columns denoting the
 	// primary key for the allowed_users relation (M2M).
 	AllowedUsersPrimaryKey = []string{"user_id", "group_id"}
+	// VisiblePlansPrimaryKey and VisiblePlansColumn2 are the table columns denoting the
+	// primary key for the visible_plans relation (M2M).
+	VisiblePlansPrimaryKey = []string{"group_id", "plan_id"}
 )
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -201,8 +220,10 @@ var (
 	NameValidator func(string) error
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
-	// DefaultIsExclusive holds the default value on creation for the "is_exclusive" field.
-	DefaultIsExclusive bool
+	// DefaultVisibility holds the default value on creation for the "visibility" field.
+	DefaultVisibility string
+	// VisibilityValidator is a validator for the "visibility" field. It is called by the builders before save.
+	VisibilityValidator func(string) error
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -269,9 +290,9 @@ func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateMultiplier, opts...).ToFunc()
 }
 
-// ByIsExclusive orders the results by the is_exclusive field.
-func ByIsExclusive(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldIsExclusive, opts...).ToFunc()
+// ByVisibility orders the results by the visibility field.
+func ByVisibility(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVisibility, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.
@@ -420,6 +441,20 @@ func ByAllowedUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByVisiblePlansCount orders the results by visible_plans count.
+func ByVisiblePlansCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVisiblePlansStep(), opts...)
+	}
+}
+
+// ByVisiblePlans orders the results by visible_plans terms.
+func ByVisiblePlans(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVisiblePlansStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByChannelInviteBatchGroupsCount orders the results by channel_invite_batch_groups count.
 func ByChannelInviteBatchGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -461,6 +496,20 @@ func ByUserAllowedGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 		sqlgraph.OrderByNeighborTerms(s, newUserAllowedGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByGroupVisiblePlansCount orders the results by group_visible_plans count.
+func ByGroupVisiblePlansCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newGroupVisiblePlansStep(), opts...)
+	}
+}
+
+// ByGroupVisiblePlans orders the results by group_visible_plans terms.
+func ByGroupVisiblePlans(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newGroupVisiblePlansStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newAPIKeysStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -489,6 +538,13 @@ func newAllowedUsersStep() *sqlgraph.Step {
 		sqlgraph.Edge(sqlgraph.M2M, true, AllowedUsersTable, AllowedUsersPrimaryKey...),
 	)
 }
+func newVisiblePlansStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VisiblePlansInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, false, VisiblePlansTable, VisiblePlansPrimaryKey...),
+	)
+}
 func newChannelInviteBatchGroupsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -508,5 +564,12 @@ func newUserAllowedGroupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(UserAllowedGroupsInverseTable, UserAllowedGroupsColumn),
 		sqlgraph.Edge(sqlgraph.O2M, true, UserAllowedGroupsTable, UserAllowedGroupsColumn),
+	)
+}
+func newGroupVisiblePlansStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(GroupVisiblePlansInverseTable, GroupVisiblePlansColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, GroupVisiblePlansTable, GroupVisiblePlansColumn),
 	)
 }

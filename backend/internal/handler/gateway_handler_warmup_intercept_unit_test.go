@@ -68,8 +68,14 @@ func (f *fakeGroupRepo) DeleteCascade(context.Context, int64) ([]int64, error) {
 func (f *fakeGroupRepo) List(context.Context, pagination.PaginationParams) ([]service.Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (f *fakeGroupRepo) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, *bool) ([]service.Group, *pagination.PaginationResult, error) {
+func (f *fakeGroupRepo) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string) ([]service.Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
+}
+func (f *fakeGroupRepo) LoadVisiblePlansByGroupIDs(context.Context, []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+func (f *fakeGroupRepo) SetVisiblePlans(context.Context, int64, []int64) error {
+	return nil
 }
 func (f *fakeGroupRepo) ListActive(context.Context) ([]service.Group, error) { return nil, nil }
 func (f *fakeGroupRepo) ListActiveByPlatform(context.Context, string) ([]service.Group, error) {

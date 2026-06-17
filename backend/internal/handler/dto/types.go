@@ -78,8 +78,11 @@ type Group struct {
 	Description    string  `json:"description"`
 	Platform       string  `json:"platform"`
 	RateMultiplier float64 `json:"rate_multiplier"`
-	IsExclusive    bool    `json:"is_exclusive"`
-	Status         string  `json:"status"`
+	// Visibility 可见性三档：public / subscriber / private。
+	Visibility string `json:"visibility"`
+	// IsExclusive 派生字段（visibility==private），保留供旧前端兼容。
+	IsExclusive bool   `json:"is_exclusive"`
+	Status      string `json:"status"`
 
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K *float64 `json:"image_price_1k"`
@@ -132,6 +135,9 @@ type AdminGroup struct {
 
 	// 分组排序
 	SortOrder int `json:"sort_order"`
+
+	// VisiblePlanIDs subscriber 可见性绑定的订阅计划 ID 集合（管理端编辑回显）。
+	VisiblePlanIDs []int64 `json:"visible_plan_ids"`
 }
 
 type Account struct {

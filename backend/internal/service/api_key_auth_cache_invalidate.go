@@ -1,6 +1,10 @@
 package service
 
-import "context"
+import (
+	"context"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+)
 
 // InvalidateAuthCacheByKey 清除指定 API Key 的认证缓存
 func (s *APIKeyService) InvalidateAuthCacheByKey(ctx context.Context, key string) {
@@ -30,6 +34,9 @@ func (s *APIKeyService) InvalidateAuthCacheByGroupID(ctx context.Context, groupI
 	}
 	keys, err := s.apiKeyRepo.ListKeysByGroupID(ctx, groupID)
 	if err != nil {
+		// 失效失败不阻断主流程，但必须留痕：否则 DB 抖动导致缓存未清，
+		// 分组 visibility/绑定计划的变更会在缓存 TTL 内对部分 key 不可见，难以排查。
+		logger.LegacyPrintf("service.apikey", "InvalidateAuthCacheByGroupID: list keys failed, cache not invalidated: group_id=%d err=%v", groupID, err)
 		return
 	}
 	s.deleteAuthCacheByKeys(ctx, keys)

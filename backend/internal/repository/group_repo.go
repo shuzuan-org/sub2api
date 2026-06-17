@@ -35,12 +35,12 @@ func newGroupRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *groupRep
 }
 
 func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) error {
-	builder := r.client.Group.Create().
+	builder := clientFromContext(ctx, r.client).Group.Create().
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
 		SetRateMultiplier(groupIn.RateMultiplier).
-		SetIsExclusive(groupIn.IsExclusive).
+		SetVisibility(groupIn.Visibility).
 		SetStatus(groupIn.Status).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
@@ -97,16 +97,25 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
-	return groupEntityToService(m), nil
+	out := groupEntityToService(m)
+	// 加载 subscriber 可见性绑定的订阅计划（用于管理端编辑回显）。
+	if out.Visibility == service.VisibilitySubscriber {
+		visMap, verr := r.LoadVisiblePlansByGroupIDs(ctx, []int64{id})
+		if verr != nil {
+			return nil, verr
+		}
+		out.VisiblePlanIDs = visMap[id]
+	}
+	return out, nil
 }
 
 func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) error {
-	builder := r.client.Group.UpdateOneID(groupIn.ID).
+	builder := clientFromContext(ctx, r.client).Group.UpdateOneID(groupIn.ID).
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
 		SetRateMultiplier(groupIn.RateMultiplier).
-		SetIsExclusive(groupIn.IsExclusive).
+		SetVisibility(groupIn.Visibility).
 		SetStatus(groupIn.Status).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
@@ -185,10 +194,10 @@ func (r *groupRepository) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *groupRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.Group, *pagination.PaginationResult, error) {
-	return r.ListWithFilters(ctx, params, "", "", "", nil)
+	return r.ListWithFilters(ctx, params, "", "", "", "")
 }
 
-func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]service.Group, *pagination.PaginationResult, error) {
+func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search, visibility string) ([]service.Group, *pagination.PaginationResult, error) {
 	q := r.client.Group.Query()
 
 	if platform != "" {
@@ -203,8 +212,8 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 			group.DescriptionContainsFold(search),
 		))
 	}
-	if isExclusive != nil {
-		q = q.Where(group.IsExclusiveEQ(*isExclusive))
+	if visibility != "" {
+		q = q.Where(group.VisibilityEQ(visibility))
 	}
 
 	total, err := q.Clone().Count(ctx)
@@ -442,6 +451,11 @@ func (r *groupRepository) DeleteCascade(ctx context.Context, id int64) ([]int64,
 	// 3. Remove the group id from user_allowed_groups join table.
 	// Legacy users.allowed_groups 列已弃用，不再同步。
 	if _, err := exec.ExecContext(ctx, "DELETE FROM user_allowed_groups WHERE group_id = $1", id); err != nil {
+		return nil, err
+	}
+
+	// 3b. Remove the group id from group_visible_plans join table (subscriber 可见性绑定)。
+	if _, err := exec.ExecContext(ctx, "DELETE FROM group_visible_plans WHERE group_id = $1", id); err != nil {
 		return nil, err
 	}
 

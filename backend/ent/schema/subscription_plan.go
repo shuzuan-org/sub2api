@@ -80,6 +80,10 @@ func (SubscriptionPlan) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("redeem_codes", RedeemCode.Type),
+		// 反向：哪些 subscriber 分组绑定了此计划
+		edge.From("visible_groups", Group.Type).
+			Ref("visible_plans").
+			Through("group_visible_plans", GroupVisiblePlan.Type),
 	}
 }
 

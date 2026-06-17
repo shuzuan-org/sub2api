@@ -34,9 +34,9 @@
             @change="loadGroups"
           />
           <Select
-            v-model="filters.is_exclusive"
-            :options="exclusiveOptions"
-            :placeholder="t('admin.groups.allGroups')"
+            v-model="filters.visibility"
+            :options="visibilityOptions"
+            :placeholder="t('admin.groups.allVisibility')"
             class="w-44"
             @change="loadGroups"
           />
@@ -102,9 +102,18 @@
             <span class="text-sm text-gray-700 dark:text-gray-300">{{ value }}x</span>
           </template>
 
-          <template #cell-is_exclusive="{ value }">
-            <span :class="['badge', value ? 'badge-primary' : 'badge-gray']">
-              {{ value ? t('admin.groups.exclusive') : t('admin.groups.public') }}
+          <template #cell-visibility="{ row }">
+            <span
+              :class="[
+                'badge',
+                row.visibility === 'public'
+                  ? 'badge-success'
+                  : row.visibility === 'subscriber'
+                    ? 'badge-primary'
+                    : 'badge-warning'
+              ]"
+            >
+              {{ t('admin.groups.visibility.' + (row.visibility || 'public')) }}
             </span>
           </template>
 
@@ -171,7 +180,7 @@
                 <span class="text-xs">{{ t('common.edit') }}</span>
               </button>
               <button
-                v-if="row.is_exclusive"
+                v-if="row.visibility === 'private'"
                 @click="handleManageMembers(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-dark-700 dark:hover:text-blue-400"
               >
@@ -364,25 +373,44 @@
               </div>
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-600">
             <button
+              v-for="seg in visibilitySegments"
+              :key="seg.value"
               type="button"
-              @click="createForm.is_exclusive = !createForm.is_exclusive"
+              @click="createForm.visibility = seg.value"
               :class="[
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                createForm.is_exclusive ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                createForm.visibility === seg.value
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'
               ]"
             >
-              <span
-                :class="[
-                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                  createForm.is_exclusive ? 'translate-x-6' : 'translate-x-1'
-                ]"
-              />
+              {{ seg.label }}
             </button>
-            <span class="text-sm text-gray-500 dark:text-gray-400">
-              {{ createForm.is_exclusive ? t('admin.groups.exclusive') : t('admin.groups.public') }}
-            </span>
+          </div>
+          <!-- subscriber 可见性：绑定订阅计划多选 -->
+          <div v-if="createForm.visibility === 'subscriber'" class="mt-3">
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t('admin.groups.visiblePlans') }}
+            </label>
+            <div v-if="availablePlans.length" class="space-y-2">
+              <label
+                v-for="plan in availablePlans"
+                :key="plan.id"
+                class="flex cursor-pointer items-center gap-2"
+              >
+                <input
+                  type="checkbox"
+                  :checked="createForm.visible_plan_ids.includes(plan.id)"
+                  @change="toggleCreatePlan(plan.id)"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                />
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ plan.name }}</span>
+              </label>
+            </div>
+            <p v-else class="text-xs text-gray-400 dark:text-gray-500">{{ t('admin.subscriptionPlans.noPlansYet') }}</p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.groups.visiblePlansHint') }}</p>
           </div>
         </div>
 
@@ -1044,25 +1072,44 @@
               </div>
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-600">
             <button
+              v-for="seg in visibilitySegments"
+              :key="seg.value"
               type="button"
-              @click="editForm.is_exclusive = !editForm.is_exclusive"
+              @click="editForm.visibility = seg.value"
               :class="[
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                editForm.is_exclusive ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600'
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                editForm.visibility === seg.value
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'
               ]"
             >
-              <span
-                :class="[
-                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                  editForm.is_exclusive ? 'translate-x-6' : 'translate-x-1'
-                ]"
-              />
+              {{ seg.label }}
             </button>
-            <span class="text-sm text-gray-500 dark:text-gray-400">
-              {{ editForm.is_exclusive ? t('admin.groups.exclusive') : t('admin.groups.public') }}
-            </span>
+          </div>
+          <!-- subscriber 可见性：绑定订阅计划多选 -->
+          <div v-if="editForm.visibility === 'subscriber'" class="mt-3">
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t('admin.groups.visiblePlans') }}
+            </label>
+            <div v-if="availablePlans.length" class="space-y-2">
+              <label
+                v-for="plan in availablePlans"
+                :key="plan.id"
+                class="flex cursor-pointer items-center gap-2"
+              >
+                <input
+                  type="checkbox"
+                  :checked="editForm.visible_plan_ids.includes(plan.id)"
+                  @change="toggleEditPlan(plan.id)"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+                />
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ plan.name }}</span>
+              </label>
+            </div>
+            <p v-else class="text-xs text-gray-400 dark:text-gray-500">{{ t('admin.subscriptionPlans.noPlansYet') }}</p>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.groups.visiblePlansHint') }}</p>
           </div>
         </div>
         <div>
@@ -1733,7 +1780,7 @@ const columns = computed<Column[]>(() => [
   { key: 'name', label: t('admin.groups.columns.name'), sortable: true },
   { key: 'platform', label: t('admin.groups.columns.platform'), sortable: true },
   { key: 'rate_multiplier', label: t('admin.groups.columns.rateMultiplier'), sortable: true },
-  { key: 'is_exclusive', label: t('admin.groups.columns.type'), sortable: true },
+  { key: 'visibility', label: t('admin.groups.columns.type'), sortable: true },
   { key: 'account_count', label: t('admin.groups.columns.accounts'), sortable: true },
   { key: 'capacity', label: t('admin.groups.columns.capacity'), sortable: false },
   { key: 'usage', label: t('admin.groups.columns.usage'), sortable: false },
@@ -1748,10 +1795,18 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('admin.accounts.status.inactive') }
 ])
 
-const exclusiveOptions = computed(() => [
-  { value: '', label: t('admin.groups.allGroups') },
-  { value: 'true', label: t('admin.groups.exclusive') },
-  { value: 'false', label: t('admin.groups.nonExclusive') }
+const visibilityOptions = computed(() => [
+  { value: '', label: t('admin.groups.allVisibility') },
+  { value: 'public', label: t('admin.groups.visibility.public') },
+  { value: 'subscriber', label: t('admin.groups.visibility.subscriber') },
+  { value: 'private', label: t('admin.groups.visibility.private') }
+])
+
+// 三档可见性段控件选项（创建/编辑表单复用）
+const visibilitySegments = computed(() => [
+  { value: 'public' as const, label: t('admin.groups.visibility.public') },
+  { value: 'subscriber' as const, label: t('admin.groups.visibility.subscriber') },
+  { value: 'private' as const, label: t('admin.groups.visibility.private') }
 ])
 
 const platformOptions = computed(() => [
@@ -1875,7 +1930,7 @@ const searchQuery = ref('')
 const filters = reactive({
   platform: '',
   status: '',
-  is_exclusive: ''
+  visibility: ''
 })
 const pagination = reactive({
   page: 1,
@@ -1885,6 +1940,37 @@ const pagination = reactive({
 })
 
 let abortController: AbortController | null = null
+
+// 可见性=subscriber 时可绑定的订阅计划列表
+const availablePlans = ref<{ id: number; name: string }[]>([])
+const loadAvailablePlans = async () => {
+  try {
+    const plans = await adminAPI.subscriptionPlans.getAll()
+    availablePlans.value = plans.map((p) => ({ id: p.id, name: p.name }))
+  } catch (error) {
+    console.error('Error loading subscription plans:', error)
+  }
+}
+
+// 切换创建表单的可见订阅计划选择
+const toggleCreatePlan = (planId: number) => {
+  const idx = createForm.visible_plan_ids.indexOf(planId)
+  if (idx === -1) {
+    createForm.visible_plan_ids.push(planId)
+  } else {
+    createForm.visible_plan_ids.splice(idx, 1)
+  }
+}
+
+// 切换编辑表单的可见订阅计划选择
+const toggleEditPlan = (planId: number) => {
+  const idx = editForm.visible_plan_ids.indexOf(planId)
+  if (idx === -1) {
+    editForm.visible_plan_ids.push(planId)
+  } else {
+    editForm.visible_plan_ids.splice(idx, 1)
+  }
+}
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -1905,7 +1991,8 @@ const createForm = reactive({
   description: '',
   platform: 'anthropic' as GroupPlatform,
   rate_multiplier: 1.0,
-  is_exclusive: false,
+  visibility: 'public' as 'public' | 'subscriber' | 'private',
+  visible_plan_ids: [] as number[],
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
@@ -2144,7 +2231,8 @@ const editForm = reactive({
   description: '',
   platform: 'anthropic' as GroupPlatform,
   rate_multiplier: 1.0,
-  is_exclusive: false,
+  visibility: 'public' as 'public' | 'subscriber' | 'private',
+  visible_plan_ids: [] as number[],
   status: 'active' as 'active' | 'inactive',
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: null as number | null,
@@ -2193,7 +2281,7 @@ const loadGroups = async () => {
     const response = await adminAPI.groups.list(pagination.page, pagination.page_size, {
       platform: (filters.platform as GroupPlatform) || undefined,
       status: filters.status as any,
-      is_exclusive: filters.is_exclusive ? filters.is_exclusive === 'true' : undefined,
+      visibility: filters.visibility || undefined,
       search: searchQuery.value.trim() || undefined
     }, { signal })
     if (signal.aborted) return
@@ -2288,7 +2376,8 @@ const closeCreateModal = () => {
   createForm.description = ''
   createForm.platform = 'anthropic'
   createForm.rate_multiplier = 1.0
-  createForm.is_exclusive = false
+  createForm.visibility = 'public'
+  createForm.visible_plan_ids = []
   createForm.image_price_1k = null
   createForm.image_price_2k = null
   createForm.image_price_4k = null
@@ -2319,6 +2408,7 @@ const handleCreateGroup = async () => {
     const { sora_storage_quota_gb: createQuotaGb, ...createRest } = createForm
     const requestData = {
       ...createRest,
+      visible_plan_ids: createForm.visibility === 'subscriber' ? createForm.visible_plan_ids : [],
       sora_storage_quota_bytes: createQuotaGb ? Math.round(createQuotaGb * 1024 * 1024 * 1024) : 0,
       model_routing: convertRoutingRulesToApiFormat(createModelRoutingRules.value)
     }
@@ -2345,7 +2435,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.description = group.description || ''
   editForm.platform = group.platform
   editForm.rate_multiplier = group.rate_multiplier
-  editForm.is_exclusive = group.is_exclusive
+  editForm.visibility = group.visibility ?? (group.is_exclusive ? 'private' : 'public')
+  editForm.visible_plan_ids = group.visible_plan_ids ?? []
   editForm.status = group.status
   editForm.image_price_1k = group.image_price_1k
   editForm.image_price_2k = group.image_price_2k
@@ -2393,6 +2484,7 @@ const handleUpdateGroup = async () => {
     const { sora_storage_quota_gb: editQuotaGb, ...editRest } = editForm
     const payload = {
       ...editRest,
+      visible_plan_ids: editForm.visibility === 'subscriber' ? editForm.visible_plan_ids : [],
       sora_storage_quota_bytes: editQuotaGb ? Math.round(editQuotaGb * 1024 * 1024 * 1024) : 0,
       fallback_group_id: editForm.fallback_group_id === null ? 0 : editForm.fallback_group_id,
       fallback_group_id_on_invalid_request:
@@ -2509,6 +2601,7 @@ const saveSortOrder = async () => {
 
 onMounted(() => {
   loadGroups()
+  loadAvailablePlans()
   document.addEventListener('click', handleClickOutside)
 })
 

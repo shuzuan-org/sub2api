@@ -22,7 +22,7 @@ type groupRepoStubForAdmin struct {
 	listWithFiltersPlatform    string
 	listWithFiltersStatus      string
 	listWithFiltersSearch      string
-	listWithFiltersIsExclusive *bool
+	listWithFiltersVisibility  string
 	listWithFiltersGroups      []Group
 	listWithFiltersResult      *pagination.PaginationResult
 	listWithFiltersErr         error
@@ -64,13 +64,13 @@ func (s *groupRepoStubForAdmin) List(_ context.Context, _ pagination.PaginationP
 	panic("unexpected List call")
 }
 
-func (s *groupRepoStubForAdmin) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]Group, *pagination.PaginationResult, error) {
+func (s *groupRepoStubForAdmin) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, status, search, visibility string) ([]Group, *pagination.PaginationResult, error) {
 	s.listWithFiltersCalls++
 	s.listWithFiltersParams = params
 	s.listWithFiltersPlatform = platform
 	s.listWithFiltersStatus = status
 	s.listWithFiltersSearch = search
-	s.listWithFiltersIsExclusive = isExclusive
+	s.listWithFiltersVisibility = visibility
 
 	if s.listWithFiltersErr != nil {
 		return nil, nil, s.listWithFiltersErr
@@ -90,6 +90,14 @@ func (s *groupRepoStubForAdmin) ListWithFilters(_ context.Context, params pagina
 
 func (s *groupRepoStubForAdmin) ListActive(_ context.Context) ([]Group, error) {
 	panic("unexpected ListActive call")
+}
+
+func (s *groupRepoStubForAdmin) LoadVisiblePlansByGroupIDs(_ context.Context, _ []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+
+func (s *groupRepoStubForAdmin) SetVisiblePlans(_ context.Context, _ int64, _ []int64) error {
+	return nil
 }
 
 func (s *groupRepoStubForAdmin) ListActiveByPlatform(_ context.Context, _ string) ([]Group, error) {
@@ -258,7 +266,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{groupRepo: repo}
 
-		groups, total, err := svc.ListGroups(context.Background(), 1, 20, "", "", "alpha", nil)
+		groups, total, err := svc.ListGroups(context.Background(), 1, 20, "", "", "alpha", "")
 		require.NoError(t, err)
 		require.Equal(t, int64(1), total)
 		require.Equal(t, []Group{{ID: 1, Name: "alpha"}}, groups)
@@ -266,7 +274,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		require.Equal(t, 1, repo.listWithFiltersCalls)
 		require.Equal(t, pagination.PaginationParams{Page: 1, PageSize: 20}, repo.listWithFiltersParams)
 		require.Equal(t, "alpha", repo.listWithFiltersSearch)
-		require.Nil(t, repo.listWithFiltersIsExclusive)
+		require.Equal(t, "", repo.listWithFiltersVisibility)
 	})
 
 	t.Run("search 为空字符串时传递空字符串", func(t *testing.T) {
@@ -276,7 +284,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{groupRepo: repo}
 
-		groups, total, err := svc.ListGroups(context.Background(), 2, 10, "", "", "", nil)
+		groups, total, err := svc.ListGroups(context.Background(), 2, 10, "", "", "", "")
 		require.NoError(t, err)
 		require.Empty(t, groups)
 		require.Equal(t, int64(0), total)
@@ -284,18 +292,17 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		require.Equal(t, 1, repo.listWithFiltersCalls)
 		require.Equal(t, pagination.PaginationParams{Page: 2, PageSize: 10}, repo.listWithFiltersParams)
 		require.Equal(t, "", repo.listWithFiltersSearch)
-		require.Nil(t, repo.listWithFiltersIsExclusive)
+		require.Equal(t, "", repo.listWithFiltersVisibility)
 	})
 
 	t.Run("search 与其他过滤条件组合使用", func(t *testing.T) {
-		isExclusive := true
 		repo := &groupRepoStubForAdmin{
 			listWithFiltersGroups: []Group{{ID: 2, Name: "beta"}},
 			listWithFiltersResult: &pagination.PaginationResult{Total: 42},
 		}
 		svc := &adminServiceImpl{groupRepo: repo}
 
-		groups, total, err := svc.ListGroups(context.Background(), 3, 50, PlatformAntigravity, StatusActive, "beta", &isExclusive)
+		groups, total, err := svc.ListGroups(context.Background(), 3, 50, PlatformAntigravity, StatusActive, "beta", VisibilityPrivate)
 		require.NoError(t, err)
 		require.Equal(t, int64(42), total)
 		require.Equal(t, []Group{{ID: 2, Name: "beta"}}, groups)
@@ -305,8 +312,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 		require.Equal(t, PlatformAntigravity, repo.listWithFiltersPlatform)
 		require.Equal(t, StatusActive, repo.listWithFiltersStatus)
 		require.Equal(t, "beta", repo.listWithFiltersSearch)
-		require.NotNil(t, repo.listWithFiltersIsExclusive)
-		require.True(t, *repo.listWithFiltersIsExclusive)
+		require.Equal(t, VisibilityPrivate, repo.listWithFiltersVisibility)
 	})
 }
 
@@ -367,7 +373,7 @@ func (s *groupRepoStubForFallbackCycle) List(_ context.Context, _ pagination.Pag
 	panic("unexpected List call")
 }
 
-func (s *groupRepoStubForFallbackCycle) ListWithFilters(_ context.Context, _ pagination.PaginationParams, _, _, _ string, _ *bool) ([]Group, *pagination.PaginationResult, error) {
+func (s *groupRepoStubForFallbackCycle) ListWithFilters(_ context.Context, _ pagination.PaginationParams, _, _, _, _ string) ([]Group, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
 }
 
@@ -400,6 +406,14 @@ func (s *groupRepoStubForFallbackCycle) GetAccountIDsByGroupIDs(_ context.Contex
 }
 
 func (s *groupRepoStubForFallbackCycle) UpdateSortOrders(_ context.Context, _ []GroupSortOrderUpdate) error {
+	return nil
+}
+
+func (s *groupRepoStubForFallbackCycle) LoadVisiblePlansByGroupIDs(_ context.Context, _ []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+
+func (s *groupRepoStubForFallbackCycle) SetVisiblePlans(_ context.Context, _ int64, _ []int64) error {
 	return nil
 }
 
@@ -442,7 +456,7 @@ func (s *groupRepoStubForInvalidRequestFallback) List(_ context.Context, _ pagin
 	panic("unexpected List call")
 }
 
-func (s *groupRepoStubForInvalidRequestFallback) ListWithFilters(_ context.Context, _ pagination.PaginationParams, _, _, _ string, _ *bool) ([]Group, *pagination.PaginationResult, error) {
+func (s *groupRepoStubForInvalidRequestFallback) ListWithFilters(_ context.Context, _ pagination.PaginationParams, _, _, _, _ string) ([]Group, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
 }
 
@@ -475,6 +489,14 @@ func (s *groupRepoStubForInvalidRequestFallback) BindAccountsToGroup(_ context.C
 }
 
 func (s *groupRepoStubForInvalidRequestFallback) UpdateSortOrders(_ context.Context, _ []GroupSortOrderUpdate) error {
+	return nil
+}
+
+func (s *groupRepoStubForInvalidRequestFallback) LoadVisiblePlansByGroupIDs(_ context.Context, _ []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+
+func (s *groupRepoStubForInvalidRequestFallback) SetVisiblePlans(_ context.Context, _ int64, _ []int64) error {
 	return nil
 }
 

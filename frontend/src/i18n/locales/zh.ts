@@ -1815,6 +1815,15 @@ export default {
       exclusiveFilter: '专属',
       nonExclusive: '公开',
       public: '公开',
+      visibility: {
+        public: '公开',
+        subscriber: '订阅会员可见',
+        private: '私有'
+      },
+      visibilityLabel: '可见性',
+      allVisibility: '全部',
+      visiblePlans: '可见订阅计划',
+      visiblePlansHint: '持有所选任一订阅计划的有效会员可见此分组',
       rateAndAccounts: '{rate}x 费率 · {count} 个账号',
       accountsCount: '{count} 个账号',
       enterGroupName: '请输入分组名称',

@@ -264,8 +264,14 @@ func (r *stubGroupRepo) DeleteCascade(ctx context.Context, id int64) ([]int64, e
 func (r *stubGroupRepo) List(ctx context.Context, params pagination.PaginationParams) ([]service.Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (r *stubGroupRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]service.Group, *pagination.PaginationResult, error) {
+func (r *stubGroupRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search, visibility string) ([]service.Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
+}
+func (r *stubGroupRepo) LoadVisiblePlansByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+func (r *stubGroupRepo) SetVisiblePlans(ctx context.Context, groupID int64, planIDs []int64) error {
+	return nil
 }
 func (r *stubGroupRepo) ListActive(ctx context.Context) ([]service.Group, error) { return nil, nil }
 func (r *stubGroupRepo) ListActiveByPlatform(ctx context.Context, platform string) ([]service.Group, error) {

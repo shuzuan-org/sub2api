@@ -1240,6 +1240,29 @@ func (s *MergedSubscriptionState) FIFOTarget() *UserSubscription {
 	return nil
 }
 
+// ActivePlanIDs 返回队列中未过期订阅对应的 plan ID 集合（去重）。
+// 用于分组 subscriber 可见性判断（与计费解耦：只关心订阅是否有效，不关心是否超限）。
+func (s *MergedSubscriptionState) ActivePlanIDs() []int64 {
+	if s == nil {
+		return nil
+	}
+	now := time.Now()
+	seen := make(map[int64]struct{}, len(s.FIFOQueue))
+	planIDs := make([]int64, 0, len(s.FIFOQueue))
+	for i := range s.FIFOQueue {
+		if !s.FIFOQueue[i].ExpiresAt.After(now) {
+			continue
+		}
+		pid := s.FIFOQueue[i].PlanID
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		seen[pid] = struct{}{}
+		planIDs = append(planIDs, pid)
+	}
+	return planIDs
+}
+
 // recalcUsage 重新计算合并用量（窗口重置后调用）
 func (s *MergedSubscriptionState) recalcUsage() {
 	s.TotalDailyUsage = 0

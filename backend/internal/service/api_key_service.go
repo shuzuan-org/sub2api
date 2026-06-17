@@ -317,10 +317,55 @@ func (s *APIKeyService) incrementAPIKeyErrorCount(ctx context.Context, userID in
 	_ = s.cache.IncrementCreateAttemptCount(ctx, userID)
 }
 
-// canUserBindGroup 检查用户是否可以绑定指定分组
-// 统一使用 is_exclusive + allowed_groups 机制
-func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group *Group) bool {
-	return user.CanBindGroup(group.ID, group.IsExclusive)
+// canUserBindGroup 检查用户是否可以绑定指定分组（三档可见性）。
+// public 直接放行；private 走 allowed_groups；subscriber 需用户持有匹配 plan 的有效订阅。
+//
+// 返回 (allowed, error)：error 表示判定过程中发生故障（如 DB 查询失败），
+// 调用方应据此上报错误让用户重试，而非把故障静默当作"无权限"拒绝。
+func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group *Group) (bool, error) {
+	switch group.Visibility {
+	case VisibilityPublic:
+		return true, nil
+	case VisibilityPrivate:
+		return user.CanBindGroup(group.ID, group.Visibility, nil, nil), nil
+	case VisibilitySubscriber:
+		groupPlans := group.VisiblePlanIDs
+		if len(groupPlans) == 0 {
+			// 兜底：group 对象可能未加载绑定 plan，则按 groupID 现查。
+			// 查询失败必须上抛，不能让 DB 故障伪装成"无权限"。
+			visMap, err := s.groupRepo.LoadVisiblePlansByGroupIDs(ctx, []int64{group.ID})
+			if err != nil {
+				return false, fmt.Errorf("load visible plans for group %d: %w", group.ID, err)
+			}
+			groupPlans = visMap[group.ID]
+		}
+		userPlans, err := s.userActivePlanIDs(ctx, user.ID)
+		if err != nil {
+			return false, fmt.Errorf("load active subscriptions for user %d: %w", user.ID, err)
+		}
+		return user.CanBindGroup(group.ID, group.Visibility, groupPlans, userPlans), nil
+	default:
+		return false, nil
+	}
+}
+
+// userActivePlanIDs 返回用户当前持有的有效（未过期）订阅对应的 plan ID 集合。
+func (s *APIKeyService) userActivePlanIDs(ctx context.Context, userID int64) ([]int64, error) {
+	if s.userSubRepo == nil {
+		return nil, nil
+	}
+	subs, err := s.userSubRepo.ListActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(subs) == 0 {
+		return nil, nil
+	}
+	planIDs := make([]int64, 0, len(subs))
+	for i := range subs {
+		planIDs = append(planIDs, subs[i].PlanID)
+	}
+	return planIDs, nil
 }
 
 // CreateDefaultAPIKeyForNewUser creates the initial API key for a newly registered user.
@@ -366,7 +411,8 @@ func (s *APIKeyService) findDefaultMinimaxGroupID(ctx context.Context) (*int64, 
 	var fallback *int64
 	for i := range groups {
 		group := groups[i]
-		if group.IsExclusive || isDefaultAPIKeyExcludedGroup(group) {
+		// 默认 Key 只绑定公开分组：private 需授权、subscriber 需有效订阅，新用户都不满足。
+		if group.Visibility != VisibilityPublic || isDefaultAPIKeyExcludedGroup(group) {
 			continue
 		}
 		if fallback == nil {
@@ -418,7 +464,11 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 
 		// 检查用户是否可以绑定该分组
-		if !s.canUserBindGroup(ctx, user, group) {
+		allowed, err := s.canUserBindGroup(ctx, user, group)
+		if err != nil {
+			return nil, fmt.Errorf("check group binding: %w", err)
+		}
+		if !allowed {
 			return nil, ErrGroupNotAllowed
 		}
 	}
@@ -616,7 +666,11 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 			return nil, fmt.Errorf("get group: %w", err)
 		}
 
-		if !s.canUserBindGroup(ctx, user, group) {
+		allowed, err := s.canUserBindGroup(ctx, user, group)
+		if err != nil {
+			return nil, fmt.Errorf("check group binding: %w", err)
+		}
+		if !allowed {
 			return nil, ErrGroupNotAllowed
 		}
 
@@ -798,8 +852,8 @@ func (s *APIKeyService) IncrementUsage(ctx context.Context, keyID int64) error {
 	return nil
 }
 
-// GetAvailableGroups 获取用户有权限绑定的分组列表
-// 返回用户可以选择的分组：公开的（非专属）或用户被明确允许的
+// GetAvailableGroups 获取用户有权限绑定的分组列表。
+// 返回用户可见的分组：公开分组、被授权的私有分组、或持有匹配有效订阅的 subscriber 分组。
 func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([]Group, error) {
 	// 获取用户信息
 	user, err := s.userRepo.GetByID(ctx, userID)
@@ -813,10 +867,33 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
 
+	// 仅当存在 subscriber 分组时，才批量加载分组绑定 plan + 用户活跃订阅 plan（避免无谓查询，无 N+1）。
+	hasSubscriberGroup := false
+	subscriberGroupIDs := make([]int64, 0)
+	for i := range allGroups {
+		if allGroups[i].Visibility == VisibilitySubscriber {
+			hasSubscriberGroup = true
+			subscriberGroupIDs = append(subscriberGroupIDs, allGroups[i].ID)
+		}
+	}
+
+	var groupPlanMap map[int64][]int64
+	var userPlans []int64
+	if hasSubscriberGroup {
+		groupPlanMap, err = s.groupRepo.LoadVisiblePlansByGroupIDs(ctx, subscriberGroupIDs)
+		if err != nil {
+			return nil, fmt.Errorf("load group visible plans: %w", err)
+		}
+		userPlans, err = s.userActivePlanIDs(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("load active subscriptions: %w", err)
+		}
+	}
+
 	// 过滤出用户有权限的分组。
 	availableGroups := make([]Group, 0)
 	for _, group := range allGroups {
-		if user.CanBindGroup(group.ID, group.IsExclusive) {
+		if user.CanBindGroup(group.ID, group.Visibility, groupPlanMap[group.ID], userPlans) {
 			availableGroups = append(availableGroups, group)
 		}
 	}

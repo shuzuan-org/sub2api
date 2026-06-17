@@ -34,7 +34,12 @@ type CreateGroupRequest struct {
 	Description      string             `json:"description"`
 	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
 	RateMultiplier   float64            `json:"rate_multiplier"`
+	// Visibility 可见性三档：public / subscriber / private。空值时由 is_exclusive 回退派生。
+	Visibility string `json:"visibility" binding:"omitempty,oneof=public subscriber private"`
+	// IsExclusive 已废弃：仅当 visibility 为空时用于兼容回退（true→private）。
 	IsExclusive bool `json:"is_exclusive"`
+	// VisiblePlanIDs 当 visibility==subscriber 时绑定的订阅计划集合。
+	VisiblePlanIDs []int64 `json:"visible_plan_ids"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
@@ -67,7 +72,12 @@ type UpdateGroupRequest struct {
 	Description      string             `json:"description"`
 	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
 	RateMultiplier   *float64           `json:"rate_multiplier"`
+	// Visibility 可见性三档；与 is_exclusive 二选一（优先 visibility）。
+	Visibility *string `json:"visibility" binding:"omitempty,oneof=public subscriber private"`
+	// IsExclusive 已废弃：仅当 visibility 未提供时用于兼容回退。
 	IsExclusive *bool `json:"is_exclusive"`
+	// VisiblePlanIDs 非 nil 时全量替换分组绑定的订阅计划集合。
+	VisiblePlanIDs *[]int64 `json:"visible_plan_ids"`
 	Status      string `json:"status" binding:"omitempty,oneof=active inactive"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
@@ -107,15 +117,19 @@ func (h *GroupHandler) List(c *gin.Context) {
 	if len(search) > 100 {
 		search = search[:100]
 	}
-	isExclusiveStr := c.Query("is_exclusive")
-
-	var isExclusive *bool
-	if isExclusiveStr != "" {
-		val := isExclusiveStr == "true"
-		isExclusive = &val
+	// visibility 三档过滤；兼容旧 is_exclusive 参数（true→private，false→public）。
+	visibility := c.Query("visibility")
+	if visibility == "" {
+		if isExclusiveStr := c.Query("is_exclusive"); isExclusiveStr != "" {
+			if isExclusiveStr == "true" {
+				visibility = service.VisibilityPrivate
+			} else {
+				visibility = service.VisibilityPublic
+			}
+		}
 	}
 
-	groups, total, err := h.adminService.ListGroups(c.Request.Context(), page, pageSize, platform, status, search, isExclusive)
+	groups, total, err := h.adminService.ListGroups(c.Request.Context(), page, pageSize, platform, status, search, visibility)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -186,7 +200,9 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		Description:                     req.Description,
 		Platform:                        req.Platform,
 		RateMultiplier:                  req.RateMultiplier,
+		Visibility:                      req.Visibility,
 		IsExclusive:                     req.IsExclusive,
+		VisiblePlanIDs:                  req.VisiblePlanIDs,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
@@ -234,7 +250,9 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		Description:                     req.Description,
 		Platform:                        req.Platform,
 		RateMultiplier:                  req.RateMultiplier,
+		Visibility:                      req.Visibility,
 		IsExclusive:                     req.IsExclusive,
+		VisiblePlanIDs:                  req.VisiblePlanIDs,
 		Status:                          req.Status,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,

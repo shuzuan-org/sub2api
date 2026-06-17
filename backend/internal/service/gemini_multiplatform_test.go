@@ -223,8 +223,14 @@ func (m *mockGroupRepoForGemini) DeleteCascade(ctx context.Context, id int64) ([
 func (m *mockGroupRepoForGemini) List(ctx context.Context, params pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (m *mockGroupRepoForGemini) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]Group, *pagination.PaginationResult, error) {
+func (m *mockGroupRepoForGemini) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search, visibility string) ([]Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
+}
+func (m *mockGroupRepoForGemini) LoadVisiblePlansByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+func (m *mockGroupRepoForGemini) SetVisiblePlans(ctx context.Context, groupID int64, planIDs []int64) error {
+	return nil
 }
 func (m *mockGroupRepoForGemini) ListActive(ctx context.Context) ([]Group, error) { return nil, nil }
 func (m *mockGroupRepoForGemini) ListActiveByPlatform(ctx context.Context, platform string) ([]Group, error) {

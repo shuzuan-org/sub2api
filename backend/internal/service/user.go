@@ -59,22 +59,45 @@ func (u *User) IsActive() bool {
 	return u.Status == StatusActive
 }
 
-// CanBindGroup checks whether a user can bind to a given group.
-// For standard groups:
-// - Public groups (non-exclusive): all users can bind
-// - Exclusive groups: only users with the group in AllowedGroups can bind
-func (u *User) CanBindGroup(groupID int64, isExclusive bool) bool {
-	// 公开分组（非专属）：所有用户都可以绑定
-	if !isExclusive {
+// CanBindGroup checks whether a user can bind to a given group based on its visibility.
+//   - public:     all users can bind
+//   - private:    only users with the group in AllowedGroups (admin-assigned) can bind
+//   - subscriber: only users holding an active subscription whose plan is in the group's
+//     visible-plan set can bind (OR semantics: any matching plan grants access).
+//
+// groupVisiblePlanIDs is the group's bound plan set; userActivePlanIDs is the set of plan
+// IDs the user currently holds an active (non-expired) subscription for.
+func (u *User) CanBindGroup(groupID int64, visibility string, groupVisiblePlanIDs, userActivePlanIDs []int64) bool {
+	switch visibility {
+	case VisibilityPublic:
 		return true
-	}
-	// 专属分组：需要在 AllowedGroups 中
-	for _, id := range u.AllowedGroups {
-		if id == groupID {
-			return true
+	case VisibilityPrivate:
+		// 专属分组：需要在 AllowedGroups 中（管理员单独授权）。
+		for _, id := range u.AllowedGroups {
+			if id == groupID {
+				return true
+			}
 		}
+		return false
+	case VisibilitySubscriber:
+		// 订阅会员可见：用户持有的有效订阅 plan 与分组绑定 plan 有交集即可见。
+		if len(groupVisiblePlanIDs) == 0 || len(userActivePlanIDs) == 0 {
+			return false
+		}
+		active := make(map[int64]struct{}, len(userActivePlanIDs))
+		for _, pid := range userActivePlanIDs {
+			active[pid] = struct{}{}
+		}
+		for _, pid := range groupVisiblePlanIDs {
+			if _, ok := active[pid]; ok {
+				return true
+			}
+		}
+		return false
+	default:
+		// 未知可见性按最安全处理：不可见。
+		return false
 	}
-	return false
 }
 
 func (u *User) SetPassword(password string) error {

@@ -45,6 +45,10 @@ const (
 	EdgeSubscriptions = "subscriptions"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
 	EdgeRedeemCodes = "redeem_codes"
+	// EdgeVisibleGroups holds the string denoting the visible_groups edge name in mutations.
+	EdgeVisibleGroups = "visible_groups"
+	// EdgeGroupVisiblePlans holds the string denoting the group_visible_plans edge name in mutations.
+	EdgeGroupVisiblePlans = "group_visible_plans"
 	// Table holds the table name of the subscriptionplan in the database.
 	Table = "subscription_plans"
 	// SubscriptionsTable is the table that holds the subscriptions relation/edge.
@@ -61,6 +65,18 @@ const (
 	RedeemCodesInverseTable = "redeem_codes"
 	// RedeemCodesColumn is the table column denoting the redeem_codes relation/edge.
 	RedeemCodesColumn = "plan_id"
+	// VisibleGroupsTable is the table that holds the visible_groups relation/edge. The primary key declared below.
+	VisibleGroupsTable = "group_visible_plans"
+	// VisibleGroupsInverseTable is the table name for the Group entity.
+	// It exists in this package in order to avoid circular dependency with the "group" package.
+	VisibleGroupsInverseTable = "groups"
+	// GroupVisiblePlansTable is the table that holds the group_visible_plans relation/edge.
+	GroupVisiblePlansTable = "group_visible_plans"
+	// GroupVisiblePlansInverseTable is the table name for the GroupVisiblePlan entity.
+	// It exists in this package in order to avoid circular dependency with the "groupvisibleplan" package.
+	GroupVisiblePlansInverseTable = "group_visible_plans"
+	// GroupVisiblePlansColumn is the table column denoting the group_visible_plans relation/edge.
+	GroupVisiblePlansColumn = "plan_id"
 )
 
 // Columns holds all SQL columns for subscriptionplan fields.
@@ -80,6 +96,12 @@ var Columns = []string{
 	FieldPrice,
 	FieldSortOrder,
 }
+
+var (
+	// VisibleGroupsPrimaryKey and VisibleGroupsColumn2 are the table columns denoting the
+	// primary key for the visible_groups relation (M2M).
+	VisibleGroupsPrimaryKey = []string{"group_id", "plan_id"}
+)
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
@@ -221,6 +243,34 @@ func ByRedeemCodes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newRedeemCodesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByVisibleGroupsCount orders the results by visible_groups count.
+func ByVisibleGroupsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newVisibleGroupsStep(), opts...)
+	}
+}
+
+// ByVisibleGroups orders the results by visible_groups terms.
+func ByVisibleGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newVisibleGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByGroupVisiblePlansCount orders the results by group_visible_plans count.
+func ByGroupVisiblePlansCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newGroupVisiblePlansStep(), opts...)
+	}
+}
+
+// ByGroupVisiblePlans orders the results by group_visible_plans terms.
+func ByGroupVisiblePlans(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newGroupVisiblePlansStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newSubscriptionsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -233,5 +283,19 @@ func newRedeemCodesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(RedeemCodesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, RedeemCodesTable, RedeemCodesColumn),
+	)
+}
+func newVisibleGroupsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(VisibleGroupsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, VisibleGroupsTable, VisibleGroupsPrimaryKey...),
+	)
+}
+func newGroupVisiblePlansStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(GroupVisiblePlansInverseTable, GroupVisiblePlansColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, GroupVisiblePlansTable, GroupVisiblePlansColumn),
 	)
 }

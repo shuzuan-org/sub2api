@@ -27,6 +27,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	"github.com/Wei-Shaw/sub2api/ent/groupvisibleplan"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/promocode"
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
@@ -76,6 +77,8 @@ type Client struct {
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
 	Group *GroupClient
+	// GroupVisiblePlan is the client for interacting with the GroupVisiblePlan builders.
+	GroupVisiblePlan *GroupVisiblePlanClient
 	// IdempotencyRecord is the client for interacting with the IdempotencyRecord builders.
 	IdempotencyRecord *IdempotencyRecordClient
 	// PromoCode is the client for interacting with the PromoCode builders.
@@ -131,6 +134,7 @@ func (c *Client) init() {
 	c.ChannelInviteCodeUsage = NewChannelInviteCodeUsageClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
+	c.GroupVisiblePlan = NewGroupVisiblePlanClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
 	c.PromoCode = NewPromoCodeClient(c.config)
 	c.PromoCodeUsage = NewPromoCodeUsageClient(c.config)
@@ -251,6 +255,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ChannelInviteCodeUsage:  NewChannelInviteCodeUsageClient(cfg),
 		ErrorPassthroughRule:    NewErrorPassthroughRuleClient(cfg),
 		Group:                   NewGroupClient(cfg),
+		GroupVisiblePlan:        NewGroupVisiblePlanClient(cfg),
 		IdempotencyRecord:       NewIdempotencyRecordClient(cfg),
 		PromoCode:               NewPromoCodeClient(cfg),
 		PromoCodeUsage:          NewPromoCodeUsageClient(cfg),
@@ -298,6 +303,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ChannelInviteCodeUsage:  NewChannelInviteCodeUsageClient(cfg),
 		ErrorPassthroughRule:    NewErrorPassthroughRuleClient(cfg),
 		Group:                   NewGroupClient(cfg),
+		GroupVisiblePlan:        NewGroupVisiblePlanClient(cfg),
 		IdempotencyRecord:       NewIdempotencyRecordClient(cfg),
 		PromoCode:               NewPromoCodeClient(cfg),
 		PromoCodeUsage:          NewPromoCodeUsageClient(cfg),
@@ -346,10 +352,11 @@ func (c *Client) Use(hooks ...Hook) {
 		c.APIKey, c.Account, c.AccountGroup, c.AlipayOrder, c.Announcement,
 		c.AnnouncementRead, c.ChannelInviteBatch, c.ChannelInviteBatchGroup,
 		c.ChannelInviteCode, c.ChannelInviteCodeUsage, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
-		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
+		c.GroupVisiblePlan, c.IdempotencyRecord, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
+		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
+		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserSubscription,
 	} {
 		n.Use(hooks...)
 	}
@@ -362,10 +369,11 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.APIKey, c.Account, c.AccountGroup, c.AlipayOrder, c.Announcement,
 		c.AnnouncementRead, c.ChannelInviteBatch, c.ChannelInviteBatchGroup,
 		c.ChannelInviteCode, c.ChannelInviteCodeUsage, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.PromoCode, c.PromoCodeUsage, c.Proxy, c.RedeemCode,
-		c.SecuritySecret, c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile,
-		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
-		c.UserAttributeDefinition, c.UserAttributeValue, c.UserSubscription,
+		c.GroupVisiblePlan, c.IdempotencyRecord, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.SecuritySecret, c.Setting, c.SubscriptionPlan,
+		c.TLSFingerprintProfile, c.UsageCleanupTask, c.UsageLog, c.User,
+		c.UserAllowedGroup, c.UserAttributeDefinition, c.UserAttributeValue,
+		c.UserSubscription,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -398,6 +406,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
 		return c.Group.mutate(ctx, m)
+	case *GroupVisiblePlanMutation:
+		return c.GroupVisiblePlan.mutate(ctx, m)
 	case *IdempotencyRecordMutation:
 		return c.IdempotencyRecord.mutate(ctx, m)
 	case *PromoCodeMutation:
@@ -2393,6 +2403,22 @@ func (c *GroupClient) QueryAllowedUsers(_m *Group) *UserQuery {
 	return query
 }
 
+// QueryVisiblePlans queries the visible_plans edge of a Group.
+func (c *GroupClient) QueryVisiblePlans(_m *Group) *SubscriptionPlanQuery {
+	query := (&SubscriptionPlanClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(subscriptionplan.Table, subscriptionplan.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, group.VisiblePlansTable, group.VisiblePlansPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryChannelInviteBatchGroups queries the channel_invite_batch_groups edge of a Group.
 func (c *GroupClient) QueryChannelInviteBatchGroups(_m *Group) *ChannelInviteBatchGroupQuery {
 	query := (&ChannelInviteBatchGroupClient{config: c.config}).Query()
@@ -2441,6 +2467,22 @@ func (c *GroupClient) QueryUserAllowedGroups(_m *Group) *UserAllowedGroupQuery {
 	return query
 }
 
+// QueryGroupVisiblePlans queries the group_visible_plans edge of a Group.
+func (c *GroupClient) QueryGroupVisiblePlans(_m *Group) *GroupVisiblePlanQuery {
+	query := (&GroupVisiblePlanClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(groupvisibleplan.Table, groupvisibleplan.GroupColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, group.GroupVisiblePlansTable, group.GroupVisiblePlansColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *GroupClient) Hooks() []Hook {
 	hooks := c.hooks.Group
@@ -2465,6 +2507,122 @@ func (c *GroupClient) mutate(ctx context.Context, m *GroupMutation) (Value, erro
 		return (&GroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Group mutation op: %q", m.Op())
+	}
+}
+
+// GroupVisiblePlanClient is a client for the GroupVisiblePlan schema.
+type GroupVisiblePlanClient struct {
+	config
+}
+
+// NewGroupVisiblePlanClient returns a client for the GroupVisiblePlan from the given config.
+func NewGroupVisiblePlanClient(c config) *GroupVisiblePlanClient {
+	return &GroupVisiblePlanClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `groupvisibleplan.Hooks(f(g(h())))`.
+func (c *GroupVisiblePlanClient) Use(hooks ...Hook) {
+	c.hooks.GroupVisiblePlan = append(c.hooks.GroupVisiblePlan, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `groupvisibleplan.Intercept(f(g(h())))`.
+func (c *GroupVisiblePlanClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GroupVisiblePlan = append(c.inters.GroupVisiblePlan, interceptors...)
+}
+
+// Create returns a builder for creating a GroupVisiblePlan entity.
+func (c *GroupVisiblePlanClient) Create() *GroupVisiblePlanCreate {
+	mutation := newGroupVisiblePlanMutation(c.config, OpCreate)
+	return &GroupVisiblePlanCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GroupVisiblePlan entities.
+func (c *GroupVisiblePlanClient) CreateBulk(builders ...*GroupVisiblePlanCreate) *GroupVisiblePlanCreateBulk {
+	return &GroupVisiblePlanCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GroupVisiblePlanClient) MapCreateBulk(slice any, setFunc func(*GroupVisiblePlanCreate, int)) *GroupVisiblePlanCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GroupVisiblePlanCreateBulk{err: fmt.Errorf("calling to GroupVisiblePlanClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GroupVisiblePlanCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GroupVisiblePlanCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GroupVisiblePlan.
+func (c *GroupVisiblePlanClient) Update() *GroupVisiblePlanUpdate {
+	mutation := newGroupVisiblePlanMutation(c.config, OpUpdate)
+	return &GroupVisiblePlanUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GroupVisiblePlanClient) UpdateOne(_m *GroupVisiblePlan) *GroupVisiblePlanUpdateOne {
+	mutation := newGroupVisiblePlanMutation(c.config, OpUpdateOne)
+	mutation.group = &_m.GroupID
+	mutation.plan = &_m.PlanID
+	return &GroupVisiblePlanUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GroupVisiblePlan.
+func (c *GroupVisiblePlanClient) Delete() *GroupVisiblePlanDelete {
+	mutation := newGroupVisiblePlanMutation(c.config, OpDelete)
+	return &GroupVisiblePlanDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for GroupVisiblePlan.
+func (c *GroupVisiblePlanClient) Query() *GroupVisiblePlanQuery {
+	return &GroupVisiblePlanQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGroupVisiblePlan},
+		inters: c.Interceptors(),
+	}
+}
+
+// QueryGroup queries the group edge of a GroupVisiblePlan.
+func (c *GroupVisiblePlanClient) QueryGroup(_m *GroupVisiblePlan) *GroupQuery {
+	return c.Query().
+		Where(groupvisibleplan.GroupID(_m.GroupID), groupvisibleplan.PlanID(_m.PlanID)).
+		QueryGroup()
+}
+
+// QueryPlan queries the plan edge of a GroupVisiblePlan.
+func (c *GroupVisiblePlanClient) QueryPlan(_m *GroupVisiblePlan) *SubscriptionPlanQuery {
+	return c.Query().
+		Where(groupvisibleplan.GroupID(_m.GroupID), groupvisibleplan.PlanID(_m.PlanID)).
+		QueryPlan()
+}
+
+// Hooks returns the client hooks.
+func (c *GroupVisiblePlanClient) Hooks() []Hook {
+	return c.hooks.GroupVisiblePlan
+}
+
+// Interceptors returns the client interceptors.
+func (c *GroupVisiblePlanClient) Interceptors() []Interceptor {
+	return c.inters.GroupVisiblePlan
+}
+
+func (c *GroupVisiblePlanClient) mutate(ctx context.Context, m *GroupVisiblePlanMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GroupVisiblePlanCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GroupVisiblePlanUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GroupVisiblePlanUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GroupVisiblePlanDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GroupVisiblePlan mutation op: %q", m.Op())
 	}
 }
 
@@ -3630,6 +3788,38 @@ func (c *SubscriptionPlanClient) QueryRedeemCodes(_m *SubscriptionPlan) *RedeemC
 			sqlgraph.From(subscriptionplan.Table, subscriptionplan.FieldID, id),
 			sqlgraph.To(redeemcode.Table, redeemcode.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, subscriptionplan.RedeemCodesTable, subscriptionplan.RedeemCodesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryVisibleGroups queries the visible_groups edge of a SubscriptionPlan.
+func (c *SubscriptionPlanClient) QueryVisibleGroups(_m *SubscriptionPlan) *GroupQuery {
+	query := (&GroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(subscriptionplan.Table, subscriptionplan.FieldID, id),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, subscriptionplan.VisibleGroupsTable, subscriptionplan.VisibleGroupsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryGroupVisiblePlans queries the group_visible_plans edge of a SubscriptionPlan.
+func (c *SubscriptionPlanClient) QueryGroupVisiblePlans(_m *SubscriptionPlan) *GroupVisiblePlanQuery {
+	query := (&GroupVisiblePlanClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(subscriptionplan.Table, subscriptionplan.FieldID, id),
+			sqlgraph.To(groupvisibleplan.Table, groupvisibleplan.PlanColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, subscriptionplan.GroupVisiblePlansTable, subscriptionplan.GroupVisiblePlansColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -5106,20 +5296,20 @@ type (
 	hooks struct {
 		APIKey, Account, AccountGroup, AlipayOrder, Announcement, AnnouncementRead,
 		ChannelInviteBatch, ChannelInviteBatchGroup, ChannelInviteCode,
-		ChannelInviteCodeUsage, ErrorPassthroughRule, Group, IdempotencyRecord,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
-		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
-		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserSubscription []ent.Hook
+		ChannelInviteCodeUsage, ErrorPassthroughRule, Group, GroupVisiblePlan,
+		IdempotencyRecord, PromoCode, PromoCodeUsage, Proxy, RedeemCode,
+		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserSubscription []ent.Hook
 	}
 	inters struct {
 		APIKey, Account, AccountGroup, AlipayOrder, Announcement, AnnouncementRead,
 		ChannelInviteBatch, ChannelInviteBatchGroup, ChannelInviteCode,
-		ChannelInviteCodeUsage, ErrorPassthroughRule, Group, IdempotencyRecord,
-		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
-		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
-		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
-		UserSubscription []ent.Interceptor
+		ChannelInviteCodeUsage, ErrorPassthroughRule, Group, GroupVisiblePlan,
+		IdempotencyRecord, PromoCode, PromoCodeUsage, Proxy, RedeemCode,
+		SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
+		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
+		UserAttributeValue, UserSubscription []ent.Interceptor
 	}
 )
 

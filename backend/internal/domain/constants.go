@@ -74,10 +74,11 @@ const (
 	SubscriptionTypeSubscription = "subscription" // 订阅模式（按限额控制）
 )
 
-// Subscription plan visibility constants
+// Visibility constants (shared by subscription plans and groups)
 const (
-	VisibilityPublic  = "public"  // 所有用户可见
-	VisibilityPrivate = "private" // 仅管理员分配
+	VisibilityPublic     = "public"     // 所有用户可见
+	VisibilitySubscriber = "subscriber" // 仅持有指定订阅计划有效订阅的用户可见（仅 group 使用）
+	VisibilityPrivate    = "private"    // 仅管理员单独分配的用户可见
 )
 
 // Subscription status constants

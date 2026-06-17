@@ -42,8 +42,14 @@ func (r *stubGroupRepoForQuota) DeleteCascade(context.Context, int64) ([]int64, 
 func (r *stubGroupRepoForQuota) List(context.Context, pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (r *stubGroupRepoForQuota) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, *bool) ([]Group, *pagination.PaginationResult, error) {
+func (r *stubGroupRepoForQuota) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string) ([]Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
+}
+func (r *stubGroupRepoForQuota) LoadVisiblePlansByGroupIDs(context.Context, []int64) (map[int64][]int64, error) {
+	return nil, nil
+}
+func (r *stubGroupRepoForQuota) SetVisiblePlans(context.Context, int64, []int64) error {
+	return nil
 }
 func (r *stubGroupRepoForQuota) ListActive(context.Context) ([]Group, error) { return nil, nil }
 func (r *stubGroupRepoForQuota) ListActiveByPlatform(context.Context, string) ([]Group, error) {

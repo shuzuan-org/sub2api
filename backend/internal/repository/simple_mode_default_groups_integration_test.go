@@ -49,7 +49,7 @@ func TestEnsureSimpleModeDefaultGroups_IgnoresSoftDeletedGroups(t *testing.T) {
 		SetPlatform(service.PlatformAnthropic).
 		SetStatus(service.StatusActive).
 		SetRateMultiplier(1.0).
-		SetIsExclusive(false).
+		SetVisibility(service.VisibilityPublic).
 		Save(seedCtx)
 	require.NoError(t, err)
 

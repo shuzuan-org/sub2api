@@ -1673,6 +1673,15 @@ export default {
       exclusive: 'Exclusive',
       nonExclusive: 'Non-Exclusive',
       public: 'Public',
+      visibility: {
+        public: 'Public',
+        subscriber: 'Subscriber-only',
+        private: 'Private'
+      },
+      visibilityLabel: 'Visibility',
+      allVisibility: 'All',
+      visiblePlans: 'Visible Subscription Plans',
+      visiblePlansHint: 'Visible to members with an active subscription to any selected plan',
       columns: {
         name: 'Name',
         platform: 'Platform',

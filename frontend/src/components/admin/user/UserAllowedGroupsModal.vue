@@ -209,8 +209,8 @@ const loading = ref(false)
 const submitting = ref(false)
 
 // 分离专属分组和公开分组
-const exclusiveGroups = computed(() => groups.value.filter((g) => g.is_exclusive))
-const publicGroups = computed(() => groups.value.filter((g) => !g.is_exclusive))
+const exclusiveGroups = computed(() => groups.value.filter((g) => g.visibility === 'private'))
+const publicGroups = computed(() => groups.value.filter((g) => g.visibility !== 'private'))
 
 const exclusiveGroupConfigs = computed(() => groupConfigs.value.filter((c) => c.isExclusive))
 const publicGroupConfigs = computed(() => groupConfigs.value.filter((c) => !c.isExclusive))
@@ -242,12 +242,12 @@ const load = async () => {
       groupId: g.id,
       groupName: g.name,
       platform: g.platform,
-      isExclusive: g.is_exclusive,
+      isExclusive: g.visibility === 'private',
       defaultRate: g.rate_multiplier,
       customRate: userGroupRates[g.id] ?? null,
       // 专属分组：检查是否在 allowed_groups 中
       // 公开分组：始终选中
-      isSelected: g.is_exclusive ? userAllowedGroups.includes(g.id) : true,
+      isSelected: g.visibility === 'private' ? userAllowedGroups.includes(g.id) : true,
     }))
   } catch (error) {
     console.error('Failed to load groups:', error)

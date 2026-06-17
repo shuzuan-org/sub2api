@@ -85,9 +85,9 @@ func RateMultiplier(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldRateMultiplier, v))
 }
 
-// IsExclusive applies equality check predicate on the "is_exclusive" field. It's identical to IsExclusiveEQ.
-func IsExclusive(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldIsExclusive, v))
+// Visibility applies equality check predicate on the "visibility" field. It's identical to VisibilityEQ.
+func Visibility(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldVisibility, v))
 }
 
 // Status applies equality check predicate on the "status" field. It's identical to StatusEQ.
@@ -490,14 +490,69 @@ func RateMultiplierLTE(v float64) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldRateMultiplier, v))
 }
 
-// IsExclusiveEQ applies the EQ predicate on the "is_exclusive" field.
-func IsExclusiveEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldIsExclusive, v))
+// VisibilityEQ applies the EQ predicate on the "visibility" field.
+func VisibilityEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldVisibility, v))
 }
 
-// IsExclusiveNEQ applies the NEQ predicate on the "is_exclusive" field.
-func IsExclusiveNEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldIsExclusive, v))
+// VisibilityNEQ applies the NEQ predicate on the "visibility" field.
+func VisibilityNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldVisibility, v))
+}
+
+// VisibilityIn applies the In predicate on the "visibility" field.
+func VisibilityIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldVisibility, vs...))
+}
+
+// VisibilityNotIn applies the NotIn predicate on the "visibility" field.
+func VisibilityNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldVisibility, vs...))
+}
+
+// VisibilityGT applies the GT predicate on the "visibility" field.
+func VisibilityGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldVisibility, v))
+}
+
+// VisibilityGTE applies the GTE predicate on the "visibility" field.
+func VisibilityGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldVisibility, v))
+}
+
+// VisibilityLT applies the LT predicate on the "visibility" field.
+func VisibilityLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldVisibility, v))
+}
+
+// VisibilityLTE applies the LTE predicate on the "visibility" field.
+func VisibilityLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldVisibility, v))
+}
+
+// VisibilityContains applies the Contains predicate on the "visibility" field.
+func VisibilityContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldVisibility, v))
+}
+
+// VisibilityHasPrefix applies the HasPrefix predicate on the "visibility" field.
+func VisibilityHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldVisibility, v))
+}
+
+// VisibilityHasSuffix applies the HasSuffix predicate on the "visibility" field.
+func VisibilityHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldVisibility, v))
+}
+
+// VisibilityEqualFold applies the EqualFold predicate on the "visibility" field.
+func VisibilityEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldVisibility, v))
+}
+
+// VisibilityContainsFold applies the ContainsFold predicate on the "visibility" field.
+func VisibilityContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldVisibility, v))
 }
 
 // StatusEQ applies the EQ predicate on the "status" field.
@@ -1367,6 +1422,29 @@ func HasAllowedUsersWith(preds ...predicate.User) predicate.Group {
 	})
 }
 
+// HasVisiblePlans applies the HasEdge predicate on the "visible_plans" edge.
+func HasVisiblePlans() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, VisiblePlansTable, VisiblePlansPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasVisiblePlansWith applies the HasEdge predicate on the "visible_plans" edge with a given conditions (other predicates).
+func HasVisiblePlansWith(preds ...predicate.SubscriptionPlan) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newVisiblePlansStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasChannelInviteBatchGroups applies the HasEdge predicate on the "channel_invite_batch_groups" edge.
 func HasChannelInviteBatchGroups() predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {
@@ -1428,6 +1506,29 @@ func HasUserAllowedGroups() predicate.Group {
 func HasUserAllowedGroupsWith(preds ...predicate.UserAllowedGroup) predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {
 		step := newUserAllowedGroupsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasGroupVisiblePlans applies the HasEdge predicate on the "group_visible_plans" edge.
+func HasGroupVisiblePlans() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, GroupVisiblePlansTable, GroupVisiblePlansColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasGroupVisiblePlansWith applies the HasEdge predicate on the "group_visible_plans" edge with a given conditions (other predicates).
+func HasGroupVisiblePlansWith(preds ...predicate.GroupVisiblePlan) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newGroupVisiblePlansStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

@@ -69,7 +69,7 @@ func createGroupIfNotExists(ctx context.Context, client *dbent.Client, name, pla
 		SetPlatform(platform).
 		SetStatus(service.StatusActive).
 		SetRateMultiplier(1.0).
-		SetIsExclusive(false).
+		SetVisibility(service.VisibilityPublic).
 		Save(ctx)
 	if err != nil {
 		if dbent.IsConstraintError(err) {

@@ -613,7 +613,7 @@ var (
 		{Name: "name", Type: field.TypeString, Size: 100},
 		{Name: "description", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "rate_multiplier", Type: field.TypeFloat64, Default: 1, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
-		{Name: "is_exclusive", Type: field.TypeBool, Default: false},
+		{Name: "visibility", Type: field.TypeString, Size: 20, Default: "public"},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
 		{Name: "platform", Type: field.TypeString, Size: 50, Default: "anthropic"},
 		{Name: "image_price_1k", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
@@ -652,7 +652,7 @@ var (
 				Columns: []*schema.Column{GroupsColumns[9]},
 			},
 			{
-				Name:    "group_is_exclusive",
+				Name:    "group_visibility",
 				Unique:  false,
 				Columns: []*schema.Column{GroupsColumns[7]},
 			},
@@ -665,6 +665,39 @@ var (
 				Name:    "group_sort_order",
 				Unique:  false,
 				Columns: []*schema.Column{GroupsColumns[25]},
+			},
+		},
+	}
+	// GroupVisiblePlansColumns holds the columns for the "group_visible_plans" table.
+	GroupVisiblePlansColumns = []*schema.Column{
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "group_id", Type: field.TypeInt64},
+		{Name: "plan_id", Type: field.TypeInt64},
+	}
+	// GroupVisiblePlansTable holds the schema information for the "group_visible_plans" table.
+	GroupVisiblePlansTable = &schema.Table{
+		Name:       "group_visible_plans",
+		Columns:    GroupVisiblePlansColumns,
+		PrimaryKey: []*schema.Column{GroupVisiblePlansColumns[1], GroupVisiblePlansColumns[2]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "group_visible_plans_groups_group",
+				Columns:    []*schema.Column{GroupVisiblePlansColumns[1]},
+				RefColumns: []*schema.Column{GroupsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "group_visible_plans_subscription_plans_plan",
+				Columns:    []*schema.Column{GroupVisiblePlansColumns[2]},
+				RefColumns: []*schema.Column{SubscriptionPlansColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "groupvisibleplan_plan_id",
+				Unique:  false,
+				Columns: []*schema.Column{GroupVisiblePlansColumns[2]},
 			},
 		},
 	}
@@ -1415,6 +1448,7 @@ var (
 		ChannelInviteCodeUsagesTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
+		GroupVisiblePlansTable,
 		IdempotencyRecordsTable,
 		PromoCodesTable,
 		PromoCodeUsagesTable,
@@ -1484,6 +1518,11 @@ func init() {
 	}
 	GroupsTable.Annotation = &entsql.Annotation{
 		Table: "groups",
+	}
+	GroupVisiblePlansTable.ForeignKeys[0].RefTable = GroupsTable
+	GroupVisiblePlansTable.ForeignKeys[1].RefTable = SubscriptionPlansTable
+	GroupVisiblePlansTable.Annotation = &entsql.Annotation{
+		Table: "group_visible_plans",
 	}
 	IdempotencyRecordsTable.Annotation = &entsql.Annotation{
 		Table: "idempotency_records",
