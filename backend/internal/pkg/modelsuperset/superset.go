@@ -167,7 +167,8 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 	}
 
 	normalized := NormalizeModelName(id)
-	claude := origin == OriginAnthropic && isClaudeFamily(normalized)
+	claudeFamily := origin == OriginAnthropic && isClaudeFamily(normalized)
+	anthropicOrigin := origin == OriginAnthropic
 
 	// max_input_tokens is a neutral number: prefer the REAL upstream value (the true
 	// provider's window, even when the client-facing id is a Claude name backed by
@@ -177,7 +178,7 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 	switch {
 	case meta.MaxInputTokens > 0:
 		m.MaxInputTokens = meta.MaxInputTokens
-	case claude:
+	case claudeFamily:
 		m.MaxInputTokens = modelContextWindow(normalized)
 	}
 	// Output cap: only the real upstream value, never fabricated.
@@ -185,12 +186,13 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 		m.MaxTokens = meta.MaxOutputTokens
 	}
 
-	// Capabilities stay decoupled from max_input_tokens: the Claude capability tree is
-	// Anthropic-specific schema, so emit it ONLY for Claude-family ids (emitting it for
-	// a minimax/gpt backend would be a lie). A client requesting `claude-opus-4-8`
-	// expects Claude-protocol capabilities even if the backend is minimax — sub2api
-	// adapts at the protocol layer — so emitting them here is correct.
-	if !claude {
+	// Capabilities: emit the Claude capability tree for ALL anthropic-origin models, not
+	// just Claude-named ones. sub2api adapts every anthropic-platform upstream (minimax,
+	// glm, deepseek, …) to the Claude Messages protocol, so a client (Claude Code) needs
+	// the capabilities tree to drive thinking/effort/context_management regardless of the
+	// model's display name. OpenAI-origin models (gpt-*) stay capability-less — they
+	// speak the OpenAI protocol and a Claude tree there would be wrong.
+	if !anthropicOrigin {
 		return m
 	}
 

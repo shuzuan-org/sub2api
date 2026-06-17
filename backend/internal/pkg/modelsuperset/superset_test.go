@@ -102,14 +102,17 @@ func TestBuildModel_OpenAIOrigin_NoCapabilities(t *testing.T) {
 	}
 }
 
-func TestBuildModel_AnthropicOrigin_NonClaude_NoCapabilities(t *testing.T) {
-	// An anthropic account that somehow exposes a non-claude id: still don't fabricate.
-	m := BuildModel("some-other-model", OriginAnthropic, ModelMeta{})
-	if m.Capabilities != nil {
-		t.Error("non-claude id must NOT carry capabilities even from anthropic origin")
+func TestBuildModel_AnthropicOrigin_NonClaude_HasCapabilities(t *testing.T) {
+	// sub2api adapts every anthropic-platform upstream to the Claude protocol, so an
+	// anthropic-origin model emits the capability tree regardless of its display name.
+	m := BuildModel("minimax-m2.7", OriginAnthropic, ModelMeta{})
+	if m.Capabilities == nil {
+		t.Error("anthropic-origin model must carry the Claude capability tree (protocol adaptation)")
 	}
+	// max_input_tokens stays 0 here: no real upstream meta, and the family guess is only
+	// for Claude-named ids (a minimax name has no honest guess).
 	if m.MaxInputTokens != 0 {
-		t.Errorf("non-claude max_input_tokens=%d want 0", m.MaxInputTokens)
+		t.Errorf("non-claude no-meta max_input_tokens=%d want 0", m.MaxInputTokens)
 	}
 }
 
