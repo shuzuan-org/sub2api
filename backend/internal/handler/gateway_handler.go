@@ -907,11 +907,9 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	case codexValidator.ValidateUserAgent(ua):
 		ids = modelsuperset.FilterForCodex(ids, so)
 	default:
-		ids = modelsuperset.RealUpstreamNames(ids, upstreams)
-		// Real upstream names have no mapping-key metadata/caps; reset so BuildModel derives
-		// from the name itself (origins/metas are keyed by client-facing id, not upstream).
-		so = nil
-		metas = nil
+		// Real upstream names: re-key the real caps/origin onto the upstream name so the
+		// model keeps its true max_input_tokens (was wrongly 0 when metas were dropped).
+		ids, metas, so = modelsuperset.RealUpstreamNames(ids, upstreams, metas, so)
 	}
 
 	list := modelsuperset.BuildList(ids, so, metas)
@@ -983,9 +981,7 @@ func (h *GatewayHandler) Model(c *gin.Context) {
 	case codexValidator.ValidateUserAgent(ua):
 		ids = modelsuperset.FilterForCodex(ids, so)
 	default:
-		ids = modelsuperset.RealUpstreamNames(ids, upstreams)
-		so = nil
-		metas = nil
+		ids, metas, so = modelsuperset.RealUpstreamNames(ids, upstreams, metas, so)
 	}
 	if key, origin, ok := modelsuperset.MatchModelID(id, ids, so); ok {
 		obj := modelsuperset.BuildModel(key, origin, metas[key])

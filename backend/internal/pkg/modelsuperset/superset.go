@@ -299,25 +299,39 @@ func filterByFamily(ids []string, match func(string) bool) []string {
 }
 
 // RealUpstreamNames returns the distinct real upstream model names backing the listing,
-// for clients that are neither Claude Code nor Codex. upstreams maps each client-facing id
-// (a mapping key, or the raw name for no-mapping accounts) to the real upstream model it
-// resolves to. Multiple aliases collapsing onto one upstream (e.g. group 38's five keys all
-// → MiniMax-M3) yield a single entry. Order is the sorted upstream-name order for stability.
-func RealUpstreamNames(ids []string, upstreams map[string]string) []string {
+// for clients that are neither Claude Code nor Codex, along with the metadata and origin
+// re-keyed onto those real names. upstreams maps each client-facing id (a mapping key, or
+// the raw name for no-mapping accounts) to the real upstream model it resolves to; metas
+// and origins are keyed by the client-facing id. Multiple aliases collapsing onto one
+// upstream (e.g. group 38's five keys all → MiniMax-M3) yield a single entry, and that
+// entry inherits the real caps from whichever alias carried them (so the real name keeps
+// its true max_input_tokens instead of going to 0). Order is sorted for stability.
+func RealUpstreamNames(ids []string, upstreams map[string]string, metas map[string]ModelMeta, origins map[string]Origin) (outIDs []string, outMetas map[string]ModelMeta, outOrigins map[string]Origin) {
 	seen := make(map[string]struct{}, len(ids))
+	outMetas = make(map[string]ModelMeta, len(ids))
+	outOrigins = make(map[string]Origin, len(ids))
 	for _, id := range ids {
 		up := upstreams[id]
 		if up == "" {
 			up = id // no mapping recorded → the id IS the real name
 		}
 		seen[up] = struct{}{}
+		// Carry the real caps onto the upstream name. Prefer the first non-zero
+		// max_input_tokens seen (aliases of one upstream share the same real value).
+		if cur, ok := outMetas[up]; !ok || (cur.MaxInputTokens == 0 && metas[id].MaxInputTokens > 0) {
+			outMetas[up] = metas[id]
+		}
+		// Origin gates capability emission. Anthropic wins on collision (same rule as fusion).
+		if cur, ok := outOrigins[up]; !ok || (cur != OriginAnthropic && origins[id] == OriginAnthropic) {
+			outOrigins[up] = origins[id]
+		}
 	}
-	out := make([]string, 0, len(seen))
+	outIDs = make([]string, 0, len(seen))
 	for up := range seen {
-		out = append(out, up)
+		outIDs = append(outIDs, up)
 	}
-	sort.Strings(out)
-	return out
+	sort.Strings(outIDs)
+	return outIDs, outMetas, outOrigins
 }
 
 // MatchModelID resolves a client-supplied id against the listing set, sharing the

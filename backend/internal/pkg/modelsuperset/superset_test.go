@@ -272,9 +272,19 @@ func TestRealUpstreamNames_Dedup(t *testing.T) {
 		"gpt-5.5":           "MiniMax-M3",
 		"MiniMax-M3":        "MiniMax-M3",
 	}
-	got := RealUpstreamNames(ids, upstreams)
+	// Real caps carried on one of the aliases must end up on the real name (regression:
+	// dropping metas made max_input_tokens 0).
+	metas := map[string]ModelMeta{"claude-opus-4-8": {MaxInputTokens: 196608, MaxOutputTokens: 8192}}
+	origins := map[string]Origin{"claude-opus-4-8": OriginAnthropic, "gpt-5.5": OriginAnthropic}
+	got, gotMetas, gotOrigins := RealUpstreamNames(ids, upstreams, metas, origins)
 	if len(got) != 1 || got[0] != "MiniMax-M3" {
 		t.Fatalf("got %v, want [MiniMax-M3]", got)
+	}
+	if gotMetas["MiniMax-M3"].MaxInputTokens != 196608 || gotMetas["MiniMax-M3"].MaxOutputTokens != 8192 {
+		t.Fatalf("real name lost its caps: %+v", gotMetas["MiniMax-M3"])
+	}
+	if gotOrigins["MiniMax-M3"] != OriginAnthropic {
+		t.Fatalf("real name origin = %v, want anthropic", gotOrigins["MiniMax-M3"])
 	}
 }
 
@@ -287,9 +297,20 @@ func TestRealUpstreamNames_MultipleUpstreams(t *testing.T) {
 		"deepseek-x":      "deepseek-v4-pro",
 		// no entry for a hypothetical no-mapping id → id itself is the real name
 	}
-	got := RealUpstreamNames(ids, upstreams)
+	metas := map[string]ModelMeta{
+		"gpt-5.5":    {MaxInputTokens: 196608},
+		"deepseek-x": {MaxInputTokens: 1000000},
+	}
+	got, gotMetas, _ := RealUpstreamNames(ids, upstreams, metas, nil)
 	want := []string{"deepseek-v4-pro", "minimax-m3"} // sorted
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("got %v, want %v", got, want)
+	}
+	// Each real name carries its own upstream's caps.
+	if gotMetas["minimax-m3"].MaxInputTokens != 196608 {
+		t.Errorf("minimax-m3 caps = %d, want 196608", gotMetas["minimax-m3"].MaxInputTokens)
+	}
+	if gotMetas["deepseek-v4-pro"].MaxInputTokens != 1000000 {
+		t.Errorf("deepseek-v4-pro caps = %d, want 1000000", gotMetas["deepseek-v4-pro"].MaxInputTokens)
 	}
 }
