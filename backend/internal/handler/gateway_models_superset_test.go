@@ -122,6 +122,58 @@ func TestModelsHandler_SingleModelNotFound(t *testing.T) {
 	require.Equal(t, "not_found_error", errObj["type"])
 }
 
+// deepSeekGroupCtx wires an API key bound to a DeepSeek group into the gin context.
+func deepSeekGroupCtx(c *gin.Context) {
+	groupID := int64(9)
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID:      100,
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Name:     "DeepSeek Group",
+			Platform: service.PlatformDeepSeek,
+			Status:   service.StatusActive,
+		},
+	})
+}
+
+// TestModelsHandler_DeepSeekSingleLookupMatchesListing pins the list/single-lookup
+// existence invariant for a legacy (non-superset) platform: a DeepSeek group lists
+// deepseek-* models from a default catalog, so the single-lookup must resolve the same
+// ids (regression guard for the bug where GET /v1/models/{id} 404'd a model the listing
+// just advertised, because the superset set is empty for DeepSeek groups).
+func TestModelsHandler_DeepSeekSingleLookupMatchesListing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gw := newMinimalGatewayService(&stubAccountRepoForHandler{})
+	h := &GatewayHandler{gatewayService: gw}
+
+	// A model the DeepSeek listing advertises → single-lookup must be 200.
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models/deepseek-chat", nil)
+	c.Params = gin.Params{{Key: "id", Value: "deepseek-chat"}}
+	deepSeekGroupCtx(c)
+
+	h.Model(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var obj map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &obj))
+	require.Equal(t, "deepseek-chat", obj["id"])
+	require.Equal(t, "model", obj["type"])
+
+	// An unknown id under the same platform → 404 (not a panic, not a superset fallthrough).
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request = httptest.NewRequest(http.MethodGet, "/v1/models/no-such-model", nil)
+	c2.Params = gin.Params{{Key: "id", Value: "no-such-model"}}
+	deepSeekGroupCtx(c2)
+
+	h.Model(c2)
+
+	require.Equal(t, http.StatusNotFound, w2.Code)
+}
+
 func TestModelsHandler_DeepSeekLegacyShapePreserved(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	// DeepSeek group must keep its legacy single-protocol shape (no superset, no

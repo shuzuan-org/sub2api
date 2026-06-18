@@ -128,12 +128,35 @@ func TestBuildList_Envelope(t *testing.T) {
 	if len(list.Data) != 2 {
 		t.Fatalf("data len=%d want 2", len(list.Data))
 	}
-	// Sorted: claude-opus-4-8 < gpt-5
-	if list.FirstID != "claude-opus-4-8" || list.LastID != "gpt-5" {
-		t.Errorf("first=%q last=%q want claude-opus-4-8/gpt-5", list.FirstID, list.LastID)
+	// Sorted: claude-opus-4-8 < gpt-5. first_id/last_id are *string now.
+	if list.FirstID == nil || list.LastID == nil {
+		t.Fatalf("first_id/last_id should be non-nil for a non-empty list")
+	}
+	if *list.FirstID != "claude-opus-4-8" || *list.LastID != "gpt-5" {
+		t.Errorf("first=%q last=%q want claude-opus-4-8/gpt-5", *list.FirstID, *list.LastID)
 	}
 	if list.HasMore {
 		t.Error("has_more should be false")
+	}
+}
+
+func TestBuildList_EmptyIsNull(t *testing.T) {
+	// An empty listing must serialize first_id/last_id as JSON null (Anthropic's
+	// convention), not "". *string + the len(data)>0 guard gives us that.
+	list := BuildList(nil, nil, nil)
+	if list.FirstID != nil || list.LastID != nil {
+		t.Fatalf("empty list first_id/last_id should be nil, got %v/%v", list.FirstID, list.LastID)
+	}
+	b, err := json.Marshal(list)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if string(raw["first_id"]) != "null" || string(raw["last_id"]) != "null" {
+		t.Errorf("first_id=%s last_id=%s want null/null", raw["first_id"], raw["last_id"])
 	}
 }
 
@@ -202,5 +225,42 @@ func TestBuildModel_OutputCapPassthrough(t *testing.T) {
 	m := BuildModel("minimax-m2.7", OriginOpenAI, ModelMeta{MaxInputTokens: 131072, MaxOutputTokens: 8192})
 	if m.MaxTokens != 8192 {
 		t.Errorf("max_tokens=%d want 8192 (real output cap)", m.MaxTokens)
+	}
+}
+
+func TestFilterForClaudeCode(t *testing.T) {
+	origins := map[string]Origin{
+		"claude-opus-4-8":   OriginAnthropic, // mapping key — kept
+		"claude-sonnet-4-6": OriginAnthropic, // kept
+		"minimax-m2.7":      OriginAnthropic, // raw anthropic upstream name — dropped
+		"glm-5.2":           OriginAnthropic, // raw — dropped
+		"gpt-5":             OriginOpenAI,    // openai — dropped
+		"claude-haiku-4-5":  OriginOpenAI,    // claude token but openai origin — dropped (defensive)
+	}
+	ids := []string{"claude-opus-4-8", "minimax-m2.7", "gpt-5", "claude-sonnet-4-6", "glm-5.2", "claude-haiku-4-5"}
+	got := FilterForClaudeCode(ids, origins)
+
+	want := map[string]bool{"claude-opus-4-8": true, "claude-sonnet-4-6": true}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want only the two anthropic claude-family ids", got)
+	}
+	for _, id := range got {
+		if !want[id] {
+			t.Errorf("unexpected id kept: %q", id)
+		}
+	}
+	// Order preservation: claude-opus-4-8 comes before claude-sonnet-4-6 in input.
+	if got[0] != "claude-opus-4-8" || got[1] != "claude-sonnet-4-6" {
+		t.Errorf("order not preserved: %v", got)
+	}
+}
+
+func TestFilterForClaudeCode_AllRawIsEmpty(t *testing.T) {
+	// A group of only no-mapping minimax accounts → nothing survives → empty, so the
+	// handler falls back to the default claude model set (never a raw-name list).
+	origins := map[string]Origin{"minimax-m2.7": OriginAnthropic, "minimax-m2.7-highspeed": OriginAnthropic}
+	got := FilterForClaudeCode([]string{"minimax-m2.7", "minimax-m2.7-highspeed"}, origins)
+	if len(got) != 0 {
+		t.Errorf("expected empty, got %v", got)
 	}
 }

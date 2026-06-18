@@ -68,10 +68,12 @@ type List struct {
 	// OpenAI
 	Object string  `json:"object"` // "list"
 	Data   []Model `json:"data"`
-	// Anthropic pagination — we return all models in one page.
-	FirstID string `json:"first_id"`
-	LastID  string `json:"last_id"`
-	HasMore bool   `json:"has_more"`
+	// Anthropic pagination — we return all models in one page. first_id/last_id are
+	// *string so an empty list serializes them as null (Anthropic's convention),
+	// distinct from the empty-string a non-pointer would emit.
+	FirstID *string `json:"first_id"`
+	LastID  *string `json:"last_id"`
+	HasMore bool    `json:"has_more"`
 	// sub2api extensions (omitted when unknown).
 	Remaining *float64 `json:"remaining,omitempty"`
 	Unit      string   `json:"unit,omitempty"`
@@ -245,10 +247,40 @@ func BuildList(ids []string, origins map[string]Origin, metas map[string]ModelMe
 
 	list := List{Object: "list", Data: data, HasMore: false}
 	if len(data) > 0 {
-		list.FirstID = data[0].ID
-		list.LastID = data[len(data)-1].ID
+		// Local copies, not &data[i].ID: an append after this point would realloc the
+		// backing array and leave these pointers dangling. No such append today, but the
+		// local-var form removes the landmine entirely.
+		first, last := data[0].ID, data[len(data)-1].ID
+		list.FirstID = &first
+		list.LastID = &last
 	}
 	return list
+}
+
+// FilterForClaudeCode keeps only Claude-family ids (claude-opus/sonnet/haiku and their
+// variants) from the listing set, dropping any raw upstream name (minimax-m2.7, glm-5.2,
+// gpt-*, …). It exists because a pure Claude Code client (User-Agent claude-cli/x.y.z)
+// only recognizes claude-* model names: shown a real upstream name it silently refuses
+// and never sends a request. sub2api is the only layer allowed to "lie" this way —
+// it adapts every anthropic-platform upstream behind a Claude name. A group that wants a
+// real provider visible to Claude Code must configure a model_mapping (claude-name →
+// upstream); the mapping KEY is a claude-* name and survives this filter, while a
+// no-mapping account's raw name is correctly dropped.
+//
+// Returned ids preserve the input order. origins is read-only. Callers pass the result
+// straight to BuildList; an empty result lets the handler fall back to a default Claude
+// model set (still all claude-* names), never an empty or raw-name list.
+func FilterForClaudeCode(ids []string, origins map[string]Origin) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		// Only anthropic-origin claude-family names. An OpenAI-origin id that happens to
+		// contain a claude token is not a thing we serve to Claude Code, so gate on origin
+		// too (defensive; the listing set is already platform-fused).
+		if origins[id] == OriginAnthropic && isClaudeFamily(NormalizeModelName(id)) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // MatchModelID resolves a client-supplied id against the listing set, sharing the

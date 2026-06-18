@@ -49,6 +49,7 @@ func TestGatewayGroupReturnsCurrentAPIKeyGroup(t *testing.T) {
 		"platform": "anthropic",
 		"rate_multiplier": 1.5,
 		"is_exclusive": false,
+		"visibility": "",
 		"status": "active",
 		"image_price_1k": null,
 		"image_price_2k": null,

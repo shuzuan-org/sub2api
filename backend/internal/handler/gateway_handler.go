@@ -889,8 +889,21 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	// anthropic+openai: fuse real upstream catalogs into a dual-protocol superset.
 	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	so := toSupersetOrigins(origins)
+
+	// Client-source branching: a pure Claude Code client (User-Agent claude-cli/x.y.z)
+	// only recognizes claude-* names, so for it we drop every raw upstream name and show
+	// only the claude-family ids (the mapping keys an operator configured). /v1/models is
+	// a non-messages path, so the UA check alone is the authoritative signal — no body
+	// parse needed (matches the validator's Step 2). Every other client (codex,
+	// metacode_cli_rs, …) gets the real names untouched. sub2api is the only layer that
+	// does this name adaptation; the upstreams themselves always tell the truth.
+	if claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
+		ids = modelsuperset.FilterForClaudeCode(ids, so)
+	}
+
 	if len(ids) > 0 {
-		list := modelsuperset.BuildList(ids, toSupersetOrigins(origins), metas)
+		list := modelsuperset.BuildList(ids, so, metas)
 		if remaining, unit, ok := h.callerRemaining(c); ok {
 			list.Remaining = &remaining
 			list.Unit = unit
@@ -899,7 +912,12 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
-	// Fallback to default models when the group contributes nothing.
+	// Fallback to default models when the group contributes nothing. NOTE: a claude-cli
+	// client whose group is all no-mapping non-claude upstreams lands here too (the filter
+	// emptied ids). claude.DefaultModels is then a deliberate "don't let CC spin on an
+	// empty /v1/models" answer — those default claude-* names may NOT be routable in this
+	// group, so a follow-up request can 404. That is intended: a clear 404 beats an
+	// infinite models-refresh loop. The real fix is to configure a model_mapping.
 	if platform == "openai" {
 		c.JSON(http.StatusOK, gin.H{
 			"object": "list",
@@ -914,19 +932,64 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	})
 }
 
-// Model handles GET /v1/models/{id} — single-model superset lookup, sharing the listing
-// set so existence never disagrees with GET /v1/models. Unknown ids return an
-// Anthropic-style 404.
+// Model handles GET /v1/models/{id} — single-model lookup. It mirrors GET /v1/models
+// branch-for-branch (Sora / DeepSeek legacy catalogs, then the anthropic+openai superset
+// with the same Claude-Code client filter) so existence never disagrees between the list
+// and the single-lookup for ANY platform. Unknown ids return an Anthropic-style 404.
 func (h *GatewayHandler) Model(c *gin.Context) {
 	id := c.Param("id")
 
+	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 	var groupID *int64
-	if apiKey, _ := middleware2.GetAPIKeyFromContext(c); apiKey != nil && apiKey.Group != nil {
+	var platform string
+	if apiKey != nil && apiKey.Group != nil {
 		groupID = &apiKey.Group.ID
+		platform = apiKey.Group.Platform
+	}
+	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
+		platform = forcedPlatform
+	}
+
+	// Sora / DeepSeek keep their legacy single-protocol shapes in the listing (Models),
+	// served from a default catalog rather than the anthropic+openai superset fusion. The
+	// single-lookup MUST mirror that, or existence would disagree between GET /v1/models
+	// and GET /v1/models/{id} for these platforms (the superset set is empty for them, so
+	// a bare MatchModelID would 404 a model the listing just advertised).
+	if platform == service.PlatformSora {
+		for _, m := range service.DefaultSoraModels(h.cfg) {
+			if m.ID == id {
+				c.JSON(http.StatusOK, m)
+				return
+			}
+		}
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "model: "+id+" not found")
+		return
+	}
+	if platform == service.PlatformDeepSeek {
+		for _, m := range service.DeepSeekDefaultModels {
+			if m.ID == id {
+				c.JSON(http.StatusOK, claude.Model{
+					ID:          m.ID,
+					Type:        "model",
+					DisplayName: m.DisplayName,
+					CreatedAt:   m.ReleaseDate + "T00:00:00Z",
+				})
+				return
+			}
+		}
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "model: "+id+" not found")
+		return
 	}
 
 	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
-	if key, origin, ok := modelsuperset.MatchModelID(id, ids, toSupersetOrigins(origins)); ok {
+	so := toSupersetOrigins(origins)
+	// Same client-source filter as the listing (GET /v1/models): a Claude Code client must
+	// not be able to single-look-up a raw upstream name that the listing hides from it, or
+	// existence would disagree between the two endpoints.
+	if claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
+		ids = modelsuperset.FilterForClaudeCode(ids, so)
+	}
+	if key, origin, ok := modelsuperset.MatchModelID(id, ids, so); ok {
 		obj := modelsuperset.BuildModel(key, origin, metas[key])
 		obj.ID = id // round-trip the client's exact spelling; DisplayName stays canonical
 		c.JSON(http.StatusOK, obj)

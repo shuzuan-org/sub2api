@@ -51,6 +51,8 @@ func TestAPIContracts(t *testing.T) {
 					"id": 1,
 					"email": "alice@example.com",
 					"username": "alice",
+					"phone": "",
+					"phone_verified": false,
 					"role": "user",
 					"balance": 12.5,
 					"concurrency": 5,
@@ -169,6 +171,7 @@ func TestAPIContracts(t *testing.T) {
 						Platform:            service.PlatformAnthropic,
 						RateMultiplier:      1.5,
 						IsExclusive:         false,
+						Visibility:          service.VisibilityPublic,
 						Status:              service.StatusActive,
 						ModelRoutingEnabled: true,
 						ModelRouting: map[string][]int64{
@@ -195,6 +198,7 @@ func TestAPIContracts(t *testing.T) {
 						"platform": "anthropic",
 						"rate_multiplier": 1.5,
 						"is_exclusive": false,
+						"visibility": "public",
 						"status": "active",
 						"image_price_1k": null,
 						"image_price_2k": null,
@@ -499,6 +503,13 @@ func TestAPIContracts(t *testing.T) {
 					"smtp_from_email": "no-reply@example.com",
 					"smtp_from_name": "Sub2API",
 					"smtp_use_tls": true,
+					"sms_tencent_enabled": false,
+					"sms_tencent_region": "ap-guangzhou",
+					"sms_tencent_sdk_app_id": "",
+					"sms_tencent_secret_id": "",
+					"sms_tencent_secret_key_configured": false,
+					"sms_tencent_sign_name": "",
+					"sms_tencent_template_id": "",
 					"turnstile_enabled": true,
 					"turnstile_site_key": "site-key",
 					"turnstile_secret_key_configured": true,
@@ -649,7 +660,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 
 	adminService := service.NewAdminService(userRepo, groupRepo, nil, &accountRepo, nil, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, userSubRepo, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
-	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
+	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService, nil, groupRepo, &accountRepo)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
@@ -829,6 +840,38 @@ func (r *stubUserRepo) DisableTotp(ctx context.Context, userID int64) error {
 
 func (r *stubUserRepo) ListUsersByGroupAllowed(ctx context.Context, groupID int64) ([]service.User, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*service.User, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) ExistsByPhone(ctx context.Context, phone string) (bool, error) {
+	return false, nil
+}
+
+func (r *stubUserRepo) ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error) {
+	return false, nil
+}
+
+func (r *stubUserRepo) GetByPhone(ctx context.Context, phone string) (*service.User, error) {
+	return nil, service.ErrUserNotFound
+}
+
+func (r *stubUserRepo) GetByPhoneNumber(ctx context.Context, phone string) (*service.User, error) {
+	return nil, service.ErrUserNotFound
+}
+
+func (r *stubUserRepo) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {
+	return nil, service.ErrUserNotFound
+}
+
+func (r *stubUserRepo) SetReferralCode(ctx context.Context, id int64, code string) error {
+	return errors.New("not implemented")
+}
+
+func (r *stubUserRepo) SetReferredBy(ctx context.Context, id int64, referrerID int64) error {
+	return errors.New("not implemented")
 }
 
 type stubApiKeyCache struct{}
@@ -1353,6 +1396,10 @@ func (stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64, co
 }
 func (stubUserSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
 	return 0, errors.New("not implemented")
+}
+
+func (stubUserSubscriptionRepo) GetCurrentUsage(ctx context.Context, id int64) (daily, weekly, monthly float64, err error) {
+	return 0, 0, 0, errors.New("not implemented")
 }
 
 type stubApiKeyRepo struct {
