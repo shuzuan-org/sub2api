@@ -68,12 +68,14 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsMinimaxGroup(t *testin
 	svc := NewAPIKeyService(
 		repo,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
+		// Visibility 取代旧 is_exclusive：findDefaultMinimaxGroupID 现在只绑定 public 分组。
+		// 旧布尔字段保留但不再驱动可见性，故每条须显式设 Visibility。
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
-			{ID: 1, Name: "minimax", IsExclusive: true, Status: StatusActive},
-			{ID: 3, Name: "OpenAI MiniMax", Platform: PlatformOpenAI, IsExclusive: false, Status: StatusActive},
-			{ID: 4, Name: "DeepSeek MiniMax", Platform: PlatformDeepSeek, IsExclusive: false, Status: StatusActive},
-			{ID: 2, Name: "default", IsExclusive: false, Status: StatusActive},
-			{ID: minimaxID, Name: "Claude MiniMax", IsExclusive: false, Status: StatusActive},
+			{ID: 1, Name: "minimax", IsExclusive: true, Visibility: VisibilityPrivate, Status: StatusActive},
+			{ID: 3, Name: "OpenAI MiniMax", Platform: PlatformOpenAI, IsExclusive: false, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: 4, Name: "DeepSeek MiniMax", Platform: PlatformDeepSeek, IsExclusive: false, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: 2, Name: "default", IsExclusive: false, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: minimaxID, Name: "Claude MiniMax", IsExclusive: false, Visibility: VisibilityPublic, Status: StatusActive},
 		}},
 		nil,
 		nil,
@@ -106,10 +108,11 @@ func TestAPIKeyService_CreateDefaultAPIKeyForNewUser_BindsFirstGroupWhenMinimaxM
 	svc := NewAPIKeyService(
 		repo,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive}},
+		// 全部 public：minimax 缺失时应回退到第一个非 openai/deepseek 的 public 分组。
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
-			{ID: 1, Name: "openai-default", Platform: PlatformOpenAI, Status: StatusActive},
-			{ID: 3, Name: "deepseek-default", Platform: PlatformDeepSeek, Status: StatusActive},
-			{ID: fallbackID, Name: "default", Platform: PlatformAnthropic, Status: StatusActive},
+			{ID: 1, Name: "openai-default", Platform: PlatformOpenAI, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: 3, Name: "deepseek-default", Platform: PlatformDeepSeek, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: fallbackID, Name: "default", Platform: PlatformAnthropic, Visibility: VisibilityPublic, Status: StatusActive},
 		}},
 		nil,
 		nil,
@@ -130,14 +133,16 @@ func TestAPIKeyService_GetAvailableGroups_ReturnsOpenAIAndDeepSeekRelatedGroups(
 	svc := NewAPIKeyService(
 		nil,
 		&defaultAPIKeyUserRepoStub{user: &User{ID: 9, Status: StatusActive, AllowedGroups: []int64{3, 4, 5}}},
+		// CanBindGroup 现按 Visibility 过滤：public 全可见；private 仅 AllowedGroups{3,4,5} 内可见。
+		// IsExclusive:true -> private，否则 public（migration 102/103: is_exclusive -> visibility）。
 		&defaultAPIKeyGroupRepoStub{groups: []Group{
-			{ID: 1, Name: "default", Platform: PlatformAnthropic, Status: StatusActive},
-			{ID: 2, Name: "openai-public", Platform: PlatformAnthropic, Status: StatusActive},
-			{ID: 3, Name: "private", Platform: PlatformOpenAI, IsExclusive: true, Status: StatusActive},
-			{ID: 4, Name: "exclusive", Platform: PlatformAnthropic, IsExclusive: true, Status: StatusActive},
-			{ID: 5, Name: "deepseek-private", Platform: PlatformDeepSeek, IsExclusive: true, Status: StatusActive},
-			{ID: 6, Name: "DeepSeek Public", Platform: PlatformAnthropic, Status: StatusActive},
-			{ID: 7, Name: "openai-exclusive-denied", Platform: PlatformOpenAI, IsExclusive: true, Status: StatusActive},
+			{ID: 1, Name: "default", Platform: PlatformAnthropic, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: 2, Name: "openai-public", Platform: PlatformAnthropic, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: 3, Name: "private", Platform: PlatformOpenAI, IsExclusive: true, Visibility: VisibilityPrivate, Status: StatusActive},
+			{ID: 4, Name: "exclusive", Platform: PlatformAnthropic, IsExclusive: true, Visibility: VisibilityPrivate, Status: StatusActive},
+			{ID: 5, Name: "deepseek-private", Platform: PlatformDeepSeek, IsExclusive: true, Visibility: VisibilityPrivate, Status: StatusActive},
+			{ID: 6, Name: "DeepSeek Public", Platform: PlatformAnthropic, Visibility: VisibilityPublic, Status: StatusActive},
+			{ID: 7, Name: "openai-exclusive-denied", Platform: PlatformOpenAI, IsExclusive: true, Visibility: VisibilityPrivate, Status: StatusActive},
 		}},
 		nil,
 		nil,

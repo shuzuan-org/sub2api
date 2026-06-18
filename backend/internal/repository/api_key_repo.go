@@ -69,8 +69,16 @@ func (r *apiKeyRepository) Create(ctx context.Context, key *service.APIKey) erro
 func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
 	m, err := r.activeQuery().
 		Where(apikey.IDEQ(id)).
-		WithUser().
-		WithGroup().
+		WithUser(func(q *dbent.UserQuery) {
+			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
+				gq.Select(group.FieldID)
+			})
+		}).
+		WithGroup(func(q *dbent.GroupQuery) {
+			q.WithVisiblePlans(func(pq *dbent.SubscriptionPlanQuery) {
+				pq.Select(subscriptionplan.FieldID)
+			})
+		}).
 		Only(ctx)
 	if err != nil {
 		if dbent.IsNotFound(err) {
@@ -78,7 +86,9 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIK
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	out := apiKeyEntityToService(m)
+	fillAPIKeyAuthEdges(m, out)
+	return out, nil
 }
 
 // GetKeyAndOwnerID 根据 API Key ID 获取其 key 与所有者（用户）ID。
@@ -140,6 +150,12 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				user.FieldBalance,
 				user.FieldConcurrency,
 			)
+			// Load the user's admin-assigned groups (ids only). CanBindGroup treats an
+			// assignment as overriding any visibility, so the auth middleware needs this to
+			// let an assigned user into a subscriber/private group without a subscription.
+			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
+				gq.Select(group.FieldID)
+			})
 		}).
 		WithGroup(func(q *dbent.GroupQuery) {
 			q.Select(
@@ -178,7 +194,27 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	out := apiKeyEntityToService(m)
+	fillAPIKeyAuthEdges(m, out)
+	return out, nil
+}
+
+// fillAPIKeyAuthEdges carries auth-only many-to-many edges that are not User/Group columns.
+// CanBindGroup needs AllowedGroups to honor explicit admin assignments, and subscriber
+// groups need VisiblePlanIDs to match a user's active plans.
+func fillAPIKeyAuthEdges(m *dbent.APIKey, out *service.APIKey) {
+	if m == nil || out == nil {
+		return
+	}
+	if m.Edges.User != nil && out.User != nil {
+		if groups, gerr := m.Edges.User.Edges.AllowedGroupsOrErr(); gerr == nil {
+			ids := make([]int64, 0, len(groups))
+			for _, g := range groups {
+				ids = append(ids, g.ID)
+			}
+			out.User.AllowedGroups = ids
+		}
+	}
 }
 
 func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) error {
@@ -616,7 +652,7 @@ func userEntityToService(u *dbent.User) *service.User {
 		Concurrency:           u.Concurrency,
 		Status:                u.Status,
 		Phone:                 u.Phone,
-		PhoneVerified:          u.PhoneVerified,
+		PhoneVerified:         u.PhoneVerified,
 		SoraStorageQuotaBytes: u.SoraStorageQuotaBytes,
 		SoraStorageUsedBytes:  u.SoraStorageUsedBytes,
 		TotpSecretEncrypted:   u.TotpSecretEncrypted,

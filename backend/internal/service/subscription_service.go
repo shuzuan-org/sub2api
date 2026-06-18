@@ -1434,6 +1434,13 @@ func (s *SubscriptionService) ValidateMergedState(state *MergedSubscriptionState
 	}
 	target := state.FIFOTarget()
 	if target == nil {
+		// FIFOTarget 只返回未过期订阅。target==nil 有两种情况：队列为空（真不存在），
+		// 或队列非空但所有订阅都已按时间过期（Status 字段可能还没被后台 job 同步）。
+		// 后者必须报"已过期"(403) 而非"不存在"(404)——否则 1441 行的 IsExpired() 分支
+		// 永远命中不到（FIFOTarget 已保证 target 未过期），过期订阅会被误判为不存在。
+		if len(state.FIFOQueue) > 0 {
+			return false, ErrSubscriptionExpired
+		}
 		return false, ErrSubscriptionNotFound
 	}
 

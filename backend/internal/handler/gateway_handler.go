@@ -23,7 +23,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/modelsuperset"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -888,45 +887,103 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 
 	// anthropic+openai: fuse real upstream catalogs into a dual-protocol superset.
-	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
-	if len(ids) > 0 {
-		list := modelsuperset.BuildList(ids, toSupersetOrigins(origins), metas)
-		if remaining, unit, ok := h.callerRemaining(c); ok {
-			list.Remaining = &remaining
-			list.Unit = unit
-		}
-		c.JSON(http.StatusOK, list)
-		return
+	ids, origins, metas, upstreams := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	so := toSupersetOrigins(origins)
+
+	// Client-source branching by User-Agent — sub2api is the only layer that adapts model
+	// names; the upstreams themselves always report the truth. /v1/models is a non-messages
+	// path, so the UA alone is the authoritative signal (no body parse). Filtering is purely
+	// by NAME shape of the mapping keys, independent of group platform:
+	//   - Claude Code (claude-cli/x.y.z) → only claude-* mapping keys (opus/sonnet/haiku).
+	//   - Codex (codex_cli_rs / Codex Desktop / codex_vscode) → only gpt-* mapping keys.
+	//   - Anything else → the real upstream model names (deduped), no aliases.
+	// "No matching name → empty" is intentional: we never fabricate default names that the
+	// group can't actually route. The named client just sees an empty list and the operator
+	// must configure the mapping it wants exposed.
+	ua := c.GetHeader("User-Agent")
+	switch {
+	case claudeCodeValidator.ValidateUserAgent(ua):
+		ids = modelsuperset.FilterForClaudeCode(ids, so)
+	case codexValidator.ValidateUserAgent(ua):
+		ids = modelsuperset.FilterForCodex(ids, so)
+	default:
+		// Real upstream names: re-key the real caps/origin onto the upstream name so the
+		// model keeps its true max_input_tokens (was wrongly 0 when metas were dropped).
+		ids, metas, so = modelsuperset.RealUpstreamNames(ids, upstreams, metas, so)
 	}
 
-	// Fallback to default models when the group contributes nothing.
-	if platform == "openai" {
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   openai.DefaultModels,
-		})
-		return
+	list := modelsuperset.BuildList(ids, so, metas)
+	if remaining, unit, ok := h.callerRemaining(c); ok {
+		list.Remaining = &remaining
+		list.Unit = unit
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"object": "list",
-		"data":   claude.DefaultModels,
-	})
+	c.JSON(http.StatusOK, list)
 }
 
-// Model handles GET /v1/models/{id} — single-model superset lookup, sharing the listing
-// set so existence never disagrees with GET /v1/models. Unknown ids return an
-// Anthropic-style 404.
+// Model handles GET /v1/models/{id} — single-model lookup. It mirrors GET /v1/models
+// branch-for-branch (Sora / DeepSeek legacy catalogs, then the anthropic+openai superset
+// with the same Claude-Code client filter) so existence never disagrees between the list
+// and the single-lookup for ANY platform. Unknown ids return an Anthropic-style 404.
 func (h *GatewayHandler) Model(c *gin.Context) {
 	id := c.Param("id")
 
+	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 	var groupID *int64
-	if apiKey, _ := middleware2.GetAPIKeyFromContext(c); apiKey != nil && apiKey.Group != nil {
+	var platform string
+	if apiKey != nil && apiKey.Group != nil {
 		groupID = &apiKey.Group.ID
+		platform = apiKey.Group.Platform
+	}
+	if forcedPlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && strings.TrimSpace(forcedPlatform) != "" {
+		platform = forcedPlatform
 	}
 
-	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
-	if key, origin, ok := modelsuperset.MatchModelID(id, ids, toSupersetOrigins(origins)); ok {
+	// Sora / DeepSeek keep their legacy single-protocol shapes in the listing (Models),
+	// served from a default catalog rather than the anthropic+openai superset fusion. The
+	// single-lookup MUST mirror that, or existence would disagree between GET /v1/models
+	// and GET /v1/models/{id} for these platforms (the superset set is empty for them, so
+	// a bare MatchModelID would 404 a model the listing just advertised).
+	if platform == service.PlatformSora {
+		for _, m := range service.DefaultSoraModels(h.cfg) {
+			if m.ID == id {
+				c.JSON(http.StatusOK, m)
+				return
+			}
+		}
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "model: "+id+" not found")
+		return
+	}
+	if platform == service.PlatformDeepSeek {
+		for _, m := range service.DeepSeekDefaultModels {
+			if m.ID == id {
+				c.JSON(http.StatusOK, claude.Model{
+					ID:          m.ID,
+					Type:        "model",
+					DisplayName: m.DisplayName,
+					CreatedAt:   m.ReleaseDate + "T00:00:00Z",
+				})
+				return
+			}
+		}
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "model: "+id+" not found")
+		return
+	}
+
+	ids, origins, metas, upstreams := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	so := toSupersetOrigins(origins)
+	// Same client-source branching as the listing (GET /v1/models), so existence never
+	// disagrees between the list and the single-lookup: the model set the client can see
+	// is filtered identically by User-Agent before matching the requested id.
+	ua := c.GetHeader("User-Agent")
+	switch {
+	case claudeCodeValidator.ValidateUserAgent(ua):
+		ids = modelsuperset.FilterForClaudeCode(ids, so)
+	case codexValidator.ValidateUserAgent(ua):
+		ids = modelsuperset.FilterForCodex(ids, so)
+	default:
+		ids, metas, so = modelsuperset.RealUpstreamNames(ids, upstreams, metas, so)
+	}
+	if key, origin, ok := modelsuperset.MatchModelID(id, ids, so); ok {
 		obj := modelsuperset.BuildModel(key, origin, metas[key])
 		obj.ID = id // round-trip the client's exact spelling; DisplayName stays canonical
 		c.JSON(http.StatusOK, obj)

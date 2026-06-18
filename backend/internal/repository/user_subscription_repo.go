@@ -352,6 +352,12 @@ func (r *userSubscriptionRepository) IncrementUsage(ctx context.Context, id int6
 			updated_at = NOW()
 		WHERE id = $2
 			AND deleted_at IS NULL
+			AND EXISTS (
+				SELECT 1
+				FROM subscription_plans
+				WHERE subscription_plans.id = user_subscriptions.plan_id
+					AND subscription_plans.deleted_at IS NULL
+			)
 	`
 
 	client := clientFromContext(ctx, r.client)

@@ -22,10 +22,11 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	group := &service.Group{
-		ID:       42,
-		Name:     "sub",
-		Status:   service.StatusActive,
-		Hydrated: true,
+		ID:         42,
+		Name:       "sub",
+		Status:     service.StatusActive,
+		Visibility: service.VisibilityPublic,
+		Hydrated:   true,
 	}
 	user := &service.User{
 		ID:          7,
@@ -79,12 +80,18 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 				clone := sub
 				return []service.UserSubscription{clone}, nil
 			},
-			updateStatus: func(ctx context.Context, subscriptionID int64, status string) error { return nil },
-			activateWindow: func(ctx context.Context, id int64, start time.Time) error {
-				maintenanceCalled <- struct{}{}
+			updateStatus:   func(ctx context.Context, subscriptionID int64, status string) error { return nil },
+			activateWindow: func(ctx context.Context, id int64, start time.Time) error { return nil },
+			// 窗口激活维护现在通过 Reset*Usage 落库（CheckAndActivateWindow），
+			// 不再走 ActivateWindows。DailyWindowStart=nil 必触发 resetDaily，
+			// 在此发信号代表维护被调度。
+			resetDaily: func(ctx context.Context, id int64, start time.Time) error {
+				select {
+				case maintenanceCalled <- struct{}{}:
+				default:
+				}
 				return nil
 			},
-			resetDaily:   func(ctx context.Context, id int64, start time.Time) error { return nil },
 			resetWeekly:  func(ctx context.Context, id int64, start time.Time) error { return nil },
 			resetMonthly: func(ctx context.Context, id int64, start time.Time) error { return nil },
 		}

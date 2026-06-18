@@ -18,6 +18,9 @@ import (
 // claudeCodeValidator is a singleton validator for Claude Code client detection
 var claudeCodeValidator = service.NewClaudeCodeValidator()
 
+// codexValidator is a singleton validator for Codex client detection (by User-Agent).
+var codexValidator = service.NewCodexValidator()
+
 const claudeCodeParsedRequestContextKey = "claude_code_parsed_request"
 
 // SetClaudeCodeClientContext 检查请求是否来自 Claude Code 客户端，并设置到 context 中

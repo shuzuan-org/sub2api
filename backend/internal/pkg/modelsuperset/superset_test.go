@@ -128,12 +128,35 @@ func TestBuildList_Envelope(t *testing.T) {
 	if len(list.Data) != 2 {
 		t.Fatalf("data len=%d want 2", len(list.Data))
 	}
-	// Sorted: claude-opus-4-8 < gpt-5
-	if list.FirstID != "claude-opus-4-8" || list.LastID != "gpt-5" {
-		t.Errorf("first=%q last=%q want claude-opus-4-8/gpt-5", list.FirstID, list.LastID)
+	// Sorted: claude-opus-4-8 < gpt-5. first_id/last_id are *string now.
+	if list.FirstID == nil || list.LastID == nil {
+		t.Fatalf("first_id/last_id should be non-nil for a non-empty list")
+	}
+	if *list.FirstID != "claude-opus-4-8" || *list.LastID != "gpt-5" {
+		t.Errorf("first=%q last=%q want claude-opus-4-8/gpt-5", *list.FirstID, *list.LastID)
 	}
 	if list.HasMore {
 		t.Error("has_more should be false")
+	}
+}
+
+func TestBuildList_EmptyIsNull(t *testing.T) {
+	// An empty listing must serialize first_id/last_id as JSON null (Anthropic's
+	// convention), not "". *string + the len(data)>0 guard gives us that.
+	list := BuildList(nil, nil, nil)
+	if list.FirstID != nil || list.LastID != nil {
+		t.Fatalf("empty list first_id/last_id should be nil, got %v/%v", list.FirstID, list.LastID)
+	}
+	b, err := json.Marshal(list)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if string(raw["first_id"]) != "null" || string(raw["last_id"]) != "null" {
+		t.Errorf("first_id=%s last_id=%s want null/null", raw["first_id"], raw["last_id"])
 	}
 }
 
@@ -202,5 +225,92 @@ func TestBuildModel_OutputCapPassthrough(t *testing.T) {
 	m := BuildModel("minimax-m2.7", OriginOpenAI, ModelMeta{MaxInputTokens: 131072, MaxOutputTokens: 8192})
 	if m.MaxTokens != 8192 {
 		t.Errorf("max_tokens=%d want 8192 (real output cap)", m.MaxTokens)
+	}
+}
+
+func TestFilterForClaudeCode(t *testing.T) {
+	// Filtering is purely by NAME shape (mapping key), independent of platform/origin —
+	// an anthropic group may carry a gpt-5.5 alias, so origin is NOT a gate.
+	ids := []string{"claude-opus-4-8", "minimax-m2.7", "gpt-5", "claude-sonnet-4-6", "glm-5.2", "claude-haiku-4-5"}
+	got := FilterForClaudeCode(ids, nil)
+
+	want := []string{"claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want the three claude-family ids", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("got %v, want %v (order preserved)", got, want)
+		}
+	}
+}
+
+func TestFilterForCodex(t *testing.T) {
+	ids := []string{"claude-opus-4-8", "gpt-5.5", "minimax-m2.7", "gpt-5.4-mini", "MiniMax-M3"}
+	got := FilterForCodex(ids, nil)
+	want := []string{"gpt-5.5", "gpt-5.4-mini"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestFilterForClaudeCode_NoMatchIsEmpty(t *testing.T) {
+	// A group with only non-claude mapping keys → empty (no fabricated defaults).
+	got := FilterForClaudeCode([]string{"minimax-m2.7", "gpt-5.5"}, nil)
+	if len(got) != 0 {
+		t.Errorf("expected empty, got %v", got)
+	}
+}
+
+func TestRealUpstreamNames_Dedup(t *testing.T) {
+	// group-38 shape: five mapping keys all resolve to one upstream → one real name.
+	ids := []string{"claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5", "gpt-5.5", "MiniMax-M3"}
+	upstreams := map[string]string{
+		"claude-opus-4-8":   "MiniMax-M3",
+		"claude-sonnet-4-6": "MiniMax-M3",
+		"claude-haiku-4-5":  "MiniMax-M3",
+		"gpt-5.5":           "MiniMax-M3",
+		"MiniMax-M3":        "MiniMax-M3",
+	}
+	// Real caps carried on one of the aliases must end up on the real name (regression:
+	// dropping metas made max_input_tokens 0).
+	metas := map[string]ModelMeta{"claude-opus-4-8": {MaxInputTokens: 196608, MaxOutputTokens: 8192}}
+	origins := map[string]Origin{"claude-opus-4-8": OriginAnthropic, "gpt-5.5": OriginAnthropic}
+	got, gotMetas, gotOrigins := RealUpstreamNames(ids, upstreams, metas, origins)
+	if len(got) != 1 || got[0] != "MiniMax-M3" {
+		t.Fatalf("got %v, want [MiniMax-M3]", got)
+	}
+	if gotMetas["MiniMax-M3"].MaxInputTokens != 196608 || gotMetas["MiniMax-M3"].MaxOutputTokens != 8192 {
+		t.Fatalf("real name lost its caps: %+v", gotMetas["MiniMax-M3"])
+	}
+	if gotOrigins["MiniMax-M3"] != OriginAnthropic {
+		t.Fatalf("real name origin = %v, want anthropic", gotOrigins["MiniMax-M3"])
+	}
+}
+
+func TestRealUpstreamNames_MultipleUpstreams(t *testing.T) {
+	// A group fronting two real models → both surface, sorted, deduped.
+	ids := []string{"claude-opus-4-8", "gpt-5.5", "deepseek-x"}
+	upstreams := map[string]string{
+		"claude-opus-4-8": "minimax-m3",
+		"gpt-5.5":         "minimax-m3", // alias collapses
+		"deepseek-x":      "deepseek-v4-pro",
+		// no entry for a hypothetical no-mapping id → id itself is the real name
+	}
+	metas := map[string]ModelMeta{
+		"gpt-5.5":    {MaxInputTokens: 196608},
+		"deepseek-x": {MaxInputTokens: 1000000},
+	}
+	got, gotMetas, _ := RealUpstreamNames(ids, upstreams, metas, nil)
+	want := []string{"deepseek-v4-pro", "minimax-m3"} // sorted
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	// Each real name carries its own upstream's caps.
+	if gotMetas["minimax-m3"].MaxInputTokens != 196608 {
+		t.Errorf("minimax-m3 caps = %d, want 196608", gotMetas["minimax-m3"].MaxInputTokens)
+	}
+	if gotMetas["deepseek-v4-pro"].MaxInputTokens != 1000000 {
+		t.Errorf("deepseek-v4-pro caps = %d, want 1000000", gotMetas["deepseek-v4-pro"].MaxInputTokens)
 	}
 }

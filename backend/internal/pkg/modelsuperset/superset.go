@@ -68,10 +68,12 @@ type List struct {
 	// OpenAI
 	Object string  `json:"object"` // "list"
 	Data   []Model `json:"data"`
-	// Anthropic pagination — we return all models in one page.
-	FirstID string `json:"first_id"`
-	LastID  string `json:"last_id"`
-	HasMore bool   `json:"has_more"`
+	// Anthropic pagination — we return all models in one page. first_id/last_id are
+	// *string so an empty list serializes them as null (Anthropic's convention),
+	// distinct from the empty-string a non-pointer would emit.
+	FirstID *string `json:"first_id"`
+	LastID  *string `json:"last_id"`
+	HasMore bool    `json:"has_more"`
 	// sub2api extensions (omitted when unknown).
 	Remaining *float64 `json:"remaining,omitempty"`
 	Unit      string   `json:"unit,omitempty"`
@@ -87,6 +89,9 @@ var (
 	// claudeFamilyBases: the whole current Claude line. Capabilities every 4.x model
 	// supports key off this.
 	claudeFamilyBases = []string{"opus", "sonnet", "haiku"}
+	// gptFamilyBases: the OpenAI GPT line. Used to surface only gpt-* names to a Codex
+	// client. Matched as a delimited token (gpt-5, gpt-5.5-codex, …), never a bare substring.
+	gptFamilyBases = []string{"gpt"}
 	// effortMaxBases: tiers whose `effort` capability includes the "max" level.
 	effortMaxBases = []string{"opus", "sonnet"}
 	// oneMillionBases: Anthropic families Claude Code treats as 1M-context. Matched as
@@ -138,6 +143,10 @@ func modelSupports1M(normalized string) bool {
 
 func isClaudeFamily(normalized string) bool {
 	return modelMatchesAnyBase(normalized, claudeFamilyBases...)
+}
+
+func isGPTFamily(normalized string) bool {
+	return modelMatchesAnyBase(normalized, gptFamilyBases...)
 }
 
 // modelContextWindow returns the CC-visible context window for a Claude display model
@@ -245,10 +254,87 @@ func BuildList(ids []string, origins map[string]Origin, metas map[string]ModelMe
 
 	list := List{Object: "list", Data: data, HasMore: false}
 	if len(data) > 0 {
-		list.FirstID = data[0].ID
-		list.LastID = data[len(data)-1].ID
+		// Local copies, not &data[i].ID: an append after this point would realloc the
+		// backing array and leave these pointers dangling. No such append today, but the
+		// local-var form removes the landmine entirely.
+		first, last := data[0].ID, data[len(data)-1].ID
+		list.FirstID = &first
+		list.LastID = &last
 	}
 	return list
+}
+
+// FilterForClaudeCode keeps only Claude-family ids (claude-opus/sonnet/haiku and their
+// variants) from the listing set. A pure Claude Code client (User-Agent claude-cli/x.y.z)
+// only recognizes claude-* names: shown a raw upstream name (minimax-m2.7, gpt-5.5, …) it
+// silently refuses and never sends a request. So we surface only the claude-* mapping keys
+// an operator configured. If the group has no claude-* mapping key, the result is empty —
+// the handler must return an empty list, NOT fabricate default claude names that can't
+// route here.
+//
+// Filtering is purely by NAME shape (mapping key), independent of the upstream platform:
+// an anthropic group may expose a gpt-5.5 alias and an openai group is just as likely to
+// carry claude aliases. origins is unused here (kept for signature symmetry with callers).
+// Returned ids preserve input order.
+func FilterForClaudeCode(ids []string, origins map[string]Origin) []string {
+	return filterByFamily(ids, isClaudeFamily)
+}
+
+// FilterForCodex keeps only GPT-family ids (gpt-*) from the listing set. A Codex client
+// recognizes gpt-* names; same contract as FilterForClaudeCode but for the OpenAI line.
+// Empty result → empty list (no fabricated defaults).
+func FilterForCodex(ids []string, origins map[string]Origin) []string {
+	return filterByFamily(ids, isGPTFamily)
+}
+
+// filterByFamily keeps ids whose normalized name matches the predicate, preserving order.
+func filterByFamily(ids []string, match func(string) bool) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if match(NormalizeModelName(id)) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// RealUpstreamNames returns the distinct real upstream model names backing the listing,
+// for clients that are neither Claude Code nor Codex, along with the metadata and origin
+// re-keyed onto those real names. upstreams maps each client-facing id (a mapping key, or
+// the raw name for no-mapping accounts) to the real upstream model it resolves to; metas
+// and origins are keyed by the client-facing id. Multiple aliases collapsing onto one
+// upstream (e.g. group 38's five keys all → MiniMax-M3) yield a single entry, and that
+// entry inherits the real caps from whichever alias carried them (so the real name keeps
+// its true max_input_tokens instead of going to 0). Order is sorted for stability.
+func RealUpstreamNames(ids []string, upstreams map[string]string, metas map[string]ModelMeta, origins map[string]Origin) (outIDs []string, outMetas map[string]ModelMeta, outOrigins map[string]Origin) {
+	seen := make(map[string]struct{}, len(ids))
+	outMetas = make(map[string]ModelMeta, len(ids))
+	outOrigins = make(map[string]Origin, len(ids))
+	for _, id := range ids {
+		up := upstreams[id]
+		if up == "" {
+			up = id // no mapping recorded → the id IS the real name
+		}
+		seen[up] = struct{}{}
+		// Carry the real caps onto the upstream name. Aliases of one upstream are ASSUMED to
+		// share the same real meta (they come from one upstream probe), so first-non-zero
+		// wins. If two aliases ever resolved to genuinely different meta for the same upstream
+		// name (misconfig, or split across accounts), this silently keeps the first — a known,
+		// currently-unobserved fragility, not a guarantee.
+		if cur, ok := outMetas[up]; !ok || (cur.MaxInputTokens == 0 && metas[id].MaxInputTokens > 0) {
+			outMetas[up] = metas[id]
+		}
+		// Origin gates capability emission. Anthropic wins on collision (same rule as fusion).
+		if cur, ok := outOrigins[up]; !ok || (cur != OriginAnthropic && origins[id] == OriginAnthropic) {
+			outOrigins[up] = origins[id]
+		}
+	}
+	outIDs = make([]string, 0, len(seen))
+	for up := range seen {
+		outIDs = append(outIDs, up)
+	}
+	sort.Strings(outIDs)
+	return outIDs, outMetas, outOrigins
 }
 
 // MatchModelID resolves a client-supplied id against the listing set, sharing the

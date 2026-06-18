@@ -45,11 +45,40 @@ func accountUpstreamModelsCacheKey(accountID int64) string {
 	return fmt.Sprintf("acctmodels|%d", accountID)
 }
 
+// SeedAccountUpstreamMetaForTest pre-populates the per-account upstream-models cache so
+// tests can exercise the meta path WITHOUT a live httpUpstream (which is nil in unit
+// tests, making every account's meta empty). fetchAccountUpstreamModels checks this cache
+// first, so a seeded entry flows through buildSupersetModels → /v1/models exactly like a
+// real upstream probe. Test-only; never called from production code.
+func (s *GatewayService) SeedAccountUpstreamMetaForTest(accountID int64, metas map[string]modelsuperset.ModelMeta) {
+	if s == nil || s.modelsListCache == nil {
+		return
+	}
+	s.modelsListCache.Set(accountUpstreamModelsCacheKey(accountID), cloneModelMetaMap(metas), supersetModelsTTL)
+}
+
+// cachedAccountUpstreamMeta returns a previously-cached per-account upstream meta map, or
+// nil if absent. Read-only; never triggers an upstream call (used by the nil-httpUpstream
+// path so seeded test data flows through, and harmless in production where the cache is
+// empty until a real probe populates it).
+func (s *GatewayService) cachedAccountUpstreamMeta(accountID int64) map[string]modelsuperset.ModelMeta {
+	if s == nil || s.modelsListCache == nil {
+		return nil
+	}
+	if cached, found := s.modelsListCache.Get(accountUpstreamModelsCacheKey(accountID)); found {
+		if metas, ok := cached.(map[string]modelsuperset.ModelMeta); ok {
+			return cloneModelMetaMap(metas)
+		}
+	}
+	return nil
+}
+
 // supersetCacheEntry is the cached fusion result for a group.
 type supersetCacheEntry struct {
-	ids     []string
-	origins map[string]string
-	metas   map[string]modelsuperset.ModelMeta // client-facing id → real upstream caps
+	ids       []string
+	origins   map[string]string
+	metas     map[string]modelsuperset.ModelMeta // client-facing id → real upstream caps
+	upstreams map[string]string                  // client-facing id → real upstream model name
 }
 
 // GetSupersetModels returns the deduplicated client-facing model ids for the group's
@@ -60,11 +89,11 @@ type supersetCacheEntry struct {
 // Concurrent misses for the same group collapse through singleflight: the aggregation
 // fans out real upstream /v1/models requests (and may trigger OAuth refresh), so without
 // this a cache expiry under load would self-DDoS the account pool.
-func (s *GatewayService) GetSupersetModels(ctx context.Context, groupID *int64) ([]string, map[string]string, map[string]modelsuperset.ModelMeta) {
+func (s *GatewayService) GetSupersetModels(ctx context.Context, groupID *int64) ([]string, map[string]string, map[string]modelsuperset.ModelMeta, map[string]string) {
 	cacheKey := supersetModelsCacheKey(groupID)
 	if entry, ok := s.lookupSupersetCache(cacheKey); ok {
 		modelsListCacheHitTotal.Add(1)
-		return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins), cloneModelMetaMap(entry.metas)
+		return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins), cloneModelMetaMap(entry.metas), cloneOriginMap(entry.upstreams)
 	}
 	modelsListCacheMissTotal.Add(1)
 
@@ -92,7 +121,7 @@ func (s *GatewayService) GetSupersetModels(ctx context.Context, groupID *int64) 
 		return entry, nil
 	})
 	entry, _ := v.(supersetCacheEntry)
-	return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins), cloneModelMetaMap(entry.metas)
+	return cloneStringSlice(entry.ids), cloneOriginMap(entry.origins), cloneModelMetaMap(entry.metas), cloneOriginMap(entry.upstreams)
 }
 
 func (s *GatewayService) lookupSupersetCache(cacheKey string) (supersetCacheEntry, bool) {
@@ -156,6 +185,14 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 		acc := accounts[idx]
 		g.Go(func() error {
 			if s.httpUpstream == nil {
+				// No live upstream (unit tests). Still honor a pre-seeded cache entry so
+				// tests can inject real meta; an empty cache just yields no metadata.
+				if cached := s.cachedAccountUpstreamMeta(acc.ID); cached != nil {
+					fetched[idx] = cached
+					if mappingOf[idx] == nil {
+						exposed[idx] = sortedMetaKeys(cached)
+					}
+				}
 				return nil
 			}
 			cctx, cancel := context.WithTimeout(gctx, supersetUpstreamTimeout)
@@ -182,6 +219,7 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 	// reverse-looking-up the mapping value for mapped accounts.
 	origins := make(map[string]string)
 	metaByID := make(map[string]modelsuperset.ModelMeta)
+	upstreamByID := make(map[string]string)
 	for i := range accounts {
 		platform := accounts[i].Platform
 		for _, id := range exposed[i] {
@@ -196,6 +234,12 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 				if v, ok := m[id]; ok {
 					upstreamID = v
 				}
+			}
+			// Record the real upstream name this client-facing id resolves to (the mapping
+			// value, or the id itself for no-mapping accounts). Used to serve real names to
+			// non-Claude/non-Codex clients. First write wins (stable across the fan-out).
+			if _, ok := upstreamByID[id]; !ok {
+				upstreamByID[id] = upstreamID
 			}
 			if meta, ok := fetched[i][upstreamID]; ok && meta.MaxInputTokens > 0 {
 				// Write first non-zero; prefer anthropic-origin when filling an existing 0.
@@ -214,7 +258,7 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	return supersetCacheEntry{ids: ids, origins: origins, metas: metaByID}
+	return supersetCacheEntry{ids: ids, origins: origins, metas: metaByID, upstreams: upstreamByID}
 }
 
 // sortedMetaKeys returns the map's keys sorted, for a stable exposed-id list.

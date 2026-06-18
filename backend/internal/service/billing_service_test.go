@@ -25,9 +25,10 @@ func TestCalculateCost_BasicComputation(t *testing.T) {
 	cost, err := svc.CalculateCost("claude-sonnet-4", tokens, 1.0)
 	require.NoError(t, err)
 
-	// 1000 * 3e-6 = 0.003, 500 * 15e-6 = 0.0075
-	expectedInput := 1000 * 3e-6
-	expectedOutput := 500 * 15e-6
+	// 价格单位已从 USD 切换为 U（1 USD = USDToU=70 U），回退价在 initFallbackPricing 末尾 ×USDToU。
+	// 1000 * 3e-6*70, 500 * 15e-6*70
+	expectedInput := 1000 * 3e-6 * USDToU
+	expectedOutput := 500 * 15e-6 * USDToU
 	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
 	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, cost.TotalCost, 1e-10)
@@ -46,8 +47,9 @@ func TestCalculateCost_WithCacheTokens(t *testing.T) {
 	cost, err := svc.CalculateCost("claude-sonnet-4", tokens, 1.0)
 	require.NoError(t, err)
 
-	expectedCacheCreation := 2000 * 3.75e-6
-	expectedCacheRead := 3000 * 0.3e-6
+	// 回退价已 ×USDToU（USD→U 单位切换）
+	expectedCacheCreation := 2000 * 3.75e-6 * USDToU
+	expectedCacheRead := 3000 * 0.3e-6 * USDToU
 	require.InDelta(t, expectedCacheCreation, cost.CacheCreationCost, 1e-10)
 	require.InDelta(t, expectedCacheRead, cost.CacheReadCost, 1e-10)
 
@@ -102,16 +104,20 @@ func TestCalculateCost_NegativeMultiplierDefaultsToOne(t *testing.T) {
 func TestGetModelPricing_Opus48DirectAndFamilyMatch(t *testing.T) {
 	svc := newTestBillingService()
 
+	// Prices are in U units (1 USD = USDToU = 70). Opus 4.8 reuses the Opus-4.5
+	// family price ($5/$25 per MTok): input 5e-6*70=0.00035, output 2.5e-5*70=0.00175.
+	// (Regression guard: 4.8 previously fell through to claude-3-opus = 3x overbill.)
+
 	// Direct match
 	p, err := svc.GetModelPricing("claude-opus-4-8")
 	require.NoError(t, err)
-	require.InDelta(t, 5e-6, p.InputPricePerToken, 1e-12, "claude-opus-4-8 input price")
-	require.InDelta(t, 2.5e-5, p.OutputPricePerToken, 1e-12, "claude-opus-4-8 output price")
+	require.InDelta(t, 0.00035, p.InputPricePerToken, 1e-9, "claude-opus-4-8 input price")
+	require.InDelta(t, 0.00175, p.OutputPricePerToken, 1e-9, "claude-opus-4-8 output price")
 
 	// Family fallback via variant name
 	p2, err := svc.GetModelPricing("claude-opus-4.8-20260522")
 	require.NoError(t, err)
-	require.InDelta(t, 5e-6, p2.InputPricePerToken, 1e-12, "claude-opus-4.8 variant input price")
+	require.InDelta(t, 0.00035, p2.InputPricePerToken, 1e-9, "claude-opus-4.8 variant input price")
 }
 
 func TestGetModelPricing_FallbackMatchesByFamily(t *testing.T) {
@@ -132,7 +138,8 @@ func TestGetModelPricing_FallbackMatchesByFamily(t *testing.T) {
 	for _, tt := range tests {
 		pricing, err := svc.GetModelPricing(tt.model)
 		require.NoError(t, err, "模型 %s", tt.model)
-		require.InDelta(t, tt.expectedInput, pricing.InputPricePerToken, 1e-12, "模型 %s 输入价格", tt.model)
+		// 表中 expectedInput 为 USD 原价，回退价已 ×USDToU（USD→U 单位切换）
+		require.InDelta(t, tt.expectedInput*USDToU, pricing.InputPricePerToken, 1e-12, "模型 %s 输入价格", tt.model)
 	}
 }
 
@@ -154,7 +161,8 @@ func TestGetModelPricing_UnknownClaudeModelFallsBackToSonnet(t *testing.T) {
 	// 不包含 opus/sonnet/haiku 关键词的 Claude 模型会走默认 Sonnet 价格
 	pricing, err := svc.GetModelPricing("claude-unknown-model")
 	require.NoError(t, err)
-	require.InDelta(t, 3e-6, pricing.InputPricePerToken, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）：sonnet $3/MTok
+	require.InDelta(t, 3e-6*USDToU, pricing.InputPricePerToken, 1e-12)
 }
 
 func TestGetModelPricing_UnknownOpenAIModelReturnsError(t *testing.T) {
@@ -172,7 +180,8 @@ func TestGetModelPricing_OpenAIGPT51Fallback(t *testing.T) {
 	pricing, err := svc.GetModelPricing("gpt-5.1")
 	require.NoError(t, err)
 	require.NotNil(t, pricing)
-	require.InDelta(t, 1.25e-6, pricing.InputPricePerToken, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）
+	require.InDelta(t, 1.25e-6*USDToU, pricing.InputPricePerToken, 1e-12)
 }
 
 func TestGetModelPricing_OpenAIGPT54Fallback(t *testing.T) {
@@ -181,9 +190,10 @@ func TestGetModelPricing_OpenAIGPT54Fallback(t *testing.T) {
 	pricing, err := svc.GetModelPricing("gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, pricing)
-	require.InDelta(t, 2.5e-6, pricing.InputPricePerToken, 1e-12)
-	require.InDelta(t, 15e-6, pricing.OutputPricePerToken, 1e-12)
-	require.InDelta(t, 0.25e-6, pricing.CacheReadPricePerToken, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）；倍率/阈值为无量纲，不转换
+	require.InDelta(t, 2.5e-6*USDToU, pricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 15e-6*USDToU, pricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 0.25e-6*USDToU, pricing.CacheReadPricePerToken, 1e-12)
 	require.Equal(t, 272000, pricing.LongContextInputThreshold)
 	require.InDelta(t, 2.0, pricing.LongContextInputMultiplier, 1e-12)
 	require.InDelta(t, 1.5, pricing.LongContextOutputMultiplier, 1e-12)
@@ -195,9 +205,10 @@ func TestGetModelPricing_OpenAIGPT54MiniFallback(t *testing.T) {
 	pricing, err := svc.GetModelPricing("gpt-5.4-mini")
 	require.NoError(t, err)
 	require.NotNil(t, pricing)
-	require.InDelta(t, 7.5e-7, pricing.InputPricePerToken, 1e-12)
-	require.InDelta(t, 4.5e-6, pricing.OutputPricePerToken, 1e-12)
-	require.InDelta(t, 7.5e-8, pricing.CacheReadPricePerToken, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）
+	require.InDelta(t, 7.5e-7*USDToU, pricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 4.5e-6*USDToU, pricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 7.5e-8*USDToU, pricing.CacheReadPricePerToken, 1e-12)
 	require.Zero(t, pricing.LongContextInputThreshold)
 }
 
@@ -207,9 +218,10 @@ func TestGetModelPricing_OpenAIGPT54NanoFallback(t *testing.T) {
 	pricing, err := svc.GetModelPricing("gpt-5.4-nano")
 	require.NoError(t, err)
 	require.NotNil(t, pricing)
-	require.InDelta(t, 2e-7, pricing.InputPricePerToken, 1e-12)
-	require.InDelta(t, 1.25e-6, pricing.OutputPricePerToken, 1e-12)
-	require.InDelta(t, 2e-8, pricing.CacheReadPricePerToken, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）
+	require.InDelta(t, 2e-7*USDToU, pricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 1.25e-6*USDToU, pricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 2e-8*USDToU, pricing.CacheReadPricePerToken, 1e-12)
 	require.Zero(t, pricing.LongContextInputThreshold)
 }
 
@@ -224,8 +236,9 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesWholeSessionMultipliers(t *t
 	cost, err := svc.CalculateCost("gpt-5.4-2026-03-05", tokens, 1.0)
 	require.NoError(t, err)
 
-	expectedInput := float64(tokens.InputTokens) * 2.5e-6 * 2.0
-	expectedOutput := float64(tokens.OutputTokens) * 15e-6 * 1.5
+	// 回退价已 ×USDToU（USD→U 单位切换）；长上下文倍率 2.0/1.5 为无量纲，不转换
+	expectedInput := float64(tokens.InputTokens) * 2.5e-6 * USDToU * 2.0
+	expectedOutput := float64(tokens.OutputTokens) * 15e-6 * USDToU * 1.5
 	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
 	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, cost.TotalCost, 1e-10)
@@ -266,7 +279,8 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 				return
 			}
 			require.NotNil(t, pricing)
-			require.InDelta(t, tt.expectedInput, pricing.InputPricePerToken, 1e-12)
+			// 表中 expectedInput 为 USD 原价，回退价已 ×USDToU（USD→U 单位切换）
+			require.InDelta(t, tt.expectedInput*USDToU, pricing.InputPricePerToken, 1e-12)
 		})
 	}
 }
@@ -557,9 +571,9 @@ func TestCalculateCost_LargeTokenCount(t *testing.T) {
 	cost, err := svc.CalculateCost("claude-sonnet-4", tokens, 1.0)
 	require.NoError(t, err)
 
-	// Input: 1M * 3e-6 = $3, Output: 1M * 15e-6 = $15
-	require.InDelta(t, 3.0, cost.InputCost, 1e-6)
-	require.InDelta(t, 15.0, cost.OutputCost, 1e-6)
+	// 回退价已 ×USDToU（USD→U 单位切换）：1M*3e-6*70=210, 1M*15e-6*70=1050
+	require.InDelta(t, 3.0*USDToU, cost.InputCost, 1e-6)
+	require.InDelta(t, 15.0*USDToU, cost.OutputCost, 1e-6)
 	require.False(t, math.IsNaN(cost.TotalCost))
 	require.False(t, math.IsInf(cost.TotalCost, 0))
 }
@@ -694,15 +708,16 @@ func TestBillingServiceGetModelPricing_OpenAIFallbackGpt52Variants(t *testing.T)
 	gpt52, err := svc.GetModelPricing("gpt-5.2")
 	require.NoError(t, err)
 	require.NotNil(t, gpt52)
-	require.InDelta(t, 1.75e-6, gpt52.InputPricePerToken, 1e-12)
-	require.InDelta(t, 3.5e-6, gpt52.InputPricePerTokenPriority, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）
+	require.InDelta(t, 1.75e-6*USDToU, gpt52.InputPricePerToken, 1e-12)
+	require.InDelta(t, 3.5e-6*USDToU, gpt52.InputPricePerTokenPriority, 1e-12)
 
 	gpt52Codex, err := svc.GetModelPricing("gpt-5.2-codex")
 	require.NoError(t, err)
 	require.NotNil(t, gpt52Codex)
-	require.InDelta(t, 1.75e-6, gpt52Codex.InputPricePerToken, 1e-12)
-	require.InDelta(t, 3.5e-6, gpt52Codex.InputPricePerTokenPriority, 1e-12)
-	require.InDelta(t, 28e-6, gpt52Codex.OutputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, 1.75e-6*USDToU, gpt52Codex.InputPricePerToken, 1e-12)
+	require.InDelta(t, 3.5e-6*USDToU, gpt52Codex.InputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, 28e-6*USDToU, gpt52Codex.OutputPricePerTokenPriority, 1e-12)
 }
 
 func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWhenExplicitPriceMissing(t *testing.T) {
@@ -736,17 +751,18 @@ func TestGetModelPricing_OpenAIGpt52FallbacksExposePriorityPrices(t *testing.T) 
 
 	gpt52, err := svc.GetModelPricing("gpt-5.2")
 	require.NoError(t, err)
-	require.InDelta(t, 1.75e-6, gpt52.InputPricePerToken, 1e-12)
-	require.InDelta(t, 3.5e-6, gpt52.InputPricePerTokenPriority, 1e-12)
-	require.InDelta(t, 14e-6, gpt52.OutputPricePerToken, 1e-12)
-	require.InDelta(t, 28e-6, gpt52.OutputPricePerTokenPriority, 1e-12)
+	// 回退价已 ×USDToU（USD→U 单位切换）
+	require.InDelta(t, 1.75e-6*USDToU, gpt52.InputPricePerToken, 1e-12)
+	require.InDelta(t, 3.5e-6*USDToU, gpt52.InputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, 14e-6*USDToU, gpt52.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 28e-6*USDToU, gpt52.OutputPricePerTokenPriority, 1e-12)
 
 	gpt52Codex, err := svc.GetModelPricing("gpt-5.2-codex")
 	require.NoError(t, err)
-	require.InDelta(t, 1.75e-6, gpt52Codex.InputPricePerToken, 1e-12)
-	require.InDelta(t, 3.5e-6, gpt52Codex.InputPricePerTokenPriority, 1e-12)
-	require.InDelta(t, 14e-6, gpt52Codex.OutputPricePerToken, 1e-12)
-	require.InDelta(t, 28e-6, gpt52Codex.OutputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, 1.75e-6*USDToU, gpt52Codex.InputPricePerToken, 1e-12)
+	require.InDelta(t, 3.5e-6*USDToU, gpt52Codex.InputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, 14e-6*USDToU, gpt52Codex.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 28e-6*USDToU, gpt52Codex.OutputPricePerTokenPriority, 1e-12)
 }
 
 func TestGetModelPricing_MapsDynamicPriorityFieldsIntoBillingPricing(t *testing.T) {

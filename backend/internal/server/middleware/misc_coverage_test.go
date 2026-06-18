@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -118,8 +119,13 @@ func TestAPIKeyAndSubscriptionFromContext(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, int64(1), gotKey.ID)
 
-	sub := &service.UserSubscription{ID: 2}
-	c.Set(string(ContextKeySubscription), sub)
+	// GetSubscriptionFromContext was refactored: it now derives the representative
+	// subscription from a MergedSubscriptionState (ContextKeyMergedSubscription) via
+	// FIFOTarget(), not a directly-set ContextKeySubscription. FIFOTarget only returns
+	// a non-expired entry, so the sub needs a future ExpiresAt.
+	sub := &service.UserSubscription{ID: 2, ExpiresAt: time.Now().Add(24 * time.Hour)}
+	state := &service.MergedSubscriptionState{FIFOQueue: []service.UserSubscription{*sub}}
+	c.Set(string(ContextKeyMergedSubscription), state)
 	gotSub, ok := GetSubscriptionFromContext(c)
 	require.True(t, ok)
 	require.Equal(t, int64(2), gotSub.ID)

@@ -59,6 +59,39 @@ func (s *APIKeyRepoSuite) TestGetByID_NotFound() {
 	s.Require().Error(err, "expected error for non-existent ID")
 }
 
+func (s *APIKeyRepoSuite) TestGetByID_LoadsAuthEdges() {
+	user := s.mustCreateUser("getbyid-auth-edges@test.com")
+	group := s.mustCreateGroup("g-getbyid-auth-edges")
+	plan := s.mustCreatePlan("p-getbyid-auth-edges")
+
+	_, err := s.client.Group.UpdateOneID(group.ID).
+		SetVisibility(service.VisibilitySubscriber).
+		AddVisiblePlanIDs(plan.ID).
+		Save(s.ctx)
+	s.Require().NoError(err, "bind visible plan")
+	_, err = s.client.User.UpdateOneID(user.ID).
+		AddAllowedGroupIDs(group.ID).
+		Save(s.ctx)
+	s.Require().NoError(err, "bind allowed group")
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbyid-auth-edges",
+		Name:    "OAuth Profile Key",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err, "GetByID")
+	s.Require().NotNil(got.User, "expected User preload")
+	s.Require().ElementsMatch([]int64{group.ID}, got.User.AllowedGroups)
+	s.Require().NotNil(got.Group, "expected Group preload")
+	s.Require().Equal(service.VisibilitySubscriber, got.Group.Visibility)
+	s.Require().ElementsMatch([]int64{plan.ID}, got.Group.VisiblePlanIDs)
+}
+
 func (s *APIKeyRepoSuite) TestGetByKey() {
 	user := s.mustCreateUser("getbykey@test.com")
 	group := s.mustCreateGroup("g-key")
@@ -371,6 +404,18 @@ func (s *APIKeyRepoSuite) mustCreateGroup(name string) *service.Group {
 		Save(s.ctx)
 	s.Require().NoError(err, "create group")
 	return groupEntityToService(g)
+}
+
+func (s *APIKeyRepoSuite) mustCreatePlan(name string) *service.SubscriptionPlan {
+	s.T().Helper()
+
+	p, err := s.client.SubscriptionPlan.Create().
+		SetName(name).
+		SetStatus(service.StatusActive).
+		SetVisibility(service.VisibilityPublic).
+		Save(s.ctx)
+	s.Require().NoError(err, "create subscription plan")
+	return subscriptionPlanEntityToService(p)
 }
 
 func (s *APIKeyRepoSuite) mustCreateApiKey(userID int64, key, name string, groupID *int64) *service.APIKey {

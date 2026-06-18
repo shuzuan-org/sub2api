@@ -313,6 +313,12 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 
 	// 按模型系列匹配
 	if strings.Contains(modelLower, "opus") {
+		// 高版本在前。opus-4.8/4.7/4.6 复用 opus-4.5 家族价（见 fallbackPrices 别名）。
+		// 缺失的版本 case 会 fall through 到 claude-3-opus 旧价（$15/$75），比 opus-4.x
+		// 家族价（$5/$25）贵 3 倍——新增 opus 版本必须在此补 case，否则静默超收。
+		if strings.Contains(modelLower, "4.8") || strings.Contains(modelLower, "4-8") {
+			return s.fallbackPrices["claude-opus-4.7"]
+		}
 		if strings.Contains(modelLower, "4.7") || strings.Contains(modelLower, "4-7") {
 			return s.fallbackPrices["claude-opus-4.7"]
 		}

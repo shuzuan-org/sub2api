@@ -59,25 +59,31 @@ func (u *User) IsActive() bool {
 	return u.Status == StatusActive
 }
 
-// CanBindGroup checks whether a user can bind to a given group based on its visibility.
-//   - public:     all users can bind
-//   - private:    only users with the group in AllowedGroups (admin-assigned) can bind
-//   - subscriber: only users holding an active subscription whose plan is in the group's
+// CanBindGroup checks whether a user can bind to a given group.
+//
+// Priority (highest first):
+//  1. admin-assigned: if the group is in the user's AllowedGroups, the user can bind
+//     REGARDLESS of visibility — an explicit assignment overrides public/subscriber/private.
+//  2. public:     all users can bind.
+//  3. subscriber: only users holding an active subscription whose plan is in the group's
 //     visible-plan set can bind (OR semantics: any matching plan grants access).
+//  4. private (not assigned) / unknown: not visible.
 //
 // groupVisiblePlanIDs is the group's bound plan set; userActivePlanIDs is the set of plan
 // IDs the user currently holds an active (non-expired) subscription for.
 func (u *User) CanBindGroup(groupID int64, visibility string, groupVisiblePlanIDs, userActivePlanIDs []int64) bool {
+	// Priority 1: an explicit admin assignment overrides every visibility rule.
+	for _, id := range u.AllowedGroups {
+		if id == groupID {
+			return true
+		}
+	}
+
 	switch visibility {
 	case VisibilityPublic:
 		return true
 	case VisibilityPrivate:
-		// 专属分组：需要在 AllowedGroups 中（管理员单独授权）。
-		for _, id := range u.AllowedGroups {
-			if id == groupID {
-				return true
-			}
-		}
+		// 专属分组：未在 AllowedGroups 中（上面已检查）则不可见。
 		return false
 	case VisibilitySubscriber:
 		// 订阅会员可见：用户持有的有效订阅 plan 与分组绑定 plan 有交集即可见。
