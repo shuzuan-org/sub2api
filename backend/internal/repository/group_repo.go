@@ -34,13 +34,26 @@ func newGroupRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *groupRep
 	return &groupRepository{client: client, sql: sqlq}
 }
 
+func normalizeGroupVisibility(g *service.Group) string {
+	if g == nil {
+		return service.VisibilityPublic
+	}
+	if strings.TrimSpace(g.Visibility) != "" {
+		return g.Visibility
+	}
+	if g.IsExclusive {
+		return service.VisibilityPrivate
+	}
+	return service.VisibilityPublic
+}
+
 func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) error {
 	builder := clientFromContext(ctx, r.client).Group.Create().
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
 		SetRateMultiplier(groupIn.RateMultiplier).
-		SetVisibility(groupIn.Visibility).
+		SetVisibility(normalizeGroupVisibility(groupIn)).
 		SetStatus(groupIn.Status).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
@@ -115,7 +128,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
 		SetRateMultiplier(groupIn.RateMultiplier).
-		SetVisibility(groupIn.Visibility).
+		SetVisibility(normalizeGroupVisibility(groupIn)).
 		SetStatus(groupIn.Status).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).

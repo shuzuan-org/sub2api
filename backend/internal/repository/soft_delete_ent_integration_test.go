@@ -127,17 +127,29 @@ func createEntGroup(t *testing.T, ctx context.Context, client *dbent.Client, nam
 	return g
 }
 
+func createEntSubscriptionPlan(t *testing.T, ctx context.Context, client *dbent.Client, name string) *dbent.SubscriptionPlan {
+	t.Helper()
+
+	p, err := client.SubscriptionPlan.Create().
+		SetName(name).
+		SetStatus(service.StatusActive).
+		SetVisibility(service.VisibilityPublic).
+		Save(ctx)
+	require.NoError(t, err, "create ent subscription plan")
+	return p
+}
+
 func TestEntSoftDelete_UserSubscription_DefaultFilterAndSkip(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
 
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-user")+"@example.com")
-	g := createEntGroup(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-group"))
+	p := createEntSubscriptionPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan"))
 
 	repo := NewUserSubscriptionRepository(client)
 	sub := &service.UserSubscription{
 		UserID:    u.ID,
-		GroupID:   g.ID,
+		PlanID:    p.ID,
 		Status:    service.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
@@ -164,12 +176,12 @@ func TestEntSoftDelete_UserSubscription_DeleteIdempotent(t *testing.T) {
 	client := testEntClient(t)
 
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-user2")+"@example.com")
-	g := createEntGroup(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-group2"))
+	p := createEntSubscriptionPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan2"))
 
 	repo := NewUserSubscriptionRepository(client)
 	sub := &service.UserSubscription{
 		UserID:    u.ID,
-		GroupID:   g.ID,
+		PlanID:    p.ID,
 		Status:    service.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
@@ -184,14 +196,14 @@ func TestEntSoftDelete_UserSubscription_ListExcludesDeleted(t *testing.T) {
 	client := testEntClient(t)
 
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-user3")+"@example.com")
-	g1 := createEntGroup(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-group3a"))
-	g2 := createEntGroup(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-group3b"))
+	p1 := createEntSubscriptionPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan3a"))
+	p2 := createEntSubscriptionPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan3b"))
 
 	repo := NewUserSubscriptionRepository(client)
 
 	sub1 := &service.UserSubscription{
 		UserID:    u.ID,
-		GroupID:   g1.ID,
+		PlanID:    p1.ID,
 		Status:    service.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
@@ -199,7 +211,7 @@ func TestEntSoftDelete_UserSubscription_ListExcludesDeleted(t *testing.T) {
 
 	sub2 := &service.UserSubscription{
 		UserID:    u.ID,
-		GroupID:   g2.ID,
+		PlanID:    p2.ID,
 		Status:    service.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}

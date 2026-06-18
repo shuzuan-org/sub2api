@@ -369,8 +369,8 @@ func (s *RedeemCodeRepoSuite) TestCreateBatch_Filters_Use_Idempotency_ListByUser
 	s.Require().NoError(err, "ListWithFilters")
 	s.Require().Equal(int64(1), page.Total)
 	s.Require().Len(list, 1)
-	s.Require().NotNil(list[0].Group, "expected Group preload")
-	s.Require().Equal(group.ID, list[0].Group.ID)
+	s.Require().NotNil(list[0].Plan, "expected Plan preload")
+	s.Require().Equal(plan.ID, list[0].Plan.ID)
 
 	codeB, err := s.repo.GetByCode(s.ctx, "CODEB")
 	s.Require().NoError(err, "GetByCode")
