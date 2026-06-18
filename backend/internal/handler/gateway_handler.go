@@ -898,7 +898,13 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	// parse needed (matches the validator's Step 2). Every other client (codex,
 	// metacode_cli_rs, …) gets the real names untouched. sub2api is the only layer that
 	// does this name adaptation; the upstreams themselves always tell the truth.
-	if claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
+	//
+	// Gated on anthropic platform: an OpenAI-platform group serves Codex/OpenAI clients
+	// with gpt-* names, and a claude-cli client hitting it is an edge case we must NOT
+	// "fix" by filtering — that would drop every (legitimately non-claude) gpt id and
+	// fall back to the default gpt list, which is worse than the real catalog. Only an
+	// anthropic group adapts upstreams behind Claude names, so only it gets the filter.
+	if platform == service.PlatformAnthropic && claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
 		ids = modelsuperset.FilterForClaudeCode(ids, so)
 	}
 
@@ -983,10 +989,11 @@ func (h *GatewayHandler) Model(c *gin.Context) {
 
 	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
 	so := toSupersetOrigins(origins)
-	// Same client-source filter as the listing (GET /v1/models): a Claude Code client must
-	// not be able to single-look-up a raw upstream name that the listing hides from it, or
-	// existence would disagree between the two endpoints.
-	if claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
+	// Same client-source filter as the listing (GET /v1/models), with the same
+	// anthropic-only gate: a Claude Code client must not single-look-up a raw upstream
+	// name the listing hides from it, and an OpenAI-platform group must not be filtered
+	// at all — otherwise the two endpoints would disagree on existence.
+	if platform == service.PlatformAnthropic && claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
 		ids = modelsuperset.FilterForClaudeCode(ids, so)
 	}
 	if key, origin, ok := modelsuperset.MatchModelID(id, ids, so); ok {

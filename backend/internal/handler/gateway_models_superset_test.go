@@ -281,3 +281,86 @@ func TestModelsHandler_CapacityAbsentOmitsFields(t *testing.T) {
 	require.NotContains(t, resp, "remaining")
 	require.NotContains(t, resp, "unit")
 }
+
+// openaiGroupCtx wires an API key bound to an OpenAI-platform group.
+func openaiGroupCtx(c *gin.Context) {
+	groupID := int64(8)
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID:      100,
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Name:     "OpenAI Group",
+			Platform: service.PlatformOpenAI,
+			Status:   service.StatusActive,
+		},
+	})
+}
+
+// mappedOpenAIAccount exposes a gpt-* key via model_mapping (no httpUpstream needed).
+func mappedOpenAIAccount() service.Account {
+	return service.Account{
+		ID:          2,
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{
+			"api_key":       "ak",
+			"model_mapping": map[string]any{"gpt-5.5": "gpt-5.5"},
+		},
+	}
+}
+
+// TestModelsHandler_ClaudeCodeFilterAnthropicOnly pins the platform gate on the
+// client-source filter: a claude-cli client hitting an ANTHROPIC group sees the
+// claude-* mapping key, but the SAME client hitting an OPENAI group must still see the
+// gpt-* name — the filter must not strip it and fall back to the default gpt list.
+func TestModelsHandler_ClaudeCodeFilterAnthropicOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// anthropic group + claude-cli: claude-opus-4-8 (a claude-family mapping key) survives.
+	gwA := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{mappedAnthropicAccount()}})
+	hA := &GatewayHandler{gatewayService: gwA}
+	wA := httptest.NewRecorder()
+	cA, _ := gin.CreateTestContext(wA)
+	cA.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	cA.Request.Header.Set("User-Agent", "claude-cli/2.1.0")
+	anthropicGroupCtx(cA)
+	hA.Models(cA)
+	require.Equal(t, http.StatusOK, wA.Code)
+	var respA map[string]any
+	require.NoError(t, json.Unmarshal(wA.Body.Bytes(), &respA))
+	idsA := modelIDs(respA)
+	require.Contains(t, idsA, "claude-opus-4-8", "claude-family id must survive the filter")
+
+	// openai group + claude-cli: gpt-5.5 must NOT be filtered (platform gate). Without the
+	// gate it would be stripped (non-claude) and the handler would fall back to the default
+	// gpt list — a regression this test guards against.
+	gwO := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{mappedOpenAIAccount()}})
+	hO := &GatewayHandler{gatewayService: gwO}
+	wO := httptest.NewRecorder()
+	cO, _ := gin.CreateTestContext(wO)
+	cO.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	cO.Request.Header.Set("User-Agent", "claude-cli/2.1.0")
+	openaiGroupCtx(cO)
+	hO.Models(cO)
+	require.Equal(t, http.StatusOK, wO.Code)
+	var respO map[string]any
+	require.NoError(t, json.Unmarshal(wO.Body.Bytes(), &respO))
+	idsO := modelIDs(respO)
+	require.Contains(t, idsO, "gpt-5.5", "openai group must not be claude-code-filtered")
+}
+
+func modelIDs(resp map[string]any) []string {
+	data, _ := resp["data"].([]any)
+	out := make([]string, 0, len(data))
+	for _, d := range data {
+		if m, ok := d.(map[string]any); ok {
+			if id, ok := m["id"].(string); ok {
+				out = append(out, id)
+			}
+		}
+	}
+	return out
+}
