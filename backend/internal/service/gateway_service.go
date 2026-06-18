@@ -5299,7 +5299,7 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 	}
 
 	maxBytes := resolveUpstreamResponseReadLimit(s.cfg)
-	body, err := readUpstreamResponseBodyLimited(resp.Body, maxBytes)
+	body, err := readUpstreamResponseBodyWithHeaders(resp.Body, resp.Header, maxBytes)
 	if err != nil {
 		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
 			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
@@ -5677,7 +5677,7 @@ func (s *GatewayService) handleBedrockNonStreamingResponse(
 	account *Account,
 ) (*ClaudeUsage, error) {
 	maxBytes := resolveUpstreamResponseReadLimit(s.cfg)
-	body, err := readUpstreamResponseBodyLimited(resp.Body, maxBytes)
+	body, err := readUpstreamResponseBodyWithHeaders(resp.Body, resp.Header, maxBytes)
 	if err != nil {
 		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
 			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
@@ -7340,7 +7340,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 
 	maxBytes := resolveUpstreamResponseReadLimit(s.cfg)
-	body, err := readUpstreamResponseBodyLimited(resp.Body, maxBytes)
+	body, err := readUpstreamResponseBodyWithHeaders(resp.Body, resp.Header, maxBytes)
 	if err != nil {
 		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
 			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
@@ -7360,6 +7360,30 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 		Usage ClaudeUsage `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &response); err != nil {
+		// Upstream returned invalid JSON as 200 OK (not an HTTP error, but a protocol error)
+		// This can happen when upstream returns HTML error pages or non-standard responses
+		// with 200 status. Log details and return a proper error to the client.
+		bodySnip := string(body)
+		if len(bodySnip) > 500 {
+			bodySnip = bodySnip[:500]
+		}
+		slog.Error("upstream returned non-JSON response as 200 OK",
+			"account_id", account.ID,
+			"account_name", account.Name,
+			"http_status", resp.StatusCode,
+			"content_type", resp.Header.Get("Content-Type"),
+			"upstream_body_snippet", bodySnip,
+			"parse_error", err.Error())
+
+		// Return error response to client instead of letting error propagate
+		setOpsUpstreamError(c, http.StatusBadGateway, "upstream returned invalid response format", "")
+		c.JSON(http.StatusBadGateway, gin.H{
+			"type": "error",
+			"error": gin.H{
+				"type":    "upstream_error",
+				"message": "Upstream returned invalid response format",
+			},
+		})
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
 
@@ -8366,7 +8390,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 
 	// 读取响应体
 	maxReadBytes := resolveUpstreamResponseReadLimit(s.cfg)
-	respBody, err := readUpstreamResponseBodyLimited(resp.Body, maxReadBytes)
+	respBody, err := readUpstreamResponseBodyWithHeaders(resp.Body, resp.Header, maxReadBytes)
 	_ = resp.Body.Close()
 	if err != nil {
 		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
@@ -8388,7 +8412,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 			retryResp, retryErr := s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 			if retryErr == nil {
 				resp = retryResp
-				respBody, err = readUpstreamResponseBodyLimited(resp.Body, maxReadBytes)
+				respBody, err = readUpstreamResponseBodyWithHeaders(resp.Body, resp.Header, maxReadBytes)
 				_ = resp.Body.Close()
 				if err != nil {
 					if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
@@ -8492,7 +8516,7 @@ func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx contex
 	}
 
 	maxReadBytes := resolveUpstreamResponseReadLimit(s.cfg)
-	respBody, err := readUpstreamResponseBodyLimited(resp.Body, maxReadBytes)
+	respBody, err := readUpstreamResponseBodyWithHeaders(resp.Body, resp.Header, maxReadBytes)
 	_ = resp.Body.Close()
 	if err != nil {
 		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
