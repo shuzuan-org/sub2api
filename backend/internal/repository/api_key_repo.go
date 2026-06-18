@@ -140,6 +140,12 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				user.FieldBalance,
 				user.FieldConcurrency,
 			)
+			// Load the user's admin-assigned groups (ids only). CanBindGroup treats an
+			// assignment as overriding any visibility, so the auth middleware needs this to
+			// let an assigned user into a subscriber/private group without a subscription.
+			q.WithAllowedGroups(func(gq *dbent.GroupQuery) {
+				gq.Select(group.FieldID)
+			})
 		}).
 		WithGroup(func(q *dbent.GroupQuery) {
 			q.Select(
@@ -178,7 +184,20 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 		}
 		return nil, err
 	}
-	return apiKeyEntityToService(m), nil
+	out := apiKeyEntityToService(m)
+	// apiKeyEntityToService doesn't carry the allowed_groups edge (it's a join table, not a
+	// User column), so fill it here from the edge we loaded above. CanBindGroup uses it to
+	// let an admin-assigned user into a subscriber/private group without a subscription.
+	if m.Edges.User != nil && out.User != nil {
+		if groups, gerr := m.Edges.User.Edges.AllowedGroupsOrErr(); gerr == nil {
+			ids := make([]int64, 0, len(groups))
+			for _, g := range groups {
+				ids = append(ids, g.ID)
+			}
+			out.User.AllowedGroups = ids
+		}
+	}
+	return out, nil
 }
 
 func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) error {

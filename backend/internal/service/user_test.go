@@ -63,6 +63,30 @@ func TestUser_CanBindGroup(t *testing.T) {
 			visibility: "weird",
 			want:       false,
 		},
+		{
+			// Bug fix: an admin assignment overrides subscriber — an assigned user can use
+			// a subscriber group even with no matching subscription.
+			name:             "subscriber but assigned overrides (no subscription)",
+			visibility:       VisibilitySubscriber,
+			allowedGroups:    []int64{42},
+			groupVisiblePlan: []int64{1, 2},
+			userActivePlan:   nil,
+			want:             true,
+		},
+		{
+			// Assignment also overrides an empty/unknown visibility (which otherwise denies).
+			name:          "unknown visibility but assigned overrides",
+			visibility:    "",
+			allowedGroups: []int64{42},
+			want:          true,
+		},
+		{
+			name:          "assignment to a different group does not grant access",
+			visibility:    VisibilitySubscriber,
+			allowedGroups: []int64{7, 99},
+			userActivePlan: nil,
+			want:          false,
+		},
 	}
 
 	for _, tt := range tests {

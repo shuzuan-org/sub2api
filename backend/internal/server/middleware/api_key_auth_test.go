@@ -22,10 +22,11 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	group := &service.Group{
-		ID:       42,
-		Name:     "sub",
-		Status:   service.StatusActive,
-		Hydrated: true,
+		ID:         42,
+		Name:       "sub",
+		Status:     service.StatusActive,
+		Visibility: service.VisibilityPublic,
+		Hydrated:   true,
 	}
 	user := &service.User{
 		ID:          7,
