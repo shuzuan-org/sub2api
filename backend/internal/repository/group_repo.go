@@ -261,6 +261,14 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 		}
 	}
 
+	visiblePlanIDs, err := r.LoadVisiblePlansByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range outGroups {
+		outGroups[i].VisiblePlanIDs = visiblePlanIDs[outGroups[i].ID]
+	}
+
 	return outGroups, paginationResultFromTotal(int64(total), params), nil
 }
 
