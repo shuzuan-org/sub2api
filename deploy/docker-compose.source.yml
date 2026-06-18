@@ -45,6 +45,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:-}
       - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
       - TZ=${TZ:-Asia/Shanghai}
+      - GOPROXY=${GOPROXY:-https://goproxy.cn,direct}
+      - GOSUMDB=${GOSUMDB:-sum.golang.google.cn}
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,9 +62,10 @@ services:
       start_period: 30s
     command: >
       sh -c '
+        sed -i "s@dl-cdn.alpinelinux.org@mirrors.ustc.edu.cn@g" /etc/apk/repositories &&
         apk add --no-cache git ca-certificates tzdata build-base wget &&
         if [ ! -x /go/bin/air ]; then
-          go install github.com/air-verse/air@latest;
+          GOPROXY=https://goproxy.cn,direct GOSUMDB=sum.golang.google.cn go install github.com/air-verse/air@latest;
         fi &&
         /go/bin/air -c .air.toml
       '
