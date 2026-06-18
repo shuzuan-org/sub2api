@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/modelsuperset"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -415,4 +416,37 @@ func modelIDs(resp map[string]any) []string {
 		}
 	}
 	return out
+}
+
+// TestModelsHandler_RealNameKeepsUpstreamMeta is the regression for the production bug
+// where the non-Claude/non-Codex ("real upstream name") branch dropped metas to nil, so a
+// real model like MiniMax-M3 came back with max_input_tokens=0. We inject the account's
+// real upstream meta via the cache (httpUpstream is nil in unit tests), then assert the
+// deduped real name carries the true window through to the JSON response.
+func TestModelsHandler_RealNameKeepsUpstreamMeta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gw := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{group38Account()}})
+	// group38Account ID=3; its five aliases all map to MiniMax-M3. Seed the real upstream
+	// caps the way a live probe would have.
+	gw.SeedAccountUpstreamMetaForTest(3, map[string]modelsuperset.ModelMeta{
+		"MiniMax-M3": {MaxInputTokens: 512000, MaxOutputTokens: 128000},
+	})
+	h := &GatewayHandler{gatewayService: gw}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Request.Header.Set("User-Agent", "curl/8.0") // "other" → real-name branch
+	anthropicGroupCtx(c)
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	data := resp["data"].([]any)
+	require.Len(t, data, 1)
+	m := data[0].(map[string]any)
+	require.Equal(t, "MiniMax-M3", m["id"])
+	require.Equal(t, float64(512000), m["max_input_tokens"], "real name must keep its true window, not 0")
+	require.Equal(t, float64(128000), m["max_tokens"], "real name must keep its true output cap, not 0")
 }

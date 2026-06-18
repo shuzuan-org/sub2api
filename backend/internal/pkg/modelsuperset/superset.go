@@ -316,8 +316,11 @@ func RealUpstreamNames(ids []string, upstreams map[string]string, metas map[stri
 			up = id // no mapping recorded → the id IS the real name
 		}
 		seen[up] = struct{}{}
-		// Carry the real caps onto the upstream name. Prefer the first non-zero
-		// max_input_tokens seen (aliases of one upstream share the same real value).
+		// Carry the real caps onto the upstream name. Aliases of one upstream are ASSUMED to
+		// share the same real meta (they come from one upstream probe), so first-non-zero
+		// wins. If two aliases ever resolved to genuinely different meta for the same upstream
+		// name (misconfig, or split across accounts), this silently keeps the first — a known,
+		// currently-unobserved fragility, not a guarantee.
 		if cur, ok := outMetas[up]; !ok || (cur.MaxInputTokens == 0 && metas[id].MaxInputTokens > 0) {
 			outMetas[up] = metas[id]
 		}
