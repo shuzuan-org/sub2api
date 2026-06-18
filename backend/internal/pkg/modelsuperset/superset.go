@@ -89,6 +89,9 @@ var (
 	// claudeFamilyBases: the whole current Claude line. Capabilities every 4.x model
 	// supports key off this.
 	claudeFamilyBases = []string{"opus", "sonnet", "haiku"}
+	// gptFamilyBases: the OpenAI GPT line. Used to surface only gpt-* names to a Codex
+	// client. Matched as a delimited token (gpt-5, gpt-5.5-codex, …), never a bare substring.
+	gptFamilyBases = []string{"gpt"}
 	// effortMaxBases: tiers whose `effort` capability includes the "max" level.
 	effortMaxBases = []string{"opus", "sonnet"}
 	// oneMillionBases: Anthropic families Claude Code treats as 1M-context. Matched as
@@ -140,6 +143,10 @@ func modelSupports1M(normalized string) bool {
 
 func isClaudeFamily(normalized string) bool {
 	return modelMatchesAnyBase(normalized, claudeFamilyBases...)
+}
+
+func isGPTFamily(normalized string) bool {
+	return modelMatchesAnyBase(normalized, gptFamilyBases...)
 }
 
 // modelContextWindow returns the CC-visible context window for a Claude display model
@@ -258,28 +265,58 @@ func BuildList(ids []string, origins map[string]Origin, metas map[string]ModelMe
 }
 
 // FilterForClaudeCode keeps only Claude-family ids (claude-opus/sonnet/haiku and their
-// variants) from the listing set, dropping any raw upstream name (minimax-m2.7, glm-5.2,
-// gpt-*, …). It exists because a pure Claude Code client (User-Agent claude-cli/x.y.z)
-// only recognizes claude-* model names: shown a real upstream name it silently refuses
-// and never sends a request. sub2api is the only layer allowed to "lie" this way —
-// it adapts every anthropic-platform upstream behind a Claude name. A group that wants a
-// real provider visible to Claude Code must configure a model_mapping (claude-name →
-// upstream); the mapping KEY is a claude-* name and survives this filter, while a
-// no-mapping account's raw name is correctly dropped.
+// variants) from the listing set. A pure Claude Code client (User-Agent claude-cli/x.y.z)
+// only recognizes claude-* names: shown a raw upstream name (minimax-m2.7, gpt-5.5, …) it
+// silently refuses and never sends a request. So we surface only the claude-* mapping keys
+// an operator configured. If the group has no claude-* mapping key, the result is empty —
+// the handler must return an empty list, NOT fabricate default claude names that can't
+// route here.
 //
-// Returned ids preserve the input order. origins is read-only. Callers pass the result
-// straight to BuildList; an empty result lets the handler fall back to a default Claude
-// model set (still all claude-* names), never an empty or raw-name list.
+// Filtering is purely by NAME shape (mapping key), independent of the upstream platform:
+// an anthropic group may expose a gpt-5.5 alias and an openai group is just as likely to
+// carry claude aliases. origins is unused here (kept for signature symmetry with callers).
+// Returned ids preserve input order.
 func FilterForClaudeCode(ids []string, origins map[string]Origin) []string {
+	return filterByFamily(ids, isClaudeFamily)
+}
+
+// FilterForCodex keeps only GPT-family ids (gpt-*) from the listing set. A Codex client
+// recognizes gpt-* names; same contract as FilterForClaudeCode but for the OpenAI line.
+// Empty result → empty list (no fabricated defaults).
+func FilterForCodex(ids []string, origins map[string]Origin) []string {
+	return filterByFamily(ids, isGPTFamily)
+}
+
+// filterByFamily keeps ids whose normalized name matches the predicate, preserving order.
+func filterByFamily(ids []string, match func(string) bool) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
-		// Only anthropic-origin claude-family names. An OpenAI-origin id that happens to
-		// contain a claude token is not a thing we serve to Claude Code, so gate on origin
-		// too (defensive; the listing set is already platform-fused).
-		if origins[id] == OriginAnthropic && isClaudeFamily(NormalizeModelName(id)) {
+		if match(NormalizeModelName(id)) {
 			out = append(out, id)
 		}
 	}
+	return out
+}
+
+// RealUpstreamNames returns the distinct real upstream model names backing the listing,
+// for clients that are neither Claude Code nor Codex. upstreams maps each client-facing id
+// (a mapping key, or the raw name for no-mapping accounts) to the real upstream model it
+// resolves to. Multiple aliases collapsing onto one upstream (e.g. group 38's five keys all
+// → MiniMax-M3) yield a single entry. Order is the sorted upstream-name order for stability.
+func RealUpstreamNames(ids []string, upstreams map[string]string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		up := upstreams[id]
+		if up == "" {
+			up = id // no mapping recorded → the id IS the real name
+		}
+		seen[up] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for up := range seen {
+		out = append(out, up)
+	}
+	sort.Strings(out)
 	return out
 }
 

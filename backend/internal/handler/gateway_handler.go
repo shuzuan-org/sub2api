@@ -23,7 +23,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/modelsuperset"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -888,54 +887,39 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	}
 
 	// anthropic+openai: fuse real upstream catalogs into a dual-protocol superset.
-	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	ids, origins, metas, upstreams := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
 	so := toSupersetOrigins(origins)
 
-	// Client-source branching: a pure Claude Code client (User-Agent claude-cli/x.y.z)
-	// only recognizes claude-* names, so for it we drop every raw upstream name and show
-	// only the claude-family ids (the mapping keys an operator configured). /v1/models is
-	// a non-messages path, so the UA check alone is the authoritative signal — no body
-	// parse needed (matches the validator's Step 2). Every other client (codex,
-	// metacode_cli_rs, …) gets the real names untouched. sub2api is the only layer that
-	// does this name adaptation; the upstreams themselves always tell the truth.
-	//
-	// Gated on anthropic platform: an OpenAI-platform group serves Codex/OpenAI clients
-	// with gpt-* names, and a claude-cli client hitting it is an edge case we must NOT
-	// "fix" by filtering — that would drop every (legitimately non-claude) gpt id and
-	// fall back to the default gpt list, which is worse than the real catalog. Only an
-	// anthropic group adapts upstreams behind Claude names, so only it gets the filter.
-	if platform == service.PlatformAnthropic && claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
+	// Client-source branching by User-Agent — sub2api is the only layer that adapts model
+	// names; the upstreams themselves always report the truth. /v1/models is a non-messages
+	// path, so the UA alone is the authoritative signal (no body parse). Filtering is purely
+	// by NAME shape of the mapping keys, independent of group platform:
+	//   - Claude Code (claude-cli/x.y.z) → only claude-* mapping keys (opus/sonnet/haiku).
+	//   - Codex (codex_cli_rs / Codex Desktop / codex_vscode) → only gpt-* mapping keys.
+	//   - Anything else → the real upstream model names (deduped), no aliases.
+	// "No matching name → empty" is intentional: we never fabricate default names that the
+	// group can't actually route. The named client just sees an empty list and the operator
+	// must configure the mapping it wants exposed.
+	ua := c.GetHeader("User-Agent")
+	switch {
+	case claudeCodeValidator.ValidateUserAgent(ua):
 		ids = modelsuperset.FilterForClaudeCode(ids, so)
+	case codexValidator.ValidateUserAgent(ua):
+		ids = modelsuperset.FilterForCodex(ids, so)
+	default:
+		ids = modelsuperset.RealUpstreamNames(ids, upstreams)
+		// Real upstream names have no mapping-key metadata/caps; reset so BuildModel derives
+		// from the name itself (origins/metas are keyed by client-facing id, not upstream).
+		so = nil
+		metas = nil
 	}
 
-	if len(ids) > 0 {
-		list := modelsuperset.BuildList(ids, so, metas)
-		if remaining, unit, ok := h.callerRemaining(c); ok {
-			list.Remaining = &remaining
-			list.Unit = unit
-		}
-		c.JSON(http.StatusOK, list)
-		return
+	list := modelsuperset.BuildList(ids, so, metas)
+	if remaining, unit, ok := h.callerRemaining(c); ok {
+		list.Remaining = &remaining
+		list.Unit = unit
 	}
-
-	// Fallback to default models when the group contributes nothing. NOTE: a claude-cli
-	// client whose group is all no-mapping non-claude upstreams lands here too (the filter
-	// emptied ids). claude.DefaultModels is then a deliberate "don't let CC spin on an
-	// empty /v1/models" answer — those default claude-* names may NOT be routable in this
-	// group, so a follow-up request can 404. That is intended: a clear 404 beats an
-	// infinite models-refresh loop. The real fix is to configure a model_mapping.
-	if platform == "openai" {
-		c.JSON(http.StatusOK, gin.H{
-			"object": "list",
-			"data":   openai.DefaultModels,
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"object": "list",
-		"data":   claude.DefaultModels,
-	})
+	c.JSON(http.StatusOK, list)
 }
 
 // Model handles GET /v1/models/{id} — single-model lookup. It mirrors GET /v1/models
@@ -987,14 +971,21 @@ func (h *GatewayHandler) Model(c *gin.Context) {
 		return
 	}
 
-	ids, origins, metas := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
+	ids, origins, metas, upstreams := h.gatewayService.GetSupersetModels(c.Request.Context(), groupID)
 	so := toSupersetOrigins(origins)
-	// Same client-source filter as the listing (GET /v1/models), with the same
-	// anthropic-only gate: a Claude Code client must not single-look-up a raw upstream
-	// name the listing hides from it, and an OpenAI-platform group must not be filtered
-	// at all — otherwise the two endpoints would disagree on existence.
-	if platform == service.PlatformAnthropic && claudeCodeValidator.ValidateUserAgent(c.GetHeader("User-Agent")) {
+	// Same client-source branching as the listing (GET /v1/models), so existence never
+	// disagrees between the list and the single-lookup: the model set the client can see
+	// is filtered identically by User-Agent before matching the requested id.
+	ua := c.GetHeader("User-Agent")
+	switch {
+	case claudeCodeValidator.ValidateUserAgent(ua):
 		ids = modelsuperset.FilterForClaudeCode(ids, so)
+	case codexValidator.ValidateUserAgent(ua):
+		ids = modelsuperset.FilterForCodex(ids, so)
+	default:
+		ids = modelsuperset.RealUpstreamNames(ids, upstreams)
+		so = nil
+		metas = nil
 	}
 	if key, origin, ok := modelsuperset.MatchModelID(id, ids, so); ok {
 		obj := modelsuperset.BuildModel(key, origin, metas[key])

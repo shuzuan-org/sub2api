@@ -55,6 +55,7 @@ func TestModelsHandler_DualProtocolSuperset(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Request.Header.Set("User-Agent", "claude-cli/2.1.0") // claude branch → mapping keys
 	anthropicGroupCtx(c)
 
 	h.Models(c)
@@ -88,6 +89,7 @@ func TestModelsHandler_SingleModelLookupAndRoundTrip(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models/claude-opus-4-8[1m]", nil)
+	c.Request.Header.Set("User-Agent", "claude-cli/2.1.0") // claude branch → mapping key visible
 	c.Params = gin.Params{{Key: "id", Value: "claude-opus-4-8[1m]"}}
 	anthropicGroupCtx(c)
 
@@ -316,40 +318,90 @@ func mappedOpenAIAccount() service.Account {
 // client-source filter: a claude-cli client hitting an ANTHROPIC group sees the
 // claude-* mapping key, but the SAME client hitting an OPENAI group must still see the
 // gpt-* name — the filter must not strip it and fall back to the default gpt list.
-func TestModelsHandler_ClaudeCodeFilterAnthropicOnly(t *testing.T) {
+// group38Account mirrors production group 38: one anthropic upstream (MiniMax-M3) fronted
+// by five mapping aliases (3 claude + 1 gpt + the real name). Used to verify all three
+// User-Agent branches off a single backing model.
+func group38Account() service.Account {
+	return service.Account{
+		ID:          3,
+		Platform:    service.PlatformAnthropic,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{
+			"api_key": "ak",
+			"model_mapping": map[string]any{
+				"claude-opus-4-8":   "MiniMax-M3",
+				"claude-sonnet-4-6": "MiniMax-M3",
+				"claude-haiku-4-5":  "MiniMax-M3",
+				"gpt-5.5":           "MiniMax-M3",
+				"MiniMax-M3":        "MiniMax-M3",
+			},
+		},
+	}
+}
+
+func modelsForUA(t *testing.T, ua string) []string {
+	t.Helper()
+	gw := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{group38Account()}})
+	h := &GatewayHandler{gatewayService: gw}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	if ua != "" {
+		c.Request.Header.Set("User-Agent", ua)
+	}
+	anthropicGroupCtx(c)
+	h.Models(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	return modelIDs(resp)
+}
+
+// TestModelsHandler_ThreeWayClientBranching pins the by-User-Agent name adaptation off a
+// single real model (MiniMax-M3) with five aliases: Claude Code sees only the claude-*
+// keys, Codex sees only the gpt-* key, and any other client sees the deduped real name.
+func TestModelsHandler_ThreeWayClientBranching(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// anthropic group + claude-cli: claude-opus-4-8 (a claude-family mapping key) survives.
-	gwA := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{mappedAnthropicAccount()}})
-	hA := &GatewayHandler{gatewayService: gwA}
-	wA := httptest.NewRecorder()
-	cA, _ := gin.CreateTestContext(wA)
-	cA.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	cA.Request.Header.Set("User-Agent", "claude-cli/2.1.0")
-	anthropicGroupCtx(cA)
-	hA.Models(cA)
-	require.Equal(t, http.StatusOK, wA.Code)
-	var respA map[string]any
-	require.NoError(t, json.Unmarshal(wA.Body.Bytes(), &respA))
-	idsA := modelIDs(respA)
-	require.Contains(t, idsA, "claude-opus-4-8", "claude-family id must survive the filter")
+	// Claude Code → only the three claude-* aliases.
+	cc := modelsForUA(t, "claude-cli/2.1.0")
+	require.ElementsMatch(t, []string{"claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"}, cc)
 
-	// openai group + claude-cli: gpt-5.5 must NOT be filtered (platform gate). Without the
-	// gate it would be stripped (non-claude) and the handler would fall back to the default
-	// gpt list — a regression this test guards against.
-	gwO := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{mappedOpenAIAccount()}})
-	hO := &GatewayHandler{gatewayService: gwO}
-	wO := httptest.NewRecorder()
-	cO, _ := gin.CreateTestContext(wO)
-	cO.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	cO.Request.Header.Set("User-Agent", "claude-cli/2.1.0")
-	openaiGroupCtx(cO)
-	hO.Models(cO)
-	require.Equal(t, http.StatusOK, wO.Code)
-	var respO map[string]any
-	require.NoError(t, json.Unmarshal(wO.Body.Bytes(), &respO))
-	idsO := modelIDs(respO)
-	require.Contains(t, idsO, "gpt-5.5", "openai group must not be claude-code-filtered")
+	// Codex → only the gpt-* alias.
+	codex := modelsForUA(t, "codex_cli_rs/0.80.0 (Mac OS; arm64)")
+	require.Equal(t, []string{"gpt-5.5"}, codex)
+
+	// Codex Desktop UA form also matches.
+	codexDesktop := modelsForUA(t, "Codex Desktop/0.140.0-alpha.19 (Mac OS 26.5.1; arm64)")
+	require.Equal(t, []string{"gpt-5.5"}, codexDesktop)
+
+	// Anything else → the single deduped real upstream name, no aliases.
+	other := modelsForUA(t, "curl/8.0")
+	require.Equal(t, []string{"MiniMax-M3"}, other)
+
+	// Empty UA also falls to the "other" branch.
+	noUA := modelsForUA(t, "")
+	require.Equal(t, []string{"MiniMax-M3"}, noUA)
+}
+
+// TestModelsHandler_ClaudeCodeNoMatchEmpty: a claude-cli client hitting a group with no
+// claude alias gets an empty list (no fabricated defaults), per the "no match → empty" rule.
+func TestModelsHandler_ClaudeCodeNoMatchEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	gw := newMinimalGatewayService(&stubAccountRepoForHandler{accounts: []service.Account{mappedOpenAIAccount()}})
+	h := &GatewayHandler{gatewayService: gw}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Request.Header.Set("User-Agent", "claude-cli/2.1.0")
+	openaiGroupCtx(c)
+	h.Models(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Empty(t, modelIDs(resp), "no claude alias → empty list, not default models")
 }
 
 func modelIDs(resp map[string]any) []string {

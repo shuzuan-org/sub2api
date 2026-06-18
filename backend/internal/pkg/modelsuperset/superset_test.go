@@ -229,38 +229,67 @@ func TestBuildModel_OutputCapPassthrough(t *testing.T) {
 }
 
 func TestFilterForClaudeCode(t *testing.T) {
-	origins := map[string]Origin{
-		"claude-opus-4-8":   OriginAnthropic, // mapping key — kept
-		"claude-sonnet-4-6": OriginAnthropic, // kept
-		"minimax-m2.7":      OriginAnthropic, // raw anthropic upstream name — dropped
-		"glm-5.2":           OriginAnthropic, // raw — dropped
-		"gpt-5":             OriginOpenAI,    // openai — dropped
-		"claude-haiku-4-5":  OriginOpenAI,    // claude token but openai origin — dropped (defensive)
-	}
+	// Filtering is purely by NAME shape (mapping key), independent of platform/origin —
+	// an anthropic group may carry a gpt-5.5 alias, so origin is NOT a gate.
 	ids := []string{"claude-opus-4-8", "minimax-m2.7", "gpt-5", "claude-sonnet-4-6", "glm-5.2", "claude-haiku-4-5"}
-	got := FilterForClaudeCode(ids, origins)
+	got := FilterForClaudeCode(ids, nil)
 
-	want := map[string]bool{"claude-opus-4-8": true, "claude-sonnet-4-6": true}
+	want := []string{"claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"}
 	if len(got) != len(want) {
-		t.Fatalf("got %v, want only the two anthropic claude-family ids", got)
+		t.Fatalf("got %v, want the three claude-family ids", got)
 	}
-	for _, id := range got {
-		if !want[id] {
-			t.Errorf("unexpected id kept: %q", id)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("got %v, want %v (order preserved)", got, want)
 		}
-	}
-	// Order preservation: claude-opus-4-8 comes before claude-sonnet-4-6 in input.
-	if got[0] != "claude-opus-4-8" || got[1] != "claude-sonnet-4-6" {
-		t.Errorf("order not preserved: %v", got)
 	}
 }
 
-func TestFilterForClaudeCode_AllRawIsEmpty(t *testing.T) {
-	// A group of only no-mapping minimax accounts → nothing survives → empty, so the
-	// handler falls back to the default claude model set (never a raw-name list).
-	origins := map[string]Origin{"minimax-m2.7": OriginAnthropic, "minimax-m2.7-highspeed": OriginAnthropic}
-	got := FilterForClaudeCode([]string{"minimax-m2.7", "minimax-m2.7-highspeed"}, origins)
+func TestFilterForCodex(t *testing.T) {
+	ids := []string{"claude-opus-4-8", "gpt-5.5", "minimax-m2.7", "gpt-5.4-mini", "MiniMax-M3"}
+	got := FilterForCodex(ids, nil)
+	want := []string{"gpt-5.5", "gpt-5.4-mini"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestFilterForClaudeCode_NoMatchIsEmpty(t *testing.T) {
+	// A group with only non-claude mapping keys → empty (no fabricated defaults).
+	got := FilterForClaudeCode([]string{"minimax-m2.7", "gpt-5.5"}, nil)
 	if len(got) != 0 {
 		t.Errorf("expected empty, got %v", got)
+	}
+}
+
+func TestRealUpstreamNames_Dedup(t *testing.T) {
+	// group-38 shape: five mapping keys all resolve to one upstream → one real name.
+	ids := []string{"claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5", "gpt-5.5", "MiniMax-M3"}
+	upstreams := map[string]string{
+		"claude-opus-4-8":   "MiniMax-M3",
+		"claude-sonnet-4-6": "MiniMax-M3",
+		"claude-haiku-4-5":  "MiniMax-M3",
+		"gpt-5.5":           "MiniMax-M3",
+		"MiniMax-M3":        "MiniMax-M3",
+	}
+	got := RealUpstreamNames(ids, upstreams)
+	if len(got) != 1 || got[0] != "MiniMax-M3" {
+		t.Fatalf("got %v, want [MiniMax-M3]", got)
+	}
+}
+
+func TestRealUpstreamNames_MultipleUpstreams(t *testing.T) {
+	// A group fronting two real models → both surface, sorted, deduped.
+	ids := []string{"claude-opus-4-8", "gpt-5.5", "deepseek-x"}
+	upstreams := map[string]string{
+		"claude-opus-4-8": "minimax-m3",
+		"gpt-5.5":         "minimax-m3", // alias collapses
+		"deepseek-x":      "deepseek-v4-pro",
+		// no entry for a hypothetical no-mapping id → id itself is the real name
+	}
+	got := RealUpstreamNames(ids, upstreams)
+	want := []string{"deepseek-v4-pro", "minimax-m3"} // sorted
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }
