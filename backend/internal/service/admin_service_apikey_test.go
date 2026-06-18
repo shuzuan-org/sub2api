@@ -402,7 +402,9 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_NilCacheInvalidator(t *testing.T)
 func TestAdminService_AdminUpdateAPIKeyGroupID_ExclusiveGroup_AddsAllowedGroup(t *testing.T) {
 	existing := &APIKey{ID: 1, UserID: 42, Key: "sk-test", GroupID: nil}
 	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
-	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 10, Name: "Exclusive", Status: StatusActive, IsExclusive: true}}
+	// 专属判定已从 is_exclusive 布尔迁移到 Visibility=="private"（group.IsPrivate()
+	// 只看 Visibility，不再回退 IsExclusive 字段），故 stub 必须设 Visibility: VisibilityPrivate。
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 10, Name: "Exclusive", Status: StatusActive, Visibility: VisibilityPrivate}}
 	userRepo := &userRepoStubForGroupUpdate{}
 	cache := &authCacheInvalidatorStub{}
 	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, groupRepo: groupRepo, userRepo: userRepo, authCacheInvalidator: cache}
@@ -441,7 +443,8 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_NonExclusiveGroup_NoAllowedGroupU
 func TestAdminService_AdminUpdateAPIKeyGroupID_ExclusiveGroup_AllowedGroupAddFails_ReturnsError(t *testing.T) {
 	existing := &APIKey{ID: 1, UserID: 42, Key: "sk-test", GroupID: nil}
 	apiKeyRepo := &apiKeyRepoStubForGroupUpdate{key: existing}
-	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 10, Name: "Exclusive", Status: StatusActive, IsExclusive: true}}
+	// 专属判定看 Visibility=="private"，不再回退 IsExclusive 布尔，故 stub 设 Visibility。
+	groupRepo := &groupRepoStubForGroupUpdate{group: &Group{ID: 10, Name: "Exclusive", Status: StatusActive, Visibility: VisibilityPrivate}}
 	userRepo := &userRepoStubForGroupUpdate{addGroupErr: errors.New("db error")}
 	svc := &adminServiceImpl{apiKeyRepo: apiKeyRepo, groupRepo: groupRepo, userRepo: userRepo}
 

@@ -12,14 +12,14 @@ import (
 func TestCalculateImageCost_DefaultPricing(t *testing.T) {
 	svc := &BillingService{} // pricingService 为 nil，使用硬编码默认值
 
-	// 2K 尺寸，默认价格 $0.134 * 1.5 = $0.201
+	// 2K 尺寸，默认价格 0.134 USD × USDToU(70) × 1.5 = 14.07 U
 	cost := svc.CalculateImageCost("gemini-3-pro-image", "2K", 1, nil, 1.0)
-	require.InDelta(t, 0.201, cost.TotalCost, 0.0001)
-	require.InDelta(t, 0.201, cost.ActualCost, 0.0001)
+	require.InDelta(t, 14.07, cost.TotalCost, 0.0001)
+	require.InDelta(t, 14.07, cost.ActualCost, 0.0001)
 
-	// 多张图片
+	// 多张图片：14.07 × 3 = 42.21 U
 	cost = svc.CalculateImageCost("gemini-3-pro-image", "2K", 3, nil, 1.0)
-	require.InDelta(t, 0.603, cost.TotalCost, 0.0001)
+	require.InDelta(t, 42.21, cost.TotalCost, 0.0001)
 }
 
 // TestCalculateImageCost_GroupCustomPricing 测试分组自定义价格
@@ -52,24 +52,24 @@ func TestCalculateImageCost_GroupCustomPricing(t *testing.T) {
 func TestCalculateImageCost_4KDoublePrice(t *testing.T) {
 	svc := &BillingService{}
 
-	// 4K 尺寸，默认价格翻倍 $0.134 * 2 = $0.268
+	// 4K 尺寸，默认价格翻倍 0.134 USD × USDToU(70) × 2 = 18.76 U
 	cost := svc.CalculateImageCost("gemini-3-pro-image", "4K", 1, nil, 1.0)
-	require.InDelta(t, 0.268, cost.TotalCost, 0.0001)
+	require.InDelta(t, 18.76, cost.TotalCost, 0.0001)
 }
 
 // TestCalculateImageCost_RateMultiplier 测试费率倍数
 func TestCalculateImageCost_RateMultiplier(t *testing.T) {
 	svc := &BillingService{}
 
-	// 费率倍数 1.5x
+	// 费率倍数 1.5x（2K 默认价 14.07 U）
 	cost := svc.CalculateImageCost("gemini-3-pro-image", "2K", 1, nil, 1.5)
-	require.InDelta(t, 0.201, cost.TotalCost, 0.0001)   // TotalCost = 0.134 * 1.5
-	require.InDelta(t, 0.3015, cost.ActualCost, 0.0001) // ActualCost = 0.201 * 1.5
+	require.InDelta(t, 14.07, cost.TotalCost, 0.0001)    // TotalCost = 9.38 × 1.5
+	require.InDelta(t, 21.105, cost.ActualCost, 0.0001)  // ActualCost = 14.07 × 1.5
 
-	// 费率倍数 2.0x
+	// 费率倍数 2.0x（2K 默认价 14.07 U × 2 张 = 28.14 U）
 	cost = svc.CalculateImageCost("gemini-3-pro-image", "2K", 2, nil, 2.0)
-	require.InDelta(t, 0.402, cost.TotalCost, 0.0001)
-	require.InDelta(t, 0.804, cost.ActualCost, 0.0001)
+	require.InDelta(t, 28.14, cost.TotalCost, 0.0001)
+	require.InDelta(t, 56.28, cost.ActualCost, 0.0001)
 }
 
 // TestCalculateImageCost_ZeroCount 测试 imageCount=0
@@ -95,8 +95,8 @@ func TestCalculateImageCost_ZeroRateMultiplier(t *testing.T) {
 	svc := &BillingService{}
 
 	cost := svc.CalculateImageCost("gemini-3-pro-image", "2K", 1, nil, 0)
-	require.InDelta(t, 0.201, cost.TotalCost, 0.0001)
-	require.InDelta(t, 0.201, cost.ActualCost, 0.0001) // 0 倍率当作 1.0 处理
+	require.InDelta(t, 14.07, cost.TotalCost, 0.0001)
+	require.InDelta(t, 14.07, cost.ActualCost, 0.0001) // 0 倍率当作 1.0 处理
 }
 
 // TestGetImageUnitPrice_GroupPriorityOverDefault 测试分组价格优先于默认价格
@@ -127,23 +127,23 @@ func TestGetImageUnitPrice_PartialGroupConfig(t *testing.T) {
 	cost := svc.CalculateImageCost("gemini-3-pro-image", "1K", 1, groupConfig, 1.0)
 	require.InDelta(t, 0.10, cost.TotalCost, 0.0001)
 
-	// 2K 回退默认价格 $0.201 (1.5倍)
+	// 2K 回退默认价格 9.38 U × 1.5 = 14.07 U
 	cost = svc.CalculateImageCost("gemini-3-pro-image", "2K", 1, groupConfig, 1.0)
-	require.InDelta(t, 0.201, cost.TotalCost, 0.0001)
+	require.InDelta(t, 14.07, cost.TotalCost, 0.0001)
 
-	// 4K 回退默认价格 $0.268 (翻倍)
+	// 4K 回退默认价格 9.38 U × 2 = 18.76 U
 	cost = svc.CalculateImageCost("gemini-3-pro-image", "4K", 1, groupConfig, 1.0)
-	require.InDelta(t, 0.268, cost.TotalCost, 0.0001)
+	require.InDelta(t, 18.76, cost.TotalCost, 0.0001)
 }
 
 // TestGetDefaultImagePrice_FallbackHardcoded 测试 PricingService 无数据时使用硬编码默认值
 func TestGetDefaultImagePrice_FallbackHardcoded(t *testing.T) {
 	svc := &BillingService{} // pricingService 为 nil
 
-	// 1K 默认价格 $0.134，2K 默认价格 $0.201 (1.5倍)
+	// 1K 默认价格 9.38 U (0.134 × 70)，2K 默认价格 14.07 U (1.5倍)
 	cost := svc.CalculateImageCost("gemini-3-pro-image", "1K", 1, nil, 1.0)
-	require.InDelta(t, 0.134, cost.TotalCost, 0.0001)
+	require.InDelta(t, 9.38, cost.TotalCost, 0.0001)
 
 	cost = svc.CalculateImageCost("gemini-3-pro-image", "2K", 1, nil, 1.0)
-	require.InDelta(t, 0.201, cost.TotalCost, 0.0001)
+	require.InDelta(t, 14.07, cost.TotalCost, 0.0001)
 }
