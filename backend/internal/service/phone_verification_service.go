@@ -86,7 +86,6 @@ func (s *PhoneVerificationService) GenerateVerifyCode() (string, error) {
 }
 
 // SendVerifyCode 发送短信验证码到指定手机号。
-// 当腾讯云短信未配置时，使用固定 mock 验证码 "888888" 写入 Redis，方便本地/测试环境跑通全链路。
 func (s *PhoneVerificationService) SendVerifyCode(ctx context.Context, phone string) (int, error) {
 	// 检查是否在冷却期内
 	existing, err := s.cache.GetSmsCode(ctx, phone)
@@ -96,24 +95,24 @@ func (s *PhoneVerificationService) SendVerifyCode(ctx context.Context, phone str
 		}
 	}
 
+	// 检查短信配置
+	enabled, signName, templateID, sdkAppID, cfgErr := s.getSMSConfig(ctx)
+	if cfgErr != nil {
+		return phoneVerifyCodeCooldownSecs, cfgErr
+	}
+	if !enabled {
+		return phoneVerifyCodeCooldownSecs, ErrPhoneSMSNotConfigured
+	}
+
 	// 生成验证码
 	code, err := s.GenerateVerifyCode()
 	if err != nil {
 		return phoneVerifyCodeCooldownSecs, fmt.Errorf("generate code: %w", err)
 	}
 
-	// 检查短信是否已配置；未配置时用 mock 验证码 "888888"
-	enabled, signName, templateID, sdkAppID, cfgErr := s.getSMSConfig(ctx)
-	if cfgErr != nil {
-		return phoneVerifyCodeCooldownSecs, cfgErr
-	}
-	if !enabled {
-		code = "888888"
-	} else {
-		// 发送真实短信
-		if err := s.sender.SendSMS(ctx, phone, code, signName, templateID, sdkAppID); err != nil {
-			return phoneVerifyCodeCooldownSecs, fmt.Errorf("send sms: %w", err)
-		}
+	// 发送真实短信
+	if err := s.sender.SendSMS(ctx, phone, code, signName, templateID, sdkAppID); err != nil {
+		return phoneVerifyCodeCooldownSecs, fmt.Errorf("send sms: %w", err)
 	}
 
 	// 保存到 Redis

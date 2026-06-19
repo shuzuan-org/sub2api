@@ -55,7 +55,7 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 		"SmsSdkAppId":      sdkAppID,
 		"SignName":         signName,
 		"TemplateId":       templateID,
-		"TemplateParamSet": []string{code},
+		"TemplateParamSet": []string{code, "15"},
 	}
 
 	payload, err := json.Marshal(body)
@@ -73,7 +73,8 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 	httpRequestMethod := "POST"
 	canonicalURI := "/"
 	canonicalQueryString := ""
-	canonicalHeaders := fmt.Sprintf("content-type:application/json; charset=utf-8\nhost:%s\nx-tc-action:SendSms\n", host)
+	action := "SendSms"
+	canonicalHeaders := fmt.Sprintf("content-type:application/json; charset=utf-8\nhost:%s\nx-tc-action:%s\n", host, strings.ToLower(action))
 	signedHeaders := "content-type;host;x-tc-action"
 	hashedRequestPayload := sha256Hex(payload)
 	canonicalRequest := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s",
@@ -103,7 +104,7 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Host", host)
-	req.Header.Set("X-TC-Action", "SendSms")
+	req.Header.Set("X-TC-Action", action)
 	req.Header.Set("X-TC-Version", "2021-01-11")
 	req.Header.Set("X-TC-Timestamp", fmt.Sprintf("%d", timestamp))
 	req.Header.Set("X-TC-Region", region)
@@ -139,6 +140,11 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 
 	if result.Response.Error.Code != "" {
 		return fmt.Errorf("sms api error: %s - %s", result.Response.Error.Code, result.Response.Error.Message)
+	}
+	for _, status := range result.Response.SendStatusSet {
+		if status.Code != "Ok" {
+			return fmt.Errorf("sms send status error: %s - %s", status.Code, status.Message)
+		}
 	}
 
 	return nil
