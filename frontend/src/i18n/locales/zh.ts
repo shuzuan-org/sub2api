@@ -931,7 +931,7 @@ export default {
       sendCode: '发送验证码',
       sendFailed: '发送验证码失败',
       codeSent: '验证码已发送',
-      bindButton: '绑定并领取 100U',
+      bindButton: '绑定并领取奖励',
       binding: '绑定中...',
       boundSuccess: '手机号已绑定',
       boundSuccessToast: '手机号绑定成功，已赠送 100U 余额',
