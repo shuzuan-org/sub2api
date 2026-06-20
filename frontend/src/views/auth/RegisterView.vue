@@ -191,7 +191,7 @@
         </template>
 
         <!-- Invitation Code Input (Optional when enabled) -->
-        <div v-if="invitationCodeEnabled">
+        <div v-if="invitationCodeEnabled || inviteCodeFromUrl">
           <label for="invitation_code" class="input-label">
             {{ t('auth.invitationCodeLabel') }}
             <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
@@ -361,6 +361,7 @@ const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
 const registrationMode = ref<'email' | 'phone'>('email')
 const phoneRegistrationEnabled = ref<boolean>(false)
+const inviteCodeFromUrl = ref<boolean>(false)
 
 // Public settings
 const registrationEnabled = ref<boolean>(true)
@@ -433,13 +434,14 @@ onMounted(async () => {
       settings.registration_email_suffix_whitelist || []
     )
 
-    // Read invite code from URL. If the invitation field is shown, prefill it and
-    // validate it; otherwise keep referral_code for attribution only.
+    // Read invite code from URL. Channel activity/friend invite links should be
+    // visible and submitted even when the global invitation-code gate is off.
     const inviteParam = route.query.invite as string
     if (inviteParam) {
       const inviteCode = inviteParam.trim()
-      formData.referral_code = inviteCode
-      if (invitationCodeEnabled.value) {
+      if (inviteCode) {
+        inviteCodeFromUrl.value = true
+        formData.referral_code = inviteCode
         formData.invitation_code = inviteCode
         await validateInvitationCodeDebounced(inviteCode)
       }
