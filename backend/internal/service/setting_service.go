@@ -214,7 +214,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
 		LinuxDoOAuthEnabled:              linuxDoEnabled,
 		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
-		PhoneLoginEnabled:                 settings[SettingKeyPhoneLoginEnabled] == "true",
+		PhoneLoginEnabled:                settings[SettingKeyPhoneLoginEnabled] == "true",
 	}, nil
 }
 
@@ -268,6 +268,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CustomEndpoints                  json.RawMessage `json:"custom_endpoints"`
 		LinuxDoOAuthEnabled              bool            `json:"linuxdo_oauth_enabled"`
 		BackendModeEnabled               bool            `json:"backend_mode_enabled"`
+		PhoneLoginEnabled                bool            `json:"phone_login_enabled"`
 		Version                          string          `json:"version,omitempty"`
 	}{
 		RegistrationEnabled:              settings.RegistrationEnabled,
@@ -294,6 +295,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CustomEndpoints:                  safeRawJSONArray(settings.CustomEndpoints),
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
 		BackendModeEnabled:               settings.BackendModeEnabled,
+		PhoneLoginEnabled:                settings.PhoneLoginEnabled,
 		Version:                          s.version,
 	}, nil
 }
@@ -525,6 +527,9 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 
 	// Backend Mode
 	updates[SettingKeyBackendModeEnabled] = strconv.FormatBool(settings.BackendModeEnabled)
+
+	// 手机号登录
+	updates[SettingKeyPhoneLoginEnabled] = strconv.FormatBool(settings.PhoneLoginEnabled)
 
 	// Gateway forwarding behavior
 	updates[SettingKeyEnableFingerprintUnification] = strconv.FormatBool(settings.EnableFingerprintUnification)
@@ -882,6 +887,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 
 		// 分组隔离（默认不允许未分组 Key 调度）
 		SettingKeyAllowUngroupedKeyScheduling: "false",
+		SettingKeyPhoneLoginEnabled:           "true",
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -922,6 +928,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
 		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
+		PhoneLoginEnabled:                settings[SettingKeyPhoneLoginEnabled] == "true",
 	}
 
 	// 解析整数类型

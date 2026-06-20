@@ -431,7 +431,7 @@ onMounted(async () => {
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
     backendModeEnabled.value = settings.backend_mode_enabled
-    phoneLoginEnabled.value = false // Temporarily disable phone login selection.
+    phoneLoginEnabled.value = settings.phone_login_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
     registrationEnabled.value = settings.registration_enabled
   } catch (error) {

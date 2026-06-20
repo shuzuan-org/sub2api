@@ -92,6 +92,9 @@ export interface SystemSettings {
   enable_fingerprint_unification: boolean
   enable_metadata_passthrough: boolean
 
+  // 手机号登录
+  phone_login_enabled: boolean
+
   // 腾讯云短信服务配置
   sms_tencent_enabled: boolean
   sms_tencent_secret_id: string
@@ -158,6 +161,7 @@ export interface UpdateSettingsRequest {
   allow_ungrouped_key_scheduling?: boolean
   enable_fingerprint_unification?: boolean
   enable_metadata_passthrough?: boolean
+  phone_login_enabled?: boolean
 
   // 腾讯云短信服务配置
   sms_tencent_enabled?: boolean

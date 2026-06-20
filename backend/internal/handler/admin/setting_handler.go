@@ -131,6 +131,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		BackendModeEnabled:                   settings.BackendModeEnabled,
 		EnableFingerprintUnification:         settings.EnableFingerprintUnification,
 		EnableMetadataPassthrough:            settings.EnableMetadataPassthrough,
+		PhoneLoginEnabled:                    settings.PhoneLoginEnabled,
 		SMSTencentEnabled:                    settings.SMSTencentEnabled,
 		SMSTencentSecretID:                   settings.SMSTencentSecretID,
 		SMSTencentSecretKeyConfigured:        settings.SMSTencentSecretKeyConfigured,
@@ -223,13 +224,16 @@ type UpdateSettingsRequest struct {
 	EnableFingerprintUnification *bool `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough    *bool `json:"enable_metadata_passthrough"`
 
+	// 手机号登录
+	PhoneLoginEnabled bool `json:"phone_login_enabled"`
+
 	// 腾讯云短信服务配置
-	SMSTencentEnabled   bool   `json:"sms_tencent_enabled"`
-	SMSTencentSecretID  string `json:"sms_tencent_secret_id"`
-	SMSTencentSecretKey string `json:"sms_tencent_secret_key"`
-	SMSTencentRegion    string `json:"sms_tencent_region"`
-	SMSTencentSdkAppID  string `json:"sms_tencent_sdk_app_id"`
-	SMSTencentSignName  string `json:"sms_tencent_sign_name"`
+	SMSTencentEnabled    bool   `json:"sms_tencent_enabled"`
+	SMSTencentSecretID   string `json:"sms_tencent_secret_id"`
+	SMSTencentSecretKey  string `json:"sms_tencent_secret_key"`
+	SMSTencentRegion     string `json:"sms_tencent_region"`
+	SMSTencentSdkAppID   string `json:"sms_tencent_sdk_app_id"`
+	SMSTencentSignName   string `json:"sms_tencent_sign_name"`
 	SMSTencentTemplateID string `json:"sms_tencent_template_id"`
 }
 
@@ -635,12 +639,13 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableMetadataPassthrough
 		}(),
-		SMSTencentEnabled:   req.SMSTencentEnabled,
-		SMSTencentSecretID:  req.SMSTencentSecretID,
-		SMSTencentSecretKey: req.SMSTencentSecretKey,
-		SMSTencentRegion:    req.SMSTencentRegion,
-		SMSTencentSdkAppID:  req.SMSTencentSdkAppID,
-		SMSTencentSignName:  req.SMSTencentSignName,
+		PhoneLoginEnabled:    req.PhoneLoginEnabled,
+		SMSTencentEnabled:    req.SMSTencentEnabled,
+		SMSTencentSecretID:   req.SMSTencentSecretID,
+		SMSTencentSecretKey:  req.SMSTencentSecretKey,
+		SMSTencentRegion:     req.SMSTencentRegion,
+		SMSTencentSdkAppID:   req.SMSTencentSdkAppID,
+		SMSTencentSignName:   req.SMSTencentSignName,
 		SMSTencentTemplateID: req.SMSTencentTemplateID,
 	}
 
@@ -722,6 +727,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		BackendModeEnabled:                   updatedSettings.BackendModeEnabled,
 		EnableFingerprintUnification:         updatedSettings.EnableFingerprintUnification,
 		EnableMetadataPassthrough:            updatedSettings.EnableMetadataPassthrough,
+		PhoneLoginEnabled:                    updatedSettings.PhoneLoginEnabled,
 		SMSTencentEnabled:                    updatedSettings.SMSTencentEnabled,
 		SMSTencentSecretID:                   updatedSettings.SMSTencentSecretID,
 		SMSTencentSecretKeyConfigured:        updatedSettings.SMSTencentSecretKeyConfigured,

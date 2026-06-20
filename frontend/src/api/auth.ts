@@ -291,7 +291,7 @@ export async function sendVerifyCode(
 export async function sendPhoneLoginCode(
   request: SendPhoneLoginCodeRequest
 ): Promise<SendVerifyCodeResponse> {
-  const { data } = await apiClient.post<SendVerifyCodeResponse>('/auth/phone/send-code', request)
+  const { data } = await apiClient.post<SendVerifyCodeResponse>('/auth/send-phone-login-code', request)
   return data
 }
 
@@ -303,7 +303,7 @@ export async function sendPhoneLoginCode(
 export async function loginWithPhoneCode(
   request: PhoneCodeLoginRequest
 ): Promise<LoginResponse> {
-  const { data } = await apiClient.post<LoginResponse>('/auth/login/phone-code', request)
+  const { data } = await apiClient.post<LoginResponse>('/auth/login/phone', request)
 
   if (!isTotp2FARequired(data)) {
     setAuthToken(data.access_token)

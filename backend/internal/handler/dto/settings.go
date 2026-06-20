@@ -99,14 +99,17 @@ type SystemSettings struct {
 	EnableFingerprintUnification bool `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough    bool `json:"enable_metadata_passthrough"`
 
+	// 手机号登录
+	PhoneLoginEnabled bool `json:"phone_login_enabled"`
+
 	// 腾讯云短信服务配置
-	SMSTencentEnabled              bool   `json:"sms_tencent_enabled"`
-	SMSTencentSecretID             string `json:"sms_tencent_secret_id"`
-	SMSTencentSecretKeyConfigured  bool   `json:"sms_tencent_secret_key_configured"`
-	SMSTencentRegion               string `json:"sms_tencent_region"`
-	SMSTencentSdkAppID             string `json:"sms_tencent_sdk_app_id"`
-	SMSTencentSignName             string `json:"sms_tencent_sign_name"`
-	SMSTencentTemplateID           string `json:"sms_tencent_template_id"`
+	SMSTencentEnabled             bool   `json:"sms_tencent_enabled"`
+	SMSTencentSecretID            string `json:"sms_tencent_secret_id"`
+	SMSTencentSecretKeyConfigured bool   `json:"sms_tencent_secret_key_configured"`
+	SMSTencentRegion              string `json:"sms_tencent_region"`
+	SMSTencentSdkAppID            string `json:"sms_tencent_sdk_app_id"`
+	SMSTencentSignName            string `json:"sms_tencent_sign_name"`
+	SMSTencentTemplateID          string `json:"sms_tencent_template_id"`
 }
 
 type DefaultSubscriptionSetting struct {

@@ -4505,6 +4505,8 @@ export default {
         description: '控制用户注册和验证',
         enableRegistration: '开放注册',
         enableRegistrationHint: '允许新用户注册',
+        phoneLogin: '手机号登录/注册',
+        phoneLoginHint: '允许用户使用手机号验证码登录，并在注册页显示手机号注册入口',
         emailVerification: '邮箱验证',
         emailVerificationHint: '新用户注册时需要验证邮箱',
         emailSuffixWhitelist: '邮箱域名白名单',

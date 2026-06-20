@@ -4337,6 +4337,8 @@ export default {
         description: 'Control user registration and verification',
         enableRegistration: 'Enable Registration',
         enableRegistrationHint: 'Allow new users to register',
+        phoneLogin: 'Phone Login / Registration',
+        phoneLoginHint: 'Allow users to sign in with phone verification codes and show phone registration on the registration page',
         emailVerification: 'Email Verification',
         emailVerificationHint: 'Require email verification for new registrations',
         emailSuffixWhitelist: 'Email Domain Whitelist',
