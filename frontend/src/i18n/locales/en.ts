@@ -605,6 +605,7 @@ export default {
       title: 'Bind Phone & Get 100 U',
       description: 'Verify with SMS and receive bonus instantly for API usage.',
       action: 'Bind Now',
+      downloadMetacode: 'Download metacode',
     }
   },
 

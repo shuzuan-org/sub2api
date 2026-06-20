@@ -14,12 +14,23 @@
           </p>
         </div>
       </div>
-      <button
-        class="btn btn-primary flex-shrink-0"
-        @click="router.push('/profile')"
-      >
-        {{ t('dashboard.phonePromo.action') }}
-      </button>
+      <div class="flex flex-shrink-0 items-center gap-3">
+        <button
+          class="btn btn-primary"
+          @click="router.push('/profile')"
+        >
+          {{ t('dashboard.phonePromo.action') }}
+        </button>
+        <a
+          href="https://metacode.metask-ai.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-secondary"
+        >
+          <Icon name="download" size="sm" />
+          {{ t('dashboard.phonePromo.downloadMetacode') }}
+        </a>
+      </div>
     </div>
   </div>
 </template>

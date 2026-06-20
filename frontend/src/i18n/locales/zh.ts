@@ -607,6 +607,7 @@ export default {
       title: '绑定手机号，立即赠送 100U',
       description: '完成短信验证后自动到账，可用于 API 调用。',
       action: '去绑定',
+      downloadMetacode: '下载 metacode',
     }
   },
 
