@@ -77,12 +77,12 @@ type UserRepository interface {
 	// SetReferredBy 设置用户的邀请人。
 	SetReferredBy(ctx context.Context, id int64, referrerID int64) error
 
-		// 手机号绑定
-		GetByPhoneNumber(ctx context.Context, phone string) (*User, error)
-		ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error)
-		// BindPhoneAndGrantBonus 绑定手机号并赠送余额（事务内原子执行）。
-		BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*User, error)
-	}
+	// 手机号绑定
+	GetByPhoneNumber(ctx context.Context, phone string) (*User, error)
+	ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error)
+	// BindPhoneAndGrantBonus 绑定手机号并赠送余额（事务内原子执行）。
+	BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string, bonusAmount float64) (*User, error)
+}
 
 // UpdateProfileRequest 更新用户资料请求
 type UpdateProfileRequest struct {
@@ -288,7 +288,8 @@ const phoneBindBonusAmount = 100.0 // 绑定手机号赠送 100U
 // BindPhoneAndGrantBonus 绑定手机号并赠送余额。
 // 使用 Redis 分布式锁 + 数据库事务保证并发安全。
 // 若用户有待发放的渠道活动奖励，则跳过 100U 基础奖励（不叠加）。
-func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string) (*User, error) {
+// 返回实际赠送金额和更新后的用户。
+func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string) (float64, *User, error) {
 	// 检查是否有待发放的渠道邀请奖励，有则跳过 100U 基础奖励
 	bonusAmount := phoneBindBonusAmount
 	if s.channelInviteSvc != nil {
@@ -301,7 +302,7 @@ func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, 
 	// 已通过验证码校验，此处直接绑定
 	user, err := s.userRepo.BindPhoneAndGrantBonus(ctx, userID, phone, bonusAmount)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	// 失效缓存
@@ -318,19 +319,22 @@ func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, 
 		}()
 	}
 
-	// 发放待处理的渠道邀请奖励
+	// 发放待处理的渠道邀请奖励，并把这次绑定实际触发的赠送金额返回给前端。
 	if s.channelInviteSvc != nil {
-		go func() {
-			bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			if err := s.channelInviteSvc.GrantPendingBonuses(bgCtx, userID); err != nil {
-				log.Printf("grant pending channel invite bonuses failed: user_id=%d err=%v", userID, err)
+		granted, err := s.channelInviteSvc.GrantPendingBonuses(ctx, userID)
+		if err != nil {
+			log.Printf("grant pending channel invite bonuses failed: user_id=%d err=%v", userID, err)
+		} else if granted > 0 {
+			bonusAmount += granted
+			if refreshed, err := s.userRepo.GetByID(ctx, userID); err == nil {
+				user = refreshed
 			}
-		}()
+		}
 	}
 
-	return user, nil
+	return bonusAmount, user, nil
 }
+
 // ExistsByPhoneNumber checks if a phone number is already bound to any account.
 func (s *UserService) ExistsByPhoneNumber(ctx context.Context, phone string) (bool, error) {
 	return s.userRepo.ExistsByPhoneNumber(ctx, phone)

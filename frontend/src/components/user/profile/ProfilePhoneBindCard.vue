@@ -158,9 +158,9 @@ const handleBind = async () => {
   errorMsg.value = ''
   loading.value = true
   try {
-    const updatedUser = await userAPI.bindPhone(phoneNumber.value.trim(), verifyCode.value.trim())
-    authStore.user = updatedUser
-    appStore.showSuccess(t('profile.phone.boundSuccessToast'))
+    const result = await userAPI.bindPhone(phoneNumber.value.trim(), verifyCode.value.trim())
+    authStore.user = result.user
+    appStore.showSuccess(t('profile.phone.boundSuccessToast', { amount: result.bonus_amount }))
     // Reset form
     phoneNumber.value = ''
     verifyCode.value = ''

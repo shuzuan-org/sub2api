@@ -935,7 +935,7 @@ export default {
       bindButton: '绑定并领取奖励',
       binding: '绑定中...',
       boundSuccess: '手机号已绑定',
-      boundSuccessToast: '手机号绑定成功，已赠送 100U 余额',
+      boundSuccessToast: '手机号绑定成功，已赠送 {amount}U 余额',
       bindFailed: '绑定失败',
       bonusHint: '绑定手机号立即赠送 100U 余额',
       bonusGranted: '绑定奖励已发放',

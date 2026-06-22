@@ -101,7 +101,9 @@ func TestChannelInviteEndToEndDeferredBonusAfterPhoneBinding(t *testing.T) {
 
 	_, err = userRepo.BindPhoneAndGrantBonus(ctx, invitee.ID, "+8613910000001", 100)
 	require.NoError(t, err)
-	require.NoError(t, inviteSvc.GrantPendingBonuses(ctx, invitee.ID))
+	granted, err := inviteSvc.GrantPendingBonuses(ctx, invitee.ID)
+	require.NoError(t, err)
+	require.Equal(t, 25.0, granted)
 
 	userAfterPhone, err := userRepo.GetByID(ctx, invitee.ID)
 	require.NoError(t, err)

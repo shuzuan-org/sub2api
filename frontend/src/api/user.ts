@@ -57,14 +57,19 @@ export async function sendPhoneCode(phoneNumber: string): Promise<{ message: str
   return data
 }
 
+export interface BindPhoneResponse {
+  user: User
+  bonus_amount: number
+}
+
 /**
  * Bind phone number with SMS verification code
  * @param phoneNumber - Phone number in E.164 or CN format
  * @param verifyCode - 6-digit SMS verification code
- * @returns Updated user profile
+ * @returns Updated user profile and granted bonus amount
  */
-export async function bindPhone(phoneNumber: string, verifyCode: string): Promise<User> {
-  const { data } = await apiClient.post<User>('/user/phone/bind', {
+export async function bindPhone(phoneNumber: string, verifyCode: string): Promise<BindPhoneResponse> {
+  const { data } = await apiClient.post<BindPhoneResponse>('/user/phone/bind', {
     phone_number: phoneNumber,
     verify_code: verifyCode
   })

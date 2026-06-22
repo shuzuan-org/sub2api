@@ -368,17 +368,18 @@ func (s *ChannelInviteService) HasPendingBonuses(ctx context.Context, userID int
 	return s.repo.HasPendingBonusByUser(ctx, userID)
 }
 
-// GrantPendingBonuses 发放用户所有待发放的渠道邀请奖励（手机绑定后调用）
-func (s *ChannelInviteService) GrantPendingBonuses(ctx context.Context, userID int64) error {
+// GrantPendingBonuses 发放用户所有待发放的渠道邀请奖励（手机绑定后调用），返回实际发放总额。
+func (s *ChannelInviteService) GrantPendingBonuses(ctx context.Context, userID int64) (float64, error) {
 	usages, err := s.repo.ListPendingBonusByUser(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("list pending bonuses: %w", err)
+		return 0, fmt.Errorf("list pending bonuses: %w", err)
 	}
 
 	if len(usages) == 0 {
-		return nil
+		return 0, nil
 	}
 
+	totalGranted := float64(0)
 	for _, usage := range usages {
 		bonusAmount := float64(0)
 		if usage.Batch != nil {
@@ -391,12 +392,13 @@ func (s *ChannelInviteService) GrantPendingBonuses(ctx context.Context, userID i
 				usage.ID, userID, bonusAmount, err)
 			continue
 		}
+		totalGranted += bonusAmount
 
 		logger.LegacyPrintf("service.channel_invite", "[GrantBonus] granted: usage=%d user=%d amount=%.2f",
 			usage.ID, userID, bonusAmount)
 	}
 
-	return nil
+	return totalGranted, nil
 }
 
 // ======================== 内部方法 ========================

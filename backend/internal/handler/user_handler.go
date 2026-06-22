@@ -203,11 +203,14 @@ func (h *UserHandler) BindPhone(c *gin.Context) {
 	}
 
 	// 绑定手机号并赠送余额
-	updatedUser, err := h.userService.BindPhoneAndGrantBonus(c.Request.Context(), subject.UserID, phone)
+	bonusAmount, updatedUser, err := h.userService.BindPhoneAndGrantBonus(c.Request.Context(), subject.UserID, phone)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	response.Success(c, dto.UserFromService(updatedUser))
+	response.Success(c, gin.H{
+		"user":         dto.UserFromService(updatedUser),
+		"bonus_amount": bonusAmount,
+	})
 }

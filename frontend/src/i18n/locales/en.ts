@@ -928,7 +928,7 @@ export default {
       bindButton: 'Bind & Get 100 U',
       binding: 'Binding...',
       boundSuccess: 'Phone number bound',
-      boundSuccessToast: 'Phone bound successfully! 100 U bonus granted.',
+      boundSuccessToast: 'Phone bound successfully! {amount} U bonus granted.',
       bindFailed: 'Binding failed',
       bonusHint: 'Bind your phone number and get 100 U bonus instantly',
       bonusGranted: 'Bonus granted',
