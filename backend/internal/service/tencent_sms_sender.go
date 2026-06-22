@@ -119,7 +119,7 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("sms api returned status %d: %s", resp.StatusCode, string(respBody))
+		return tencentSMSError("sms api returned non-200 status", fmt.Sprintf("HTTP_%d", resp.StatusCode), string(respBody))
 	}
 
 	var result struct {
@@ -139,15 +139,24 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 	}
 
 	if result.Response.Error.Code != "" {
-		return fmt.Errorf("sms api error: %s - %s", result.Response.Error.Code, result.Response.Error.Message)
+		return tencentSMSError("sms api error", result.Response.Error.Code, result.Response.Error.Message)
 	}
 	for _, status := range result.Response.SendStatusSet {
 		if status.Code != "Ok" {
-			return fmt.Errorf("sms send status error: %s - %s", status.Code, status.Message)
+			return tencentSMSError("sms send status error", status.Code, status.Message)
 		}
 	}
 
 	return nil
+}
+
+func tencentSMSError(prefix, code, message string) error {
+	cause := fmt.Errorf("%s: %s - %s", prefix, code, message)
+	metadata := map[string]string{"provider_code": code}
+	if strings.Contains(code, "LimitExceeded") {
+		return ErrPhoneSMSSendRateLimit.WithMetadata(metadata).WithCause(cause)
+	}
+	return ErrPhoneSMSSendFailed.WithMetadata(metadata).WithCause(cause)
 }
 
 func sha256Hex(data []byte) string {

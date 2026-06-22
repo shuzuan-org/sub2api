@@ -14,6 +14,8 @@ import (
 
 var (
 	ErrPhoneSMSNotConfigured   = infraerrors.ServiceUnavailable("SMS_NOT_CONFIGURED", "SMS service not configured")
+	ErrPhoneSMSSendFailed      = infraerrors.ServiceUnavailable("SMS_SEND_FAILED", "failed to send sms verification code")
+	ErrPhoneSMSSendRateLimit   = infraerrors.TooManyRequests("SMS_SEND_RATE_LIMITED", "sms sending limit exceeded, please try again later")
 	ErrPhoneVerifyCodeTooFreq  = infraerrors.TooManyRequests("PHONE_CODE_TOO_FREQUENT", "please wait before requesting a new code")
 	ErrPhoneVerifyCodeMaxAttms = infraerrors.TooManyRequests("PHONE_CODE_MAX_ATTEMPTS", "too many failed attempts, please request a new code")
 	ErrInvalidPhoneVerifyCode  = infraerrors.BadRequest("INVALID_PHONE_VERIFY_CODE", "invalid or expired verification code")
