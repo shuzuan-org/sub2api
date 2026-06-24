@@ -122,7 +122,7 @@ func validateAdminAPIKey(
 	settingService *service.SettingService,
 	userService *service.UserService,
 ) bool {
-	storedKey, err := settingService.GetAdminAPIKey(c.Request.Context())
+	storedKey, err := settingService.GetAdminAPIKeyCached(c.Request.Context())
 	if err != nil {
 		AbortWithError(c, 500, "INTERNAL_ERROR", "Internal server error")
 		return false
@@ -134,8 +134,8 @@ func validateAdminAPIKey(
 		return false
 	}
 
-	// 获取真实的管理员用户
-	admin, err := userService.GetFirstAdmin(c.Request.Context())
+	// 获取真实的管理员用户（鉴权读路径，走本地缓存避免每请求查库）
+	admin, err := userService.GetFirstAdminCached(c.Request.Context())
 	if err != nil {
 		AbortWithError(c, 500, "INTERNAL_ERROR", "No admin user found")
 		return false
@@ -168,8 +168,10 @@ func validateJWTForAdmin(
 		return false
 	}
 
-	// 从数据库获取用户
-	user, err := userService.GetByID(c.Request.Context(), claims.UserID)
+	// 从数据库获取用户（鉴权读路径，走本地缓存避免每请求查库；
+	// 改密/状态变更已通过 InvalidateAuthCacheByUserID 旁路清缓存，
+	// 且下方仍校验 TokenVersion 兜底）
+	user, err := userService.GetByIDCached(c.Request.Context(), claims.UserID)
 	if err != nil {
 		AbortWithError(c, 401, "USER_NOT_FOUND", "User not found")
 		return false

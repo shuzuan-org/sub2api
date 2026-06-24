@@ -103,6 +103,9 @@ type UserService struct {
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	billingCache         BillingCache
 	channelInviteSvc     *ChannelInviteService
+	// authUserCache 是鉴权读路径专用的本地用户缓存，消除中间件每请求查库。
+	// 详见 user_auth_cache.go。
+	authUserCache *userAuthCache
 }
 
 // NewUserService 创建用户服务实例
@@ -111,6 +114,7 @@ func NewUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuthCach
 		userRepo:             userRepo,
 		authCacheInvalidator: authCacheInvalidator,
 		billingCache:         billingCache,
+		authUserCache:        newUserAuthCache(defaultUserAuthCacheTTL),
 	}
 }
 
@@ -169,6 +173,7 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req Updat
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return nil, fmt.Errorf("update user: %w", err)
 	}
+	s.invalidateAuthUserCache(userID)
 	if s.authCacheInvalidator != nil && user.Concurrency != oldConcurrency {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
@@ -201,6 +206,10 @@ func (s *UserService) ChangePassword(ctx context.Context, userID int64, req Chan
 		return fmt.Errorf("update user: %w", err)
 	}
 
+	// 改密后 TokenVersion 已自增，必须清除本地鉴权缓存，
+	// 否则缓存中的旧 user 会让已撤销的 token 在 TTL 内仍通过 TokenVersion 校验。
+	s.invalidateAuthUserCache(userID)
+
 	return nil
 }
 
@@ -227,6 +236,7 @@ func (s *UserService) UpdateBalance(ctx context.Context, userID int64, amount fl
 	if err := s.userRepo.UpdateBalance(ctx, userID, amount); err != nil {
 		return fmt.Errorf("update balance: %w", err)
 	}
+	s.invalidateAuthUserCache(userID)
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
@@ -247,6 +257,7 @@ func (s *UserService) UpdateConcurrency(ctx context.Context, userID int64, concu
 	if err := s.userRepo.UpdateConcurrency(ctx, userID, concurrency); err != nil {
 		return fmt.Errorf("update concurrency: %w", err)
 	}
+	s.invalidateAuthUserCache(userID)
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
@@ -265,6 +276,7 @@ func (s *UserService) UpdateStatus(ctx context.Context, userID int64, status str
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return fmt.Errorf("update user: %w", err)
 	}
+	s.invalidateAuthUserCache(userID)
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
@@ -274,6 +286,7 @@ func (s *UserService) UpdateStatus(ctx context.Context, userID int64, status str
 
 // Delete 删除用户（管理员功能）
 func (s *UserService) Delete(ctx context.Context, userID int64) error {
+	s.invalidateAuthUserCache(userID)
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
@@ -306,6 +319,7 @@ func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, 
 	}
 
 	// 失效缓存
+	s.invalidateAuthUserCache(userID)
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}

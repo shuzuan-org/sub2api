@@ -48,8 +48,9 @@ func jwtAuth(authService *service.AuthService, userService *service.UserService)
 			return
 		}
 
-		// 从数据库获取最新的用户信息
-		user, err := userService.GetByID(c.Request.Context(), claims.UserID)
+		// 从数据库获取最新的用户信息（鉴权读路径，走本地缓存避免每请求查库；
+		// 状态/改密变更已旁路清缓存，且下方仍校验 Status 与 TokenVersion 兜底）
+		user, err := userService.GetByIDCached(c.Request.Context(), claims.UserID)
 		if err != nil {
 			AbortWithError(c, 401, "USER_NOT_FOUND", "User not found")
 			return

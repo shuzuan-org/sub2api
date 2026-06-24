@@ -106,6 +106,9 @@ type SettingService struct {
 	onUpdate              func() // Callback when settings are updated (for cache invalidation)
 	onS3Update            func() // Callback when Sora S3 settings are updated
 	version               string // Application version
+	// adminKeyCache 缓存 Admin API Key，消除鉴权中间件每请求查 settings 表。
+	// 详见 setting_admin_key_cache.go。
+	adminKeyCache adminAPIKeyCache
 }
 
 // NewSettingService 创建系统设置服务实例
@@ -1141,6 +1144,7 @@ func (s *SettingService) GenerateAdminAPIKey(ctx context.Context) (string, error
 	if err := s.settingRepo.Set(ctx, SettingKeyAdminAPIKey, key); err != nil {
 		return "", fmt.Errorf("save admin api key: %w", err)
 	}
+	s.adminKeyCache.invalidate()
 
 	return key, nil
 }
@@ -1184,7 +1188,11 @@ func (s *SettingService) GetAdminAPIKey(ctx context.Context) (string, error) {
 
 // DeleteAdminAPIKey 删除管理员 API Key
 func (s *SettingService) DeleteAdminAPIKey(ctx context.Context) error {
-	return s.settingRepo.Delete(ctx, SettingKeyAdminAPIKey)
+	if err := s.settingRepo.Delete(ctx, SettingKeyAdminAPIKey); err != nil {
+		return err
+	}
+	s.adminKeyCache.invalidate()
+	return nil
 }
 
 // IsModelFallbackEnabled 检查是否启用模型兜底机制
