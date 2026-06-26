@@ -327,6 +327,46 @@ func upstreamCaps() map[string]any {
 	}
 }
 
+func TestMergeMeta_PerFieldFirstNonZero(t *testing.T) {
+	// The regression this refactor fixes: an earlier account supplies MaxOutputTokens, a
+	// later one supplies Capabilities (and 0 tokens). A wholesale overwrite dropped the
+	// output cap; per-field merge keeps BOTH.
+	cur := ModelMeta{MaxInputTokens: 0, MaxOutputTokens: 64000}
+	incoming := ModelMeta{MaxInputTokens: 262144, Capabilities: upstreamCaps()}
+	got := MergeMeta(cur, incoming)
+	if got.MaxInputTokens != 262144 {
+		t.Errorf("MaxInputTokens=%d want 262144 (filled from incoming)", got.MaxInputTokens)
+	}
+	if got.MaxOutputTokens != 64000 {
+		t.Errorf("MaxOutputTokens=%d want 64000 (kept from cur, NOT dropped)", got.MaxOutputTokens)
+	}
+	if got.Capabilities == nil {
+		t.Error("Capabilities should be filled from incoming")
+	}
+}
+
+func TestMergeMeta_CurWins(t *testing.T) {
+	// A field already set on cur is never clobbered by incoming.
+	cur := ModelMeta{MaxInputTokens: 200000, MaxOutputTokens: 8192, Capabilities: map[string]any{"a": 1}}
+	incoming := ModelMeta{MaxInputTokens: 999, MaxOutputTokens: 999, Capabilities: map[string]any{"b": 2}}
+	got := MergeMeta(cur, incoming)
+	if got.MaxInputTokens != 200000 || got.MaxOutputTokens != 8192 {
+		t.Errorf("cur's non-zero numbers must win, got in=%d out=%d", got.MaxInputTokens, got.MaxOutputTokens)
+	}
+	if _, ok := got.Capabilities["a"]; !ok {
+		t.Error("cur's non-empty Capabilities must win")
+	}
+}
+
+func TestMergeMeta_EmptyCapsTreatedAsUnset(t *testing.T) {
+	// An empty {} on cur must not shadow a real tree from incoming.
+	cur := ModelMeta{MaxInputTokens: 100, Capabilities: map[string]any{}}
+	got := MergeMeta(cur, ModelMeta{Capabilities: upstreamCaps()})
+	if len(got.Capabilities) == 0 {
+		t.Error("empty {} on cur should be filled from incoming's real tree")
+	}
+}
+
 func TestBuildModel_UpstreamCapabilitiesPassThrough(t *testing.T) {
 	// A glm-5.2-style text-only model: upstream reports image_input=false. The whole tree
 	// must pass through verbatim, NOT be replaced by the all-true hardcoded default.

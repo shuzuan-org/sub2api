@@ -243,22 +243,10 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 			}
 			if meta, ok := fetched[i][upstreamID]; ok &&
 				(meta.MaxInputTokens > 0 || meta.MaxOutputTokens > 0 || len(meta.Capabilities) > 0) {
-				// Write first non-zero; prefer anthropic-origin when filling an existing 0.
-				cur, exists := metaByID[id]
-				switch {
-				case !exists || cur.MaxInputTokens == 0:
-					// First write, or filling a 0 input cap — take this account's meta, but keep
-					// a Capabilities tree an earlier account already supplied.
-					if exists && len(meta.Capabilities) == 0 {
-						meta.Capabilities = cur.Capabilities
-					}
-					metaByID[id] = meta
-				case len(cur.Capabilities) == 0 && len(meta.Capabilities) > 0:
-					// Kept the earlier input cap, but this account carries the real cap tree —
-					// graft it on without disturbing the chosen numbers.
-					cur.Capabilities = meta.Capabilities
-					metaByID[id] = cur
-				}
+				// Fold this account's real meta onto the client-facing id, per-field first-non-
+				// zero (MergeMeta). An anthropic-origin probe filling a 0 from an earlier account
+				// is the common case; no field an earlier account supplied is ever dropped.
+				metaByID[id] = modelsuperset.MergeMeta(metaByID[id], meta)
 			}
 		}
 	}
