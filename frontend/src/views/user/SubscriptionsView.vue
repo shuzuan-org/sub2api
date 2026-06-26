@@ -389,8 +389,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import subscriptionsAPI, { type MergedSubscriptionState } from '@/api/subscriptions'
 import { apiClient } from '@/api/client'
 import type { UserSubscription, SubscriptionPlan } from '@/types'
@@ -399,7 +401,9 @@ import Icon from '@/components/icons/Icon.vue'
 import { formatDateOnly } from '@/utils/format'
 
 const { t } = useI18n()
+const router = useRouter()
 const appStore = useAppStore()
+const authStore = useAuthStore()
 
 const subscriptions = ref<UserSubscription[]>([])
 const availablePlans = ref<SubscriptionPlan[]>([])
@@ -444,10 +448,25 @@ async function loadSubscriptions() {
 async function handlePurchase(plan: SubscriptionPlan) {
   if (purchasing.value) return
 
+  const price = plan.price || 0
+  let balance = authStore.user?.balance || 0
+  try {
+    const latestUser = await authStore.refreshUser()
+    balance = latestUser.balance
+  } catch {
+    // 使用本地缓存余额继续判断；真正扣费仍以后端事务校验为准。
+  }
+
+  if (balance < price) {
+    appStore.showWarning(t('userSubscriptions.insufficientBalanceRecharge'))
+    await router.push({ name: 'Payment', query: { tab: 'recharge' } })
+    return
+  }
+
   const confirmed = window.confirm(
     t('userSubscriptions.purchaseConfirm', {
       name: plan.name,
-      price: plan.price?.toFixed(2) || '0',
+      price: price.toFixed(2),
       days: plan.default_validity_days
     })
   )
@@ -456,10 +475,17 @@ async function handlePurchase(plan: SubscriptionPlan) {
   try {
     purchasing.value = plan.id
     await subscriptionsAPI.purchaseSubscription(plan.id)
+    await authStore.refreshUser()
     appStore.showSuccess(t('userSubscriptions.purchaseSuccess', { name: plan.name }))
     await loadSubscriptions()
   } catch (error: any) {
-    const msg = error?.response?.data?.message || t('userSubscriptions.purchaseFailed')
+    if (error?.code === 'INSUFFICIENT_BALANCE') {
+      appStore.showWarning(t('userSubscriptions.insufficientBalanceRecharge'))
+      await router.push({ name: 'Payment', query: { tab: 'recharge' } })
+      return
+    }
+
+    const msg = error?.response?.data?.message || error?.message || t('userSubscriptions.purchaseFailed')
     appStore.showError(msg)
   } finally {
     purchasing.value = null

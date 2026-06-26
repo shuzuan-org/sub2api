@@ -250,7 +250,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { alipayAPI, type PaymentPackage, type AlipayOrder } from '@/api/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -259,11 +260,12 @@ import Icon from '@/components/icons/Icon.vue'
 import QRCode from 'qrcode'
 import { formatBalanceU } from '@/utils/format'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 
 // Tab 状态
-const activeTab = ref<'recharge' | 'orders'>('recharge')
+const activeTab = ref<'recharge' | 'orders'>(route.query.tab === 'orders' ? 'orders' : 'recharge')
 
 // ---- 充值 ----
 const packages = ref<PaymentPackage[]>([])
@@ -474,10 +476,18 @@ function formatOrderDate(iso: string) {
 }
 
 // 切换 Tab 时加载充值记录
-import { watch } from 'vue'
 watch(activeTab, (tab) => {
   if (tab === 'orders' && orders.value.length === 0) {
     loadOrders()
   }
 })
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'orders' || tab === 'recharge') {
+      activeTab.value = tab
+    }
+  }
+)
 </script>
