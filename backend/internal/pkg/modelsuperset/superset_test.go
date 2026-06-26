@@ -314,3 +314,100 @@ func TestRealUpstreamNames_MultipleUpstreams(t *testing.T) {
 		t.Errorf("deepseek-v4-pro caps = %d, want 1000000", gotMetas["deepseek-v4-pro"].MaxInputTokens)
 	}
 }
+
+// upstreamCaps is a minimal real-upstream capability tree: image_input honestly false
+// (text-only model), distinct from the hardcoded default's true. Used to prove passthrough.
+func upstreamCaps() map[string]any {
+	return map[string]any{
+		"image_input":    map[string]any{"supported": false},
+		"pdf_input":      map[string]any{"supported": false},
+		"code_execution": map[string]any{"supported": false},
+		"citations":      map[string]any{"supported": false},
+		"batch":          map[string]any{"supported": false},
+	}
+}
+
+func TestBuildModel_UpstreamCapabilitiesPassThrough(t *testing.T) {
+	// A glm-5.2-style text-only model: upstream reports image_input=false. The whole tree
+	// must pass through verbatim, NOT be replaced by the all-true hardcoded default.
+	m := BuildModel("glm-5.2", OriginAnthropic, ModelMeta{MaxInputTokens: 262144, Capabilities: upstreamCaps()})
+	if m.Capabilities == nil {
+		t.Fatal("expected capabilities, got nil")
+	}
+	img := m.Capabilities["image_input"].(map[string]any)
+	if img["supported"] != false {
+		t.Errorf("image_input.supported = %v, want false (real upstream)", img["supported"])
+	}
+	// The hardcoded default has a "thinking" key; the passed-through tree does not — proves
+	// it's the upstream tree, not a merge.
+	if _, hasThinking := m.Capabilities["thinking"]; hasThinking {
+		t.Error("expected verbatim upstream tree (no 'thinking' key), got merged/default tree")
+	}
+	if m.MaxInputTokens != 262144 {
+		t.Errorf("max_input_tokens = %d, want 262144", m.MaxInputTokens)
+	}
+}
+
+func TestBuildModel_NilCapabilitiesFallsBackToDefault(t *testing.T) {
+	// Upstream omitted capabilities (real api.anthropic.com) → hardcoded default tree, which
+	// is correct for genuine Claude models. Regression guard for zero behavior change.
+	m := BuildModel("claude-opus-4-8", OriginAnthropic, ModelMeta{})
+	if m.Capabilities == nil {
+		t.Fatal("expected default capabilities, got nil")
+	}
+	img := m.Capabilities["image_input"].(map[string]any)
+	if img["supported"] != true {
+		t.Errorf("default image_input.supported = %v, want true", img["supported"])
+	}
+	if _, hasThinking := m.Capabilities["thinking"]; !hasThinking {
+		t.Error("expected default tree with 'thinking' key")
+	}
+}
+
+func TestBuildModel_EmptyCapabilitiesFallsBackToDefault(t *testing.T) {
+	// A hollow {} from upstream must be treated as "not reported" — emit the default tree,
+	// never a hollow capabilities:{} that strips every real Claude capability.
+	m := BuildModel("claude-opus-4-8", OriginAnthropic, ModelMeta{Capabilities: map[string]any{}})
+	if m.Capabilities == nil {
+		t.Fatal("expected default capabilities, got nil")
+	}
+	if _, hasThinking := m.Capabilities["thinking"]; !hasThinking {
+		t.Error("empty {} should fall back to default tree (with 'thinking'), not pass through hollow")
+	}
+}
+
+func TestRealUpstreamNames_CarriesCapabilities(t *testing.T) {
+	// Real caps must travel onto the upstream name for non-Claude-Code/non-Codex clients.
+	ids := []string{"glm-5.2"}
+	upstreams := map[string]string{} // no mapping → id is the real name
+	metas := map[string]ModelMeta{
+		"glm-5.2": {MaxInputTokens: 262144, Capabilities: upstreamCaps()},
+	}
+	_, gotMetas, _ := RealUpstreamNames(ids, upstreams, metas, nil)
+	got := gotMetas["glm-5.2"]
+	if got.Capabilities == nil {
+		t.Fatal("capabilities dropped during re-key")
+	}
+	if got.MaxInputTokens != 262144 {
+		t.Errorf("max_input_tokens = %d, want 262144", got.MaxInputTokens)
+	}
+}
+
+func TestRealUpstreamNames_GraftsCapsFromSecondAlias(t *testing.T) {
+	// Two aliases collapse onto one upstream: the first carries the input cap, the second
+	// carries the cap tree. The merged upstream meta must keep BOTH.
+	ids := []string{"alias-a", "alias-b"}
+	upstreams := map[string]string{"alias-a": "real-x", "alias-b": "real-x"}
+	metas := map[string]ModelMeta{
+		"alias-a": {MaxInputTokens: 131072},                  // numbers, no caps
+		"alias-b": {MaxInputTokens: 0, Capabilities: upstreamCaps()}, // caps, no numbers
+	}
+	_, gotMetas, _ := RealUpstreamNames(ids, upstreams, metas, nil)
+	got := gotMetas["real-x"]
+	if got.MaxInputTokens != 131072 {
+		t.Errorf("max_input_tokens = %d, want 131072 (from alias-a)", got.MaxInputTokens)
+	}
+	if got.Capabilities == nil {
+		t.Error("capabilities from alias-b were dropped")
+	}
+}

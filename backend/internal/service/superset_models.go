@@ -241,10 +241,23 @@ func (s *GatewayService) buildSupersetModels(ctx context.Context, groupID *int64
 			if _, ok := upstreamByID[id]; !ok {
 				upstreamByID[id] = upstreamID
 			}
-			if meta, ok := fetched[i][upstreamID]; ok && meta.MaxInputTokens > 0 {
+			if meta, ok := fetched[i][upstreamID]; ok &&
+				(meta.MaxInputTokens > 0 || meta.MaxOutputTokens > 0 || len(meta.Capabilities) > 0) {
 				// Write first non-zero; prefer anthropic-origin when filling an existing 0.
-				if cur, exists := metaByID[id]; !exists || cur.MaxInputTokens == 0 {
+				cur, exists := metaByID[id]
+				switch {
+				case !exists || cur.MaxInputTokens == 0:
+					// First write, or filling a 0 input cap — take this account's meta, but keep
+					// a Capabilities tree an earlier account already supplied.
+					if exists && len(meta.Capabilities) == 0 {
+						meta.Capabilities = cur.Capabilities
+					}
 					metaByID[id] = meta
+				case len(cur.Capabilities) == 0 && len(meta.Capabilities) > 0:
+					// Kept the earlier input cap, but this account carries the real cap tree —
+					// graft it on without disturbing the chosen numbers.
+					cur.Capabilities = meta.Capabilities
+					metaByID[id] = cur
 				}
 			}
 		}
@@ -392,6 +405,7 @@ func (s *GatewayService) doFetchModels(ctx context.Context, account *Account, en
 			out[m.ID] = modelsuperset.ModelMeta{
 				MaxInputTokens:  firstNonZero(m.MaxInputTokens, m.MaxModelLen, m.ContextLength),
 				MaxOutputTokens: m.MaxTokens,
+				Capabilities:    m.Capabilities, // nil when upstream omits it → downstream falls back
 			}
 		}
 		if !body.HasMore || body.LastID == "" {
@@ -414,11 +428,12 @@ func firstNonZero(vals ...int) int {
 
 type modelsPage struct {
 	Data []struct {
-		ID             string `json:"id"`
-		MaxInputTokens int    `json:"max_input_tokens"` // Anthropic /v1/models
-		MaxModelLen    int    `json:"max_model_len"`    // OpenAI / SGLang native
-		MaxTokens      int    `json:"max_tokens"`       // output cap, when upstream reports it
-		ContextLength  int    `json:"context_length"`   // LiteLLM / OpenRouter style
+		ID             string         `json:"id"`
+		MaxInputTokens int            `json:"max_input_tokens"` // Anthropic /v1/models
+		MaxModelLen    int            `json:"max_model_len"`    // OpenAI / SGLang native
+		MaxTokens      int            `json:"max_tokens"`       // output cap, when upstream reports it
+		ContextLength  int            `json:"context_length"`   // LiteLLM / OpenRouter style
+		Capabilities   map[string]any `json:"capabilities"`     // real upstream cap tree; nil = not reported
 	} `json:"data"`
 	HasMore bool   `json:"has_more"`
 	LastID  string `json:"last_id"`
@@ -476,15 +491,24 @@ func cloneOriginMap(src map[string]string) map[string]string {
 	return dst
 }
 
-// cloneModelMetaMap deep-copies a model-meta map. ModelMeta is a value type, so a
-// shallow per-entry copy is a full deep copy. Required because cached/singleflight
-// values are shared references that callers must never mutate.
+// cloneModelMetaMap deep-copies a model-meta map. ModelMeta's scalar fields copy by
+// value, but its Capabilities map is a reference — a bare per-entry copy would alias the
+// cached tree into callers. So we also clone that map (one level deep: BuildModel passes
+// the tree through read-only, never mutating sub-trees). Required because cached/single-
+// flight values are shared references that callers must never mutate.
 func cloneModelMetaMap(src map[string]modelsuperset.ModelMeta) map[string]modelsuperset.ModelMeta {
 	if src == nil {
 		return nil
 	}
 	dst := make(map[string]modelsuperset.ModelMeta, len(src))
 	for k, v := range src {
+		if v.Capabilities != nil {
+			caps := make(map[string]any, len(v.Capabilities))
+			for ck, cv := range v.Capabilities {
+				caps[ck] = cv
+			}
+			v.Capabilities = caps
+		}
 		dst[k] = v
 	}
 	return dst
