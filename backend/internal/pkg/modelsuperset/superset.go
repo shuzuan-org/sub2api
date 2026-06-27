@@ -57,6 +57,38 @@ type Model struct {
 type ModelMeta struct {
 	MaxInputTokens  int // upstream max_input_tokens / max_model_len / context_length; 0 = unknown
 	MaxOutputTokens int // upstream max_tokens (output cap); 0 = unknown
+	// Capabilities is the REAL upstream capability tree (image_input, pdf_input, effort,
+	// thinking, …), harvested verbatim from the upstream /v1/models entry. nil means the
+	// upstream did not report it — BuildModel then falls back to the hardcoded Claude
+	// default tree. Non-nil values from sub2api's own anthropic upstreams are structurally
+	// identical to that default tree, so passing the whole tree through is exact.
+	Capabilities map[string]any
+}
+
+// MergeMeta folds incoming into cur field-by-field, first-non-zero wins per field: a field
+// already set on cur is kept, an unset (zero/empty) field is filled from incoming. This is
+// the single merge rule for accumulating one model's meta across several upstream probes
+// (multiple accounts in a group, or several aliases collapsing onto one real name).
+//
+// Crucially it merges EVERY field independently — MaxInputTokens, MaxOutputTokens, and
+// Capabilities each survive on their own. An earlier "aliases share identical meta"
+// assumption let a wholesale overwrite silently drop a field one probe had and the next
+// didn't; per-field first-non-zero removes that footgun.
+//
+// The returned Capabilities may alias incoming's map (no deep copy) — callers that cache
+// the result must clone first (see cloneModelMetaMap). len()==0 counts as "unset" for
+// Capabilities so an empty {} never shadows a real tree.
+func MergeMeta(cur, incoming ModelMeta) ModelMeta {
+	if cur.MaxInputTokens == 0 {
+		cur.MaxInputTokens = incoming.MaxInputTokens
+	}
+	if cur.MaxOutputTokens == 0 {
+		cur.MaxOutputTokens = incoming.MaxOutputTokens
+	}
+	if len(cur.Capabilities) == 0 && len(incoming.Capabilities) > 0 {
+		cur.Capabilities = incoming.Capabilities
+	}
+	return cur
 }
 
 // List is the listing envelope. OpenAI's {object:"list", data} and Anthropic's
@@ -205,6 +237,23 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 		return m
 	}
 
+	// Real upstream capabilities win: sub2api's anthropic upstreams (glm, minimax, …) report
+	// a per-model capability tree structurally identical to the default below, but with the
+	// HONEST values (a text-only model reports image_input=false). When present, pass the
+	// whole tree through verbatim — no per-field merge, no fabrication. An empty {} counts as
+	// "not reported" (same as nil): never emit a hollow tree, fall back instead.
+	//
+	// The tree is shared by reference into the response (no copy). Callers must own meta —
+	// GetSupersetModels feeds clones from cloneModelMetaMap, so the map is request-private and
+	// serialized read-only. Don't feed BuildModel a cached meta directly.
+	if len(meta.Capabilities) > 0 {
+		m.Capabilities = meta.Capabilities
+		return m
+	}
+
+	// Upstream didn't report capabilities (a real api.anthropic.com upstream omits the
+	// field) → fall back to the hardcoded Claude tree, which is correct for genuine Claude
+	// models. This is the historical behavior; with no upstream caps, output is unchanged.
 	effortMax := modelMatchesAnyBase(normalized, effortMaxBases...)
 	m.Capabilities = map[string]any{
 		"batch":              capObj(true),
@@ -316,14 +365,10 @@ func RealUpstreamNames(ids []string, upstreams map[string]string, metas map[stri
 			up = id // no mapping recorded → the id IS the real name
 		}
 		seen[up] = struct{}{}
-		// Carry the real caps onto the upstream name. Aliases of one upstream are ASSUMED to
-		// share the same real meta (they come from one upstream probe), so first-non-zero
-		// wins. If two aliases ever resolved to genuinely different meta for the same upstream
-		// name (misconfig, or split across accounts), this silently keeps the first — a known,
-		// currently-unobserved fragility, not a guarantee.
-		if cur, ok := outMetas[up]; !ok || (cur.MaxInputTokens == 0 && metas[id].MaxInputTokens > 0) {
-			outMetas[up] = metas[id]
-		}
+		// Accumulate this alias's real meta onto the upstream name. Aliases of one upstream are
+		// ASSUMED to come from one probe, but MergeMeta folds per-field first-non-zero, so even
+		// if they diverge (misconfig, split across accounts) no field is silently dropped.
+		outMetas[up] = MergeMeta(outMetas[up], metas[id])
 		// Origin gates capability emission. Anthropic wins on collision (same rule as fusion).
 		if cur, ok := outOrigins[up]; !ok || (cur != OriginAnthropic && origins[id] == OriginAnthropic) {
 			outOrigins[up] = origins[id]

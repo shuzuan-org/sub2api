@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/modelsuperset"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	gocache "github.com/patrickmn/go-cache"
 )
@@ -355,5 +356,29 @@ func TestGetSupersetModels_ConcurrentMissesCollapse(t *testing.T) {
 	// flight wins; the rest wait on it and read the result).
 	if got := up.doCalls.Load(); got != 1 {
 		t.Errorf("upstream hit %d times for %d concurrent misses; want 1 (singleflight collapse)", got, n)
+	}
+}
+
+func TestCloneModelMetaMap_CapabilitiesNotAliased(t *testing.T) {
+	// The clone must not share the Capabilities map with the source — cached/singleflight
+	// values are shared references callers must never mutate through.
+	src := map[string]modelsuperset.ModelMeta{
+		"glm-5.2": {
+			MaxInputTokens: 262144,
+			Capabilities:   map[string]any{"image_input": map[string]any{"supported": false}},
+		},
+	}
+	dst := cloneModelMetaMap(src)
+
+	// Mutating the source's cap map must not leak into the clone.
+	src["glm-5.2"].Capabilities["image_input"] = map[string]any{"supported": true}
+	got := dst["glm-5.2"].Capabilities["image_input"].(map[string]any)
+	if got["supported"] != false {
+		t.Errorf("clone aliased source cap map: image_input.supported = %v, want false", got["supported"])
+	}
+	// nil capabilities stay nil (no spurious empty map).
+	srcNil := map[string]modelsuperset.ModelMeta{"x": {MaxInputTokens: 1}}
+	if cloneModelMetaMap(srcNil)["x"].Capabilities != nil {
+		t.Error("nil Capabilities should clone as nil")
 	}
 }
