@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -20,6 +21,9 @@ const referralCodeLen = 6
 
 // referralCodeMaxRetry 懒创建时唯一冲突的最大重试次数。
 const referralCodeMaxRetry = 5
+
+// inviterReferralBonusAmount 普通邀请码：被邀请人绑定手机号后给邀请人发放的固定 U 奖励。
+const inviterReferralBonusAmount = 100.0
 
 // InviteeRecord 邀请明细记录（一条 = 一个被邀请用户）。
 // 充值/佣金相关字段本期为占位（恒为 0），状态恒为 registered。
@@ -143,52 +147,57 @@ func (s *InviteService) ListInvitees(
 	return out, total, nil
 }
 
-// AttributeAndReward 在「新用户已创建」之后调用：把 newUserID 归因到 referralCode 对应的邀请人，
-// 并按 settings 配置给邀请人发放固定 U 奖励。
+// AttributeReferral 在「新用户已创建」之后调用：把 newUserID 归因到 referralCode 对应的邀请人
+// （写入 users.referred_by）。注册动作本身不发放任何余额——邀请人奖励改在被邀请人绑定手机号成功后
+// 发放（见 UserService.BindPhoneAndGrantBonus → RewardInviterOnInviteeBind）。
 //
 // 设计约定（重要）：
 //   - referralCode 为空 / 无效 / 自邀 → 记录日志后返回 nil，绝不报错（不得阻断注册）。
 //   - 调用方应传入事务上下文 txCtx；本方法内的写操作都在该事务内完成。
-//   - 返回 (inviterID, credited)：credited 表示是否确实发放了余额，调用方据此在事务外失效缓存。
-func (s *InviteService) AttributeAndReward(
+func (s *InviteService) AttributeReferral(
 	txCtx context.Context, newUserID int64, referralCode string,
-) (inviterID int64, credited bool) {
+) error {
 	if referralCode == "" {
-		return 0, false
+		return nil
 	}
 	inviter, err := s.userRepo.GetByReferralCode(txCtx, referralCode)
 	if err != nil {
 		logger.LegacyPrintf("service.invite",
 			"[Invite] referral code not found, skip: code=%s err=%v", referralCode, err)
-		return 0, false
+		return nil
 	}
 	if inviter.ID == newUserID {
 		logger.LegacyPrintf("service.invite",
 			"[Invite] self-invite ignored: user=%d", newUserID)
-		return 0, false
+		return nil
 	}
 
 	if err := s.userRepo.SetReferredBy(txCtx, newUserID, inviter.ID); err != nil {
 		logger.LegacyPrintf("service.invite",
 			"[Invite] set referred_by failed: newUser=%d inviter=%d err=%v",
 			newUserID, inviter.ID, err)
-		return 0, false
-	}
-
-	amount := s.settingService.GetInviteRewardAmount(txCtx)
-	if amount <= 0 {
-		return inviter.ID, false
-	}
-	if err := s.userRepo.UpdateBalance(txCtx, inviter.ID, amount); err != nil {
-		logger.LegacyPrintf("service.invite",
-			"[Invite] credit inviter failed: inviter=%d amount=%.4f err=%v",
-			inviter.ID, amount, err)
-		return 0, false
+		return err
 	}
 	logger.LegacyPrintf("service.invite",
-		"[Invite] rewarded inviter: inviter=%d newUser=%d amount=%.4f",
-		inviter.ID, newUserID, amount)
-	return inviter.ID, true
+		"[Invite] attributed referral: inviter=%d newUser=%d", inviter.ID, newUserID)
+	return nil
+}
+
+// RewardInviterOnInviteeBind 普通邀请码场景下，被邀请人绑定手机号成功后调用：
+// 给邀请人 inviterID 发放固定 inviterReferralBonusAmount(=100U)，并失效其鉴权/余额缓存。
+// 返回实际发放金额；失败由调用方记录日志，不应阻断被邀请人的绑定流程。
+func (s *InviteService) RewardInviterOnInviteeBind(ctx context.Context, inviterID int64) (float64, error) {
+	if inviterID <= 0 {
+		return 0, nil
+	}
+	if err := s.userRepo.UpdateBalance(ctx, inviterID, inviterReferralBonusAmount); err != nil {
+		return 0, fmt.Errorf("credit inviter %d: %w", inviterID, err)
+	}
+	s.InvalidateInviterCache(ctx, inviterID)
+	logger.LegacyPrintf("service.invite",
+		"[Invite] rewarded inviter on invitee bind: inviter=%d amount=%.2f",
+		inviterID, inviterReferralBonusAmount)
+	return inviterReferralBonusAmount, nil
 }
 
 // InvalidateInviterCache 在奖励发放成功且事务提交后调用，失效邀请人的鉴权/余额缓存。

@@ -288,11 +288,11 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 			logger.LegacyPrintf("service.auth", "[Auth] referral tx begin failed for user %d: %v", user.ID, txErr)
 		} else {
 			txCtx := dbent.NewTxContext(ctx, tx)
-			inviterID, credited := s.inviteService.AttributeAndReward(txCtx, user.ID, referralCodeToAttribute)
+			if attrErr := s.inviteService.AttributeReferral(txCtx, user.ID, referralCodeToAttribute); attrErr != nil {
+				logger.LegacyPrintf("service.auth", "[Auth] attribute referral failed for user %d: %v", user.ID, attrErr)
+			}
 			if commitErr := tx.Commit(); commitErr != nil {
 				logger.LegacyPrintf("service.auth", "[Auth] referral tx commit failed for user %d: %v", user.ID, commitErr)
-			} else if credited {
-				s.inviteService.InvalidateInviterCache(ctx, inviterID)
 			}
 		}
 	}
