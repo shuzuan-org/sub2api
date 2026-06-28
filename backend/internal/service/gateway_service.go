@@ -5025,7 +5025,14 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	// 避开正常 SSE 热路径（content_block_delta 等）不必要的 JSON 解析。
 	firstNonEmptyLine := true
 
-	scanner := bufio.NewScanner(resp.Body)
+	// Decode a compressed stream before scanning (see handleStreamingResponse); identity
+	// streams pass through untouched.
+	streamBody, closeStreamBody, decErr := newDecompressingReader(resp.Body, resp.Header.Get("Content-Encoding"))
+	if decErr != nil {
+		return nil, fmt.Errorf("init stream decompressor: %w", decErr)
+	}
+	defer closeStreamBody()
+	scanner := bufio.NewScanner(streamBody)
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		maxLineSize = s.cfg.Gateway.MaxLineSize
@@ -6748,7 +6755,16 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 	usage := &ClaudeUsage{}
 	var firstTokenMs *int
-	scanner := bufio.NewScanner(resp.Body)
+	// Decode a compressed stream (gzip/deflate/zstd/br) before scanning SSE lines. We forward
+	// the client's Accept-Encoding to upstream and strip Content-Encoding from the response we
+	// write, so an undecoded compressed stream would reach the client as garbage. Identity
+	// streams (the norm for SSE) pass through untouched.
+	streamBody, closeStreamBody, decErr := newDecompressingReader(resp.Body, resp.Header.Get("Content-Encoding"))
+	if decErr != nil {
+		return nil, fmt.Errorf("init stream decompressor: %w", decErr)
+	}
+	defer closeStreamBody()
+	scanner := bufio.NewScanner(streamBody)
 	// 设置更大的buffer以处理长行
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
