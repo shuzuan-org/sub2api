@@ -116,6 +116,40 @@ func TestBuildModel_AnthropicOrigin_NonClaude_HasCapabilities(t *testing.T) {
 	}
 }
 
+func TestBuildModel_AnthropicFamilyTier(t *testing.T) {
+	cases := []struct {
+		id     string
+		origin Origin
+		want   string // "" = field omitted
+	}{
+		{"claude-opus-4-8", OriginAnthropic, "opus"},
+		{"claude-sonnet-4-6", OriginAnthropic, "sonnet"},
+		{"claude-haiku-4-5", OriginAnthropic, "haiku"},
+		{"glm-5.2", OriginAnthropic, "sonnet"},      // non-claude anthropic → default sonnet
+		{"minimax-m2.7", OriginAnthropic, "sonnet"}, // non-claude anthropic → default sonnet
+		{"gpt-5", OriginOpenAI, ""},                 // openai-origin → no tier
+	}
+	for _, tc := range cases {
+		t.Run(tc.id, func(t *testing.T) {
+			m := BuildModel(tc.id, tc.origin, ModelMeta{})
+			if m.AnthropicFamilyTier != tc.want {
+				t.Errorf("AnthropicFamilyTier=%q want %q", m.AnthropicFamilyTier, tc.want)
+			}
+			// Verify JSON shape: emitted as anthropic_family_tier, omitted when empty.
+			b, _ := json.Marshal(m)
+			var raw map[string]any
+			_ = json.Unmarshal(b, &raw)
+			_, present := raw["anthropic_family_tier"]
+			if tc.want == "" && present {
+				t.Error("anthropic_family_tier must be omitted for openai-origin")
+			}
+			if tc.want != "" && !present {
+				t.Errorf("anthropic_family_tier must be present, got JSON %s", b)
+			}
+		})
+	}
+}
+
 func TestBuildList_Envelope(t *testing.T) {
 	origins := map[string]Origin{
 		"claude-opus-4-8": OriginAnthropic,
@@ -439,7 +473,7 @@ func TestRealUpstreamNames_GraftsCapsFromSecondAlias(t *testing.T) {
 	ids := []string{"alias-a", "alias-b"}
 	upstreams := map[string]string{"alias-a": "real-x", "alias-b": "real-x"}
 	metas := map[string]ModelMeta{
-		"alias-a": {MaxInputTokens: 131072},                  // numbers, no caps
+		"alias-a": {MaxInputTokens: 131072},                          // numbers, no caps
 		"alias-b": {MaxInputTokens: 0, Capabilities: upstreamCaps()}, // caps, no numbers
 	}
 	_, gotMetas, _ := RealUpstreamNames(ids, upstreams, metas, nil)

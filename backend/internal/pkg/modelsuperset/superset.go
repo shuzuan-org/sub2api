@@ -49,6 +49,12 @@ type Model struct {
 	MaxInputTokens int            `json:"max_input_tokens"` // 0 = unknown
 	MaxTokens      int            `json:"max_tokens"`       // 0 = unknown (output cap)
 	Capabilities   map[string]any `json:"capabilities,omitempty"`
+	// AnthropicFamilyTier is the Claude tier this model stands in for (opus/sonnet/haiku).
+	// Claude-protocol clients that gate their model picker on it (e.g. the Claude desktop
+	// app's auto-discovery) need it to accept a model whose id is NOT a claude-* name —
+	// so a real upstream name (glm-5.2, minimax-m3, …) shows up under its OWN name instead
+	// of being dropped or renamed. Emitted only for anthropic-origin models.
+	AnthropicFamilyTier string `json:"anthropic_family_tier,omitempty"`
 }
 
 // ModelMeta carries the REAL upstream-reported capability numbers for one model id,
@@ -190,6 +196,24 @@ func modelContextWindow(normalized string) int {
 	return 200000
 }
 
+// anthropicFamilyTier returns the Claude tier a model stands in for, for clients that gate
+// discovery on it. A claude-family name maps to its real tier; any other anthropic-origin
+// model (glm, minimax, deepseek, …) defaults to "sonnet" so it stays discoverable while
+// keeping its own id — no fake claude-* rename. The returned value is always one of
+// Anthropic's tier aliases (opus/sonnet/haiku), so a client validating against that set
+// accepts it.
+func anthropicFamilyTier(normalized string) string {
+	switch {
+	case modelMatchesBase(normalized, "opus"):
+		return "opus"
+	case modelMatchesBase(normalized, "haiku"):
+		return "haiku"
+	default:
+		// sonnet for claude-sonnet AND for every non-claude anthropic-origin model.
+		return "sonnet"
+	}
+}
+
 func capObj(supported bool) map[string]any { return map[string]any{"supported": supported} }
 
 // BuildModel derives a superset object for a model id. capabilities + max_input_tokens
@@ -210,6 +234,16 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 	normalized := NormalizeModelName(id)
 	claudeFamily := origin == OriginAnthropic && isClaudeFamily(normalized)
 	anthropicOrigin := origin == OriginAnthropic
+
+	// anthropic_family_tier lets a Claude-protocol client (e.g. the Claude desktop app,
+	// whose model-picker discovery accepts an entry only if its id is a known claude-*
+	// name OR it carries a valid family tier) accept this model WITHOUT renaming it: a
+	// real upstream name like glm-5.2 keeps its own id/display_name and still shows up.
+	// Emitted for every anthropic-origin model (sub2api adapts them all to the Claude
+	// Messages protocol); OpenAI-origin models stay untagged.
+	if anthropicOrigin {
+		m.AnthropicFamilyTier = anthropicFamilyTier(normalized)
+	}
 
 	// max_input_tokens is a neutral number: prefer the REAL upstream value (the true
 	// provider's window, even when the client-facing id is a Claude name backed by
