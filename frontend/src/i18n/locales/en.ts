@@ -481,6 +481,7 @@ export default {
     invalidPhone: "Please enter a valid 11-digit phone number",
     verifyCodeLabel: "Verification Code",
     verifyCodePlaceholder: "Enter 6-digit code",
+    phoneVerificationCodeHint: 'Enter the 6-digit code sent to your phone',
     sendCode: "Send Code",
     sendCodeSuccess: "Code sent successfully",
     phoneLoginFailed: "Phone login failed. Please try again.",

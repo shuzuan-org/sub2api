@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	ErrPhoneSMSNotConfigured   = infraerrors.ServiceUnavailable("SMS_NOT_CONFIGURED", "SMS service not configured")
-	ErrPhoneSMSSendFailed      = infraerrors.ServiceUnavailable("SMS_SEND_FAILED", "failed to send sms verification code")
-	ErrPhoneSMSSendRateLimit   = infraerrors.TooManyRequests("SMS_SEND_RATE_LIMITED", "sms sending limit exceeded, please try again later")
-	ErrPhoneVerifyCodeTooFreq  = infraerrors.TooManyRequests("PHONE_CODE_TOO_FREQUENT", "please wait before requesting a new code")
-	ErrPhoneVerifyCodeMaxAttms = infraerrors.TooManyRequests("PHONE_CODE_MAX_ATTEMPTS", "too many failed attempts, please request a new code")
-	ErrInvalidPhoneVerifyCode  = infraerrors.BadRequest("INVALID_PHONE_VERIFY_CODE", "invalid or expired verification code")
+	ErrPhoneSMSNotConfigured   = infraerrors.ServiceUnavailable("SMS_NOT_CONFIGURED", "短信服务未配置")
+	ErrPhoneSMSSendFailed      = infraerrors.ServiceUnavailable("SMS_SEND_FAILED", "验证码短信发送失败，请稍后重试")
+	ErrPhoneSMSSendRateLimit   = infraerrors.TooManyRequests("SMS_SEND_RATE_LIMITED", "短信发送次数超出限制，请稍后再试")
+	ErrPhoneVerifyCodeTooFreq  = infraerrors.TooManyRequests("PHONE_CODE_TOO_FREQUENT", "请求过于频繁，请稍后再试")
+	ErrPhoneVerifyCodeMaxAttms = infraerrors.TooManyRequests("PHONE_CODE_MAX_ATTEMPTS", "验证码错误次数过多，请重新获取验证码")
+	ErrInvalidPhoneVerifyCode  = infraerrors.BadRequest("INVALID_PHONE_VERIFY_CODE", "验证码无效或已过期")
 )
 
 const (

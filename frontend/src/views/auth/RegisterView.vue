@@ -173,7 +173,7 @@
                 :disabled="isLoading"
                 class="input"
                 :class="{ 'input-error': errors.phone_verify_code }"
-                :placeholder="t('auth.verificationCodeHint')"
+                :placeholder="t('auth.phoneVerificationCodeHint')"
               />
               <button
                 type="button"

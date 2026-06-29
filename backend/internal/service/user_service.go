@@ -18,9 +18,9 @@ var (
 	ErrReferralCodeConflict = infraerrors.Conflict("REFERRAL_CODE_CONFLICT", "referral code conflict")
 
 	// 手机号绑定错误
-	ErrPhoneAlreadyBound       = infraerrors.BadRequest("PHONE_ALREADY_BOUND", "phone number already bound to current account")
-	ErrPhoneNumberAlreadyBound = infraerrors.Conflict("PHONE_NUMBER_ALREADY_BOUND", "phone number already bound to another account")
-	ErrInvalidPhoneNumber      = infraerrors.BadRequest("INVALID_PHONE_NUMBER", "invalid phone number format")
+	ErrPhoneAlreadyBound       = infraerrors.BadRequest("PHONE_ALREADY_BOUND", "该手机号已绑定当前账户")
+	ErrPhoneNumberAlreadyBound = infraerrors.Conflict("PHONE_NUMBER_ALREADY_BOUND", "该手机号已绑定其他账户")
+	ErrInvalidPhoneNumber      = infraerrors.BadRequest("INVALID_PHONE_NUMBER", "手机号格式不正确")
 )
 
 // UserListFilters contains all filter options for listing users
