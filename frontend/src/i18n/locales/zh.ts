@@ -482,6 +482,7 @@ export default {
     invalidPhone: "请输入有效的11位手机号",
     verifyCodeLabel: "验证码",
     verifyCodePlaceholder: "请输入6位验证码",
+    phoneVerificationCodeHint: '请输入发送到您手机的6位验证码',
     sendCode: "发送验证码",
     sendCodeSuccess: "验证码已发送",
     phoneLoginFailed: "手机号登录失败，请重试",

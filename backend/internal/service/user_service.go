@@ -18,9 +18,9 @@ var (
 	ErrReferralCodeConflict = infraerrors.Conflict("REFERRAL_CODE_CONFLICT", "referral code conflict")
 
 	// 手机号绑定错误
-	ErrPhoneAlreadyBound       = infraerrors.BadRequest("PHONE_ALREADY_BOUND", "phone number already bound to current account")
-	ErrPhoneNumberAlreadyBound = infraerrors.Conflict("PHONE_NUMBER_ALREADY_BOUND", "phone number already bound to another account")
-	ErrInvalidPhoneNumber      = infraerrors.BadRequest("INVALID_PHONE_NUMBER", "invalid phone number format")
+	ErrPhoneAlreadyBound       = infraerrors.BadRequest("PHONE_ALREADY_BOUND", "该手机号已绑定当前账户")
+	ErrPhoneNumberAlreadyBound = infraerrors.Conflict("PHONE_NUMBER_ALREADY_BOUND", "该手机号已绑定其他账户")
+	ErrInvalidPhoneNumber      = infraerrors.BadRequest("INVALID_PHONE_NUMBER", "手机号格式不正确")
 )
 
 // UserListFilters contains all filter options for listing users
@@ -103,6 +103,7 @@ type UserService struct {
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	billingCache         BillingCache
 	channelInviteSvc     *ChannelInviteService
+	inviteSvc            *InviteService
 	// authUserCache 是鉴权读路径专用的本地用户缓存，消除中间件每请求查库。
 	// 详见 user_auth_cache.go。
 	authUserCache *userAuthCache
@@ -121,6 +122,11 @@ func NewUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuthCach
 // SetChannelInviteService sets the channel invite service for deferred bonus granting.
 func (s *UserService) SetChannelInviteService(svc *ChannelInviteService) {
 	s.channelInviteSvc = svc
+}
+
+// SetInviteService 注入普通邀请码服务，用于被邀请人绑机成功后给邀请人发放奖励。
+func (s *UserService) SetInviteService(svc *InviteService) {
+	s.inviteSvc = svc
 }
 
 // GetFirstAdmin 获取首个管理员用户（用于 Admin API Key 认证）
@@ -343,6 +349,15 @@ func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, 
 			if refreshed, err := s.userRepo.GetByID(ctx, userID); err == nil {
 				user = refreshed
 			}
+		}
+	}
+
+	// 普通邀请码：被邀请人绑机成功后，额外给邀请人发放 100U（被邀请人自己的 100U 由上面的基础逻辑发放，互不影响）。
+	// referred_by 仅由普通邀请码归因写入（渠道码不写），故此判定即「普通邀请码的被邀请人」。
+	// 绑机为一次性原子动作，本步天然只会执行一次，不会重复发放。
+	if s.inviteSvc != nil && user != nil && user.ReferredBy != nil && *user.ReferredBy > 0 {
+		if _, err := s.inviteSvc.RewardInviterOnInviteeBind(ctx, *user.ReferredBy); err != nil {
+			log.Printf("reward inviter on invitee bind failed: invitee=%d inviter=%d err=%v", userID, *user.ReferredBy, err)
 		}
 	}
 

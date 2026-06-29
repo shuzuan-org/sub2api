@@ -418,10 +418,11 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	return svc
 }
 
-// ProvideUserService creates UserService with ChannelInviteService injected via setter.
-func ProvideUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuthCacheInvalidator, billingCache BillingCache, channelInviteSvc *ChannelInviteService) *UserService {
+// ProvideUserService creates UserService with ChannelInviteService and InviteService injected via setters.
+func ProvideUserService(userRepo UserRepository, authCacheInvalidator APIKeyAuthCacheInvalidator, billingCache BillingCache, channelInviteSvc *ChannelInviteService, inviteService *InviteService) *UserService {
 	svc := NewUserService(userRepo, authCacheInvalidator, billingCache)
 	svc.SetChannelInviteService(channelInviteSvc)
+	svc.SetInviteService(inviteService)
 	return svc
 }
 

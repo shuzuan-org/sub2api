@@ -223,7 +223,7 @@
                 :disabled="isLoading"
                 class="input"
                 :class="{ 'input-error': phoneErrors.verifyCode }"
-                :placeholder="t('auth.verificationCodeHint')"
+                :placeholder="t('auth.phoneVerificationCodeHint')"
               />
             </div>
             <button

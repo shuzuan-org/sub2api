@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	ErrInvalidCredentials      = infraerrors.Unauthorized("INVALID_CREDENTIALS", "invalid email or password")
-	ErrUserNotActive           = infraerrors.Forbidden("USER_NOT_ACTIVE", "user is not active")
+	ErrInvalidCredentials      = infraerrors.Unauthorized("INVALID_CREDENTIALS", "账号或密码错误")
+	ErrUserNotActive           = infraerrors.Forbidden("USER_NOT_ACTIVE", "账户未激活")
 	ErrEmailExists             = infraerrors.Conflict("EMAIL_EXISTS", "email already exists")
 	ErrEmailReserved           = infraerrors.BadRequest("EMAIL_RESERVED", "email is reserved")
 	ErrInvalidToken            = infraerrors.Unauthorized("INVALID_TOKEN", "invalid token")
@@ -36,12 +36,12 @@ var (
 	ErrRefreshTokenReused      = infraerrors.Unauthorized("REFRESH_TOKEN_REUSED", "refresh token has been reused")
 	ErrEmailVerifyRequired     = infraerrors.BadRequest("EMAIL_VERIFY_REQUIRED", "email verification is required")
 	ErrEmailSuffixNotAllowed   = infraerrors.BadRequest("EMAIL_SUFFIX_NOT_ALLOWED", "email suffix is not allowed")
-	ErrRegDisabled             = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
-	ErrServiceUnavailable      = infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "service temporarily unavailable")
-	ErrInvitationCodeRequired  = infraerrors.BadRequest("INVITATION_CODE_REQUIRED", "invitation code is required")
-	ErrInvitationCodeInvalid   = infraerrors.BadRequest("INVITATION_CODE_INVALID", "invalid or used invitation code")
+	ErrRegDisabled             = infraerrors.Forbidden("REGISTRATION_DISABLED", "当前已关闭注册")
+	ErrServiceUnavailable      = infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "服务暂时不可用，请稍后再试")
+	ErrInvitationCodeRequired  = infraerrors.BadRequest("INVITATION_CODE_REQUIRED", "请输入邀请码")
+	ErrInvitationCodeInvalid   = infraerrors.BadRequest("INVITATION_CODE_INVALID", "邀请码无效或已被使用")
 	ErrOAuthInvitationRequired = infraerrors.Forbidden("OAUTH_INVITATION_REQUIRED", "invitation code required to complete oauth registration")
-	ErrPhoneNotBound           = infraerrors.BadRequest("PHONE_NOT_BOUND", "phone is not bound to an account")
+	ErrPhoneNotBound           = infraerrors.BadRequest("PHONE_NOT_BOUND", "该手机号尚未绑定账户")
 )
 
 // maxTokenLength 限制 token 大小，避免超长 header 触发解析时的异常内存分配。
@@ -288,11 +288,11 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 			logger.LegacyPrintf("service.auth", "[Auth] referral tx begin failed for user %d: %v", user.ID, txErr)
 		} else {
 			txCtx := dbent.NewTxContext(ctx, tx)
-			inviterID, credited := s.inviteService.AttributeAndReward(txCtx, user.ID, referralCodeToAttribute)
+			if attrErr := s.inviteService.AttributeReferral(txCtx, user.ID, referralCodeToAttribute); attrErr != nil {
+				logger.LegacyPrintf("service.auth", "[Auth] attribute referral failed for user %d: %v", user.ID, attrErr)
+			}
 			if commitErr := tx.Commit(); commitErr != nil {
 				logger.LegacyPrintf("service.auth", "[Auth] referral tx commit failed for user %d: %v", user.ID, commitErr)
-			} else if credited {
-				s.inviteService.InvalidateInviterCache(ctx, inviterID)
 			}
 		}
 	}
