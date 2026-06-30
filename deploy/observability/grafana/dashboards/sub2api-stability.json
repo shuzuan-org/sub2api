@@ -1,0 +1,188 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "title": "Sub2api 稳定性验收看板",
+  "tags": ["sub2api", "stability", "acceptance"],
+  "timezone": "Asia/Shanghai",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "type": "row",
+      "title": "请求健康度",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx / 502 错误率",
+      "description": "改造目标：502/错误率曲线在改造后明显下行",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "max"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(sub2api_http_requests_total{code=~\"5..\"}[5m])) / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9)",
+          "legendFormat": "5xx 错误率"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(sub2api_http_requests_total{code=\"502\"}[5m])) / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9)",
+          "legendFormat": "502 率"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "请求延迟 P50/P95/P99",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 5, "showPoints": "never" } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum(rate(sub2api_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P50" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(sub2api_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P95" },
+        { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.99, sum(rate(sub2api_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P99" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "容错可观测（被默默吸收的事件）",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "type": "timeseries",
+      "title": "流式截断 by cause（项2/5）",
+      "description": "sub2api_stream_truncation_total：upstream=上游静默截断 / client=客户端主动断",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" }, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (cause) (rate(sub2api_stream_truncation_total[5m]))", "legendFormat": "{{cause}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "tool-call 矫正 & 错误（项4）",
+      "description": "sub2api_tool_correction_total / sub2api_tool_error_total —— 让容错消化盲区可见",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (kind) (rate(sub2api_tool_correction_total[5m]))", "legendFormat": "矫正 {{kind}}" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (kind) (rate(sub2api_tool_error_total[5m]))", "legendFormat": "错误 {{kind}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "请求中断 by phase/cause（项5）",
+      "description": "sub2api_request_interrupted_total：phase=slotwait|stream，cause=client|shutdown|deadline",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (phase, cause) (rate(sub2api_request_interrupted_total[5m]))", "legendFormat": "{{phase}}/{{cause}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "上游错误塑形 by status/type（项3）",
+      "description": "sub2api_upstream_error_shaped_total —— 不向客户端泄漏内部 err 的塑形量",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (status, type) (rate(sub2api_upstream_error_shaped_total[5m]))", "legendFormat": "{{status}}/{{type}}" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "零停机发布（项1）",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "type": "stat",
+      "title": "热升级交接次数",
+      "description": "sub2api_deploy_upgrade_total（tableflip handoff 累计）",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sub2api_deploy_upgrade_total", "legendFormat": "升级次数" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "发布期丢连接（目标→0）",
+      "description": "sub2api_request_interrupted_total{cause=\"shutdown\"} —— 发布/停机时被中断的请求，零停机后应为 0",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(sub2api_request_interrupted_total{cause=\"shutdown\"})", "legendFormat": "shutdown 丢连接" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "在途请求排空耗时 P95（drain）",
+      "description": "histogram_quantile P95 of sub2api_drain_duration_seconds",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(sub2api_drain_duration_seconds_bucket[10m])) by (le))", "legendFormat": "drain P95" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "资源水位（项0：连接池打满 / goroutine 泄漏信号）",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 }
+    },
+    {
+      "type": "timeseries",
+      "title": "DB 连接池水位",
+      "description": "sub2api_db_pool_* —— open/in_use/idle 及累计 wait_count",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "max"] }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sub2api_db_pool_open_connections", "legendFormat": "open" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sub2api_db_pool_in_use", "legendFormat": "in_use" },
+        { "refId": "C", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sub2api_db_pool_idle", "legendFormat": "idle" },
+        { "refId": "D", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sub2api_db_pool_wait_count", "legendFormat": "wait_count(累计)" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Goroutine 数（泄漏信号）",
+      "description": "go_goroutines —— 改造后不应随发布/中断单调上涨",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "go_goroutines{job=\"sub2api-backend\"}", "legendFormat": "goroutines" }
+      ]
+    }
+  ]
+}

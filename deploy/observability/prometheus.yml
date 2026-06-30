@@ -1,0 +1,18 @@
+# Prometheus 抓取配置 —— 稳定性验收看板数据源。
+# 目标是源码开发栈里的后端容器（docker-compose.source.yml 起的 sub2api-backend-src）。
+global:
+  scrape_interval: 5s        # 验收期要看曲线即时变化，抓密一点
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: sub2api-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["sub2api-backend-src:8080"]
+        labels:
+          service: sub2api
+          env: local-dev
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

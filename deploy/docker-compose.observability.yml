@@ -1,0 +1,73 @@
+# 稳定性验收可观测栈：Prometheus 抓后端 /metrics + Grafana 验收看板。
+#
+# 前置：源码开发栈已起（docker-compose.source.yml，容器 sub2api-backend-src），
+# 它创建了 docker 网络 deploy_sub2api-network，本栈以 external 方式接入同一网络，
+# 这样 Prometheus 才能用容器名 sub2api-backend-src:8080 抓到指标。
+#
+# 启动：
+#   cd deploy && docker compose -f docker-compose.observability.yml up -d
+# 打开：
+#   Grafana    http://127.0.0.1:3001  （匿名 Admin，免登录，看板已自动置入 Sub2api 文件夹）
+#   Prometheus http://127.0.0.1:9090
+# 停止：
+#   docker compose -f docker-compose.observability.yml down
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: sub2api-prometheus
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - sub2api-prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: sub2api-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      # 本地验收：匿名免登录，直接以 Admin 角色查看/编辑
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_USERS_DEFAULT_THEME: "dark"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/sub2api-stability.json"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - sub2api-grafana-data:/var/lib/grafana
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  sub2api-network:
+    external: true
+    name: deploy_sub2api-network
+
+volumes:
+  sub2api-prometheus-data:
+  sub2api-grafana-data:
