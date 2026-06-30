@@ -88,6 +88,19 @@ const (
 	ToolErrorEmptyName = "empty_tool_name" // 上游工具声明缺少名称，被跳过
 )
 
+// init 预初始化"固定 label 集"的 CounterVec series 为 0，使 Grafana 在尚未发生该类事件时
+// 显示明确的 0 而非有歧义的 "No data"（带 label 的 CounterVec 在首次 Inc 前不会出现该 series）。
+// 仅对 label 取值为有限常量集的指标这么做；status/type 等动态 label 不预置。
+func init() {
+	// 流式中途截断（项2/5）：上游静默截断 / 客户端主动断连。
+	StreamTruncationTotal.WithLabelValues("upstream").Add(0)
+	StreamTruncationTotal.WithLabelValues("client").Add(0)
+	// 长任务在 slotwait 阶段被中断（项5）：客户端断连 / 等待超时。
+	for _, cause := range []string{"client", "timeout"} {
+		RequestInterruptedTotal.WithLabelValues("slotwait", cause).Add(0)
+	}
+}
+
 // Handler 返回 /metrics 的 HTTP handler（基于默认 registry）。
 func Handler() http.Handler { return promhttp.Handler() }
 
