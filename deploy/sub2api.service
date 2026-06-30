@@ -4,14 +4,23 @@ Documentation=https://github.com/Wei-Shaw/sub2api
 After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
 
+# 零停机热升级（tableflip + systemd Type=notify）：
+#   - 进程就绪后通过 sd_notify 上报 READY=1 + 新 MAINPID；NotifyAccess=all 允许 exec 出来的
+#     新进程（非原 main process）发送通知，从而 systemd 跟随 MAINPID 交接，不把旧进程退出当崩溃。
+#   - 部署用 `systemctl reload`（发 SIGHUP）触发 fork+exec 新二进制并继承监听 fd，端口无空窗、
+#     在途长流被排空而非硬杀。`systemctl restart`/`stop` 仍是有停机窗口的传统路径，部署请用 reload。
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=all
 User=sub2api
 Group=sub2api
 WorkingDirectory=/opt/sub2api
 ExecStart=/opt/sub2api/sub2api
-Restart=always
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
 RestartSec=5
+# 仅约束显式 stop/restart 的排空（超时后 SIGKILL）；reload 的排空由进程内 drainTimeout(默认2h)管理，不受此限。
+TimeoutStopSec=1800
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=sub2api
