@@ -16,4 +16,7 @@ func TestPreInitFixedLabelSeries(t *testing.T) {
 	if n := testutil.CollectAndCount(RequestInterruptedTotal); n < 2 {
 		t.Fatalf("request_interrupted_total series=%d, want >= 2 (slotwait client/timeout preinit missing)", n)
 	}
+	if n := testutil.CollectAndCount(UpstreamErrorShapedTotal); n < 4 {
+		t.Fatalf("upstream_error_shaped_total series=%d, want >= 4 (status/type preinit missing)", n)
+	}
 }

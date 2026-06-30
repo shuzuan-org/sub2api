@@ -99,6 +99,15 @@ func init() {
 	for _, cause := range []string{"client", "timeout"} {
 		RequestInterruptedTotal.WithLabelValues("slotwait", cause).Add(0)
 	}
+	// 上游错误塑形（项3）：mapUpstreamError 的输出 (status,type) 是固定小集合，全部预置。
+	for _, st := range [][2]string{
+		{"502", "upstream_error"},
+		{"429", "rate_limit_error"},
+		{"503", "overloaded_error"},
+		{"503", "upstream_error"},
+	} {
+		UpstreamErrorShapedTotal.WithLabelValues(st[0], st[1]).Add(0)
+	}
 }
 
 // Handler 返回 /metrics 的 HTTP handler（基于默认 registry）。
