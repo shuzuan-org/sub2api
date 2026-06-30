@@ -807,6 +807,7 @@ func (h *OpenAIGatewayHandler) anthropicStreamingAwareError(c *gin.Context, stat
 			})
 			fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", errPayload) //nolint:errcheck
 			flusher.Flush()
+			c.Set(terminalErrorSentKey, true)
 		}
 		return
 	}
@@ -820,11 +821,20 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 }
 
 // ensureAnthropicErrorResponse writes a fallback Anthropic error if no response was written.
+// 已落字节时不再 no-op，而是补发 terminal SSE error 事件（避免无终止事件的静默截断）。
+// 处理同 ensureForwardErrorResponse：客户端断连不写死连接(记 client)、已发过则不重复发。
 func (h *OpenAIGatewayHandler) ensureAnthropicErrorResponse(c *gin.Context, streamStarted bool) bool {
-	if c == nil || c.Writer == nil || c.Writer.Written() {
+	if c == nil || c.Writer == nil {
 		return false
 	}
-	h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
+	if !(c.Writer.Written() || streamStarted) {
+		h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", false)
+		return true
+	}
+	if !shouldEmitStreamTruncation(c) {
+		return false
+	}
+	h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream stream interrupted", true)
 	return true
 }
 
@@ -1499,6 +1509,7 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status 
 				_ = c.Error(err)
 			}
 			flusher.Flush()
+			c.Set(terminalErrorSentKey, true)
 		}
 		return
 	}
@@ -1507,12 +1518,21 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status 
 	h.errorResponse(c, status, errType, message)
 }
 
-// ensureForwardErrorResponse 在 Forward 返回错误但尚未写响应时补写统一错误响应。
+// ensureForwardErrorResponse 在 Forward 返回错误时补写错误响应，确保客户端不会拿到"无终止事件的静默截断流"。
+// 语义同 GatewayHandler.ensureForwardErrorResponse：未写则返回 JSON 错误；已落字节则补发 terminal SSE error 事件，
+// 并吸取 cc2codex 教训——客户端断连不写死连接(记 client)、已发过 terminal 则不重复发。
 func (h *OpenAIGatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarted bool) bool {
-	if c == nil || c.Writer == nil || c.Writer.Written() {
+	if c == nil || c.Writer == nil {
 		return false
 	}
-	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", streamStarted)
+	if !(c.Writer.Written() || streamStarted) {
+		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", false)
+		return true
+	}
+	if !shouldEmitStreamTruncation(c) {
+		return false
+	}
+	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream stream interrupted", true)
 	return true
 }
 
