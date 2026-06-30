@@ -13,6 +13,19 @@ scrape_configs:
           service: sub2api
           env: local-dev
 
+  # 生产环境(经 Caddy HTTPS 暴露 /metrics)。本地看板可直接对比本地 vs 生产曲线。
+  - job_name: sub2api-prod
+    scheme: https
+    metrics_path: /metrics
+    scrape_interval: 15s          # 生产抓稀一点，减轻线上压力
+    tls_config:
+      insecure_skip_verify: true  # 本地验收工具抓自家生产，容器内不带 CA 链，跳过校验即可
+    static_configs:
+      - targets: ["napi.origintask.cn"]
+        labels:
+          service: sub2api
+          env: production
+
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
