@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -339,6 +340,12 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 	for {
 		select {
 		case <-ctx.Done():
+			// 等待并发槽位期间被中断（项5 可观测）：区分客户端主动断连 vs 等待超时。
+			cause := "timeout"
+			if ctx.Err() == context.Canceled {
+				cause = "client"
+			}
+			metrics.RequestInterruptedTotal.WithLabelValues("slotwait", cause).Inc()
 			return nil, &ConcurrencyError{
 				SlotType:  slotType,
 				IsTimeout: true,
