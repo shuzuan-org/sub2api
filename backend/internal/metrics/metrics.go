@@ -63,10 +63,10 @@ var (
 		Help: "Tool-call corrections applied, by correction kind (from->to).",
 	}, []string{"kind"})
 
-	// ToolErrorTotal tool-call 处理失败次数（项4）。
+	// ToolErrorTotal tool-call 处理失败/被丢弃次数（项4）。
 	ToolErrorTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "sub2api_tool_error_total",
-		Help: "Tool-call processing errors by kind.",
+		Help: "Tool-call processing errors/drops by kind.",
 	}, []string{"kind"})
 
 	// DeployUpgradeTotal 零停机热升级（tableflip handoff）发生次数（项1）。
@@ -83,8 +83,19 @@ var (
 	})
 )
 
+// tool_error_total 的已知 kind 常量（供产生点与预初始化共用，避免字符串漂移）。
+const (
+	ToolErrorEmptyName = "empty_tool_name" // 上游工具声明缺少名称，被跳过
+)
+
 // Handler 返回 /metrics 的 HTTP handler（基于默认 registry）。
 func Handler() http.Handler { return promhttp.Handler() }
+
+// PreInitToolErrorKinds 把已知的 tool_error kind 预置为 0，
+// 使 Grafana 在"尚未发生任何 tool 错误"时显示明确的 0，而非有歧义的 No data。
+func PreInitToolErrorKinds() {
+	ToolErrorTotal.WithLabelValues(ToolErrorEmptyName).Add(0)
+}
 
 // dbStatsOnce 确保连接池 Gauge 只注册一次，避免测试反复构建 router 时在默认 registry 上重复注册 panic。
 var dbStatsOnce sync.Once

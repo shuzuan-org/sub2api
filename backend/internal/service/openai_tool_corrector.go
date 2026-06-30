@@ -54,6 +54,13 @@ type CodexToolCorrector struct {
 
 // NewCodexToolCorrector 创建新的工具修正器
 func NewCodexToolCorrector() *CodexToolCorrector {
+	// 预初始化已知指标 series 为 0：让 Grafana 在"尚未发生任何矫正/错误"时显示明确的 0，
+	// 而非有歧义的 No data（带 label 的 CounterVec 在首次 Inc 前不会出现该 series）。
+	for from, to := range codexToolNameMapping {
+		metrics.ToolCorrectionTotal.WithLabelValues(from + "->" + to).Add(0)
+	}
+	metrics.PreInitToolErrorKinds()
+
 	return &CodexToolCorrector{
 		stats: ToolCorrectionStats{
 			CorrectionsByTool: make(map[string]int),

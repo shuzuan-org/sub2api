@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
+
 	"github.com/google/uuid"
 )
 
@@ -694,6 +696,7 @@ func buildTools(tools []ClaudeTool) []GeminiToolDeclaration {
 		// 跳过无效工具名称
 		if strings.TrimSpace(tool.Name) == "" {
 			log.Printf("Warning: skipping tool with empty name")
+			metrics.ToolErrorTotal.WithLabelValues(metrics.ToolErrorEmptyName).Inc()
 			continue
 		}
 
