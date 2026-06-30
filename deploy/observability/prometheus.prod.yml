@@ -1,0 +1,19 @@
+# Prometheus 抓取配置 —— 生产环境(部署在生产服务器上)。
+# 后端是 host 上的 systemd 进程(非容器)，监听 0.0.0.0:8080；容器经 host-gateway
+# 用 host.docker.internal 抓宿主机回环，明文、无需 TLS。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: sub2api-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          service: sub2api
+          env: production
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

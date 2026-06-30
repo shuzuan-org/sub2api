@@ -1,0 +1,72 @@
+# 生产可观测栈：Prometheus + Grafana，部署在生产服务器上。
+#
+# 与本地版(docker-compose.observability.yml)的差异：
+#   - 后端是 host 上的 systemd 进程，Prometheus 经 host.docker.internal 抓宿主机 127.0.0.1:8080；
+#   - 两个容器端口都只绑 127.0.0.1（不公网暴露），仅通过 SSH 隧道访问；
+#   - 用独立 bridge 网络，Grafana 经容器名访问 Prometheus。
+#
+# 部署(在服务器 /opt/sub2api-observability 下)：
+#   docker compose -f docker-compose.observability-prod.yml up -d
+# 访问(在你本机建 SSH 隧道)：
+#   ssh -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 ubuntu@111.229.235.75
+#   然后浏览器开 http://127.0.0.1:3001
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: sub2api-prometheus
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - sub2api-prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    networks:
+      - obs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: sub2api-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      # 只绑回环 + 仅 SSH 隧道可达，匿名 Admin 便于查看（隧道本身即鉴权）
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_USERS_DEFAULT_THEME: "dark"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/sub2api-stability.json"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - sub2api-grafana-data:/var/lib/grafana
+    networks:
+      - obs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  obs:
+    driver: bridge
+
+volumes:
+  sub2api-prometheus-data:
+  sub2api-grafana-data:
