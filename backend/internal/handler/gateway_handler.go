@@ -1482,10 +1482,15 @@ func (h *GatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarte
 		return false
 	}
 
-	if !(c.Writer.Written() || streamStarted) {
+	if !streamStarted {
+		// 非流式（或流尚未开始）：已写完整响应则不覆盖；否则补一个 JSON 错误。
+		if c.Writer.Written() {
+			return false
+		}
 		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", false)
 		return true
 	}
+	// 流式已开始：补发 terminal SSE error 事件（ctx 门控 + 去重，见 shouldEmitStreamTruncation）。
 	if !shouldEmitStreamTruncation(c) {
 		return false
 	}

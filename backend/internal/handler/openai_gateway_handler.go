@@ -827,7 +827,10 @@ func (h *OpenAIGatewayHandler) ensureAnthropicErrorResponse(c *gin.Context, stre
 	if c == nil || c.Writer == nil {
 		return false
 	}
-	if !(c.Writer.Written() || streamStarted) {
+	if !streamStarted {
+		if c.Writer.Written() {
+			return false
+		}
 		h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", false)
 		return true
 	}
@@ -1525,7 +1528,10 @@ func (h *OpenAIGatewayHandler) ensureForwardErrorResponse(c *gin.Context, stream
 	if c == nil || c.Writer == nil {
 		return false
 	}
-	if !(c.Writer.Written() || streamStarted) {
+	if !streamStarted {
+		if c.Writer.Written() {
+			return false
+		}
 		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", false)
 		return true
 	}
