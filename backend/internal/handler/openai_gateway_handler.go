@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -1483,7 +1484,10 @@ func (h *OpenAIGatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, sta
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
-func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
+func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (status int, errType string, message string) {
+	defer func() {
+		metrics.UpstreamErrorShapedTotal.WithLabelValues(strconv.Itoa(status), errType).Inc()
+	}()
 	switch statusCode {
 	case 401:
 		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"

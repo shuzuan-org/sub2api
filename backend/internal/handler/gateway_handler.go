@@ -301,7 +301,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, "") // Gemini 不使用会话限制
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
-					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
+					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts, please retry later", streamStarted)
 					return
 				}
 				action := fs.HandleSelectionExhausted(c.Request.Context())
@@ -525,7 +525,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), currentAPIKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, parsedReq.MetadataUserID)
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
-					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
+					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts, please retry later", streamStarted)
 					return
 				}
 				action := fs.HandleSelectionExhausted(c.Request.Context())
@@ -1427,7 +1427,11 @@ func (h *GatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCod
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
-func (h *GatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
+func (h *GatewayHandler) mapUpstreamError(statusCode int) (status int, errType string, message string) {
+	// 记录一次错误塑形（项3 可观测：看模型名错误 400 占比上升、502 占比下降）。
+	defer func() {
+		metrics.UpstreamErrorShapedTotal.WithLabelValues(strconv.Itoa(status), errType).Inc()
+	}()
 	switch statusCode {
 	case 401:
 		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
