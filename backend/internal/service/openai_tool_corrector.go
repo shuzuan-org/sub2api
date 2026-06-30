@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -343,6 +344,10 @@ func (c *CodexToolCorrector) recordCorrection(from, to string) {
 	c.stats.TotalCorrected++
 	key := fmt.Sprintf("%s->%s", from, to)
 	c.stats.CorrectionsByTool[key]++
+
+	// 可观测（项4）：让"tool-call 被容错默默矫正了多少"这个盲区可见。
+	// from/to 均来自固定的 codexToolNameMapping，标签基数有界。
+	metrics.ToolCorrectionTotal.WithLabelValues(key).Inc()
 
 	logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Corrected tool call: %s -> %s (total: %d)",
 		from, to, c.stats.TotalCorrected)
