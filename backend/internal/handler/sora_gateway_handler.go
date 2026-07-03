@@ -505,34 +505,20 @@ func (h *SoraGatewayHandler) mapUpstreamError(statusCode int, responseHeaders ht
 		baseMsg := "Sora request blocked by Cloudflare shield (429). Please switch to a clean proxy/network and retry."
 		return http.StatusTooManyRequests, "rate_limit_error", formatSoraCloudflareChallengeMessage(baseMsg, responseHeaders, responseBody)
 	}
-	if shouldPassthroughSoraUpstreamMessage(statusCode, upstreamMessage) {
-		switch statusCode {
-		case 401, 403, 404, 500, 502, 503, 504:
-			return http.StatusBadGateway, "upstream_error", upstreamMessage
-		case 429:
-			return http.StatusTooManyRequests, "rate_limit_error", upstreamMessage
+	// 404 区域能力提示保留（可操作 UX）；状态码直接透传（不再塑形成 502）。
+	if statusCode == 404 && strings.TrimSpace(upstreamMessage) == "" {
+		if strings.EqualFold(upstreamCode, "unsupported_country_code") {
+			return statusCode, service.ErrTypeForUpstreamStatus(statusCode), "Upstream region capability unavailable for this account, please contact administrator"
 		}
+		return statusCode, service.ErrTypeForUpstreamStatus(statusCode), "Upstream capability unavailable for this account, please contact administrator"
 	}
 
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"
-	case 404:
-		if strings.EqualFold(upstreamCode, "unsupported_country_code") {
-			return http.StatusBadGateway, "upstream_error", "Upstream region capability unavailable for this account, please contact administrator"
-		}
-		return http.StatusBadGateway, "upstream_error", "Upstream capability unavailable for this account, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "upstream_error", "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "upstream_error", "Upstream request failed"
+	// 直接透传：状态码 + 上游 message（提取失败用通用文案）。
+	msg := strings.TrimSpace(upstreamMessage)
+	if msg == "" {
+		msg = service.GenericUpstreamMsg(statusCode)
 	}
+	return statusCode, service.ErrTypeForUpstreamStatus(statusCode), msg
 }
 
 func cloneHTTPHeaders(headers http.Header) http.Header {
@@ -556,20 +542,6 @@ func extractSoraFailoverHeaderInsights(headers http.Header, body []byte) (rayID,
 
 func isSoraCloudflareChallengeResponse(statusCode int, headers http.Header, body []byte) bool {
 	return soraerror.IsCloudflareChallengeResponse(statusCode, headers, body)
-}
-
-func shouldPassthroughSoraUpstreamMessage(statusCode int, message string) bool {
-	message = strings.TrimSpace(message)
-	if message == "" {
-		return false
-	}
-	if statusCode == http.StatusForbidden || statusCode == http.StatusTooManyRequests {
-		lower := strings.ToLower(message)
-		if strings.Contains(lower, "<html") || strings.Contains(lower, "<!doctype html") || strings.Contains(lower, "window._cf_chl_opt") {
-			return false
-		}
-	}
-	return true
 }
 
 func formatSoraCloudflareChallengeMessage(base string, headers http.Header, body []byte) string {

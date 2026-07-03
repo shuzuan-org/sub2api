@@ -101,8 +101,8 @@
     },
     {
       "type": "timeseries",
-      "title": "上游错误塑形 by status/type（项3）",
-      "description": "sub2api_upstream_error_shaped_total —— 不向客户端泄漏内部 err 的塑形量",
+      "title": "上游错误 by status/type（透传）",
+      "description": "sub2api_upstream_error_shaped_total —— 上游错误按对外(透传)状态码/类型返回的量",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
       "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "never" } }, "overrides": [] },

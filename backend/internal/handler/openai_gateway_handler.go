@@ -1472,8 +1472,11 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
-	// 使用默认的错误映射
+	// 直接透传：状态码 + 上游真实 message（提取失败则用通用文案）。
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
+	if upstreamMsg != "" {
+		errMsg = upstreamMsg
+	}
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
@@ -1484,24 +1487,13 @@ func (h *OpenAIGatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, sta
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
+// mapUpstreamError 直接透传上游错误状态码（不再塑形成 502），errType 按状态码派生，
+// message 用通用兜底文案（带 body 的调用点会用上游真实 message 覆盖）。
 func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (status int, errType string, message string) {
 	defer func() {
 		metrics.UpstreamErrorShapedTotal.WithLabelValues(strconv.Itoa(status), errType).Inc()
 	}()
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "upstream_error", "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "upstream_error", "Upstream request failed"
-	}
+	return statusCode, service.ErrTypeForUpstreamStatus(statusCode), service.GenericUpstreamMsg(statusCode)
 }
 
 // handleStreamingAwareError handles errors that may occur after streaming has started

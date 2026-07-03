@@ -37,10 +37,11 @@ var (
 		Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300},
 	}, []string{"path", "method"})
 
-	// UpstreamErrorShapedTotal 网关把上游错误塑形后返回给客户端的次数（项3）。
+	// UpstreamErrorShapedTotal 网关把上游错误返回给客户端的次数，按对外 status/type 统计。
+	// 注：网关已改为"直接透传"上游错误状态码，此处 status 即透传后的上游原始码。
 	UpstreamErrorShapedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "sub2api_upstream_error_shaped_total",
-		Help: "Upstream errors shaped to client by returned status and error type.",
+		Help: "Upstream errors returned to client by returned (passthrough) status and error type.",
 	}, []string{"status", "type"})
 
 	// OpsErrorTotal 与 ops_error_logs 同源的错误聚合计数（低基数）。
