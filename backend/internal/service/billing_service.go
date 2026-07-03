@@ -110,16 +110,16 @@ type CostBreakdown struct {
 
 // PricingSnapshot 记录计费时实际使用的 per-token 单价（U 单位）
 type PricingSnapshot struct {
-	Input            float64 `json:"input"`
-	Output           float64 `json:"output"`
-	CacheCreation    float64 `json:"cache_creation,omitempty"`
-	CacheRead        float64 `json:"cache_read,omitempty"`
-	InputPriority    float64 `json:"input_priority,omitempty"`
-	OutputPriority   float64 `json:"output_priority,omitempty"`
-	CacheReadPri     float64 `json:"cache_read_priority,omitempty"`
-	CacheCreation5m  float64 `json:"cache_creation_5m,omitempty"`
-	CacheCreation1h  float64 `json:"cache_creation_1h,omitempty"`
-	Source           string  `json:"source"` // "account" / "litellm" / "fallback"
+	Input           float64 `json:"input"`
+	Output          float64 `json:"output"`
+	CacheCreation   float64 `json:"cache_creation,omitempty"`
+	CacheRead       float64 `json:"cache_read,omitempty"`
+	InputPriority   float64 `json:"input_priority,omitempty"`
+	OutputPriority  float64 `json:"output_priority,omitempty"`
+	CacheReadPri    float64 `json:"cache_read_priority,omitempty"`
+	CacheCreation5m float64 `json:"cache_creation_5m,omitempty"`
+	CacheCreation1h float64 `json:"cache_creation_1h,omitempty"`
+	Source          string  `json:"source"` // "account" / "litellm" / "fallback"
 }
 
 // BillingService 计费服务

@@ -113,7 +113,7 @@ func (s *GatewayService) ForwardDeepSeekChatCompletions(
 	if err != nil {
 		return nil, fmt.Errorf("deepseek forward: send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))

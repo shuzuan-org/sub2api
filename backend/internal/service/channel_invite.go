@@ -6,13 +6,13 @@ import (
 
 // ChannelInviteBatch 渠道邀请码批次
 type ChannelInviteBatch struct {
-	ID             int64
-	Name           string
-	BonusAmount    float64
-	MaxUsesPerCode int
-	StartTime      *time.Time
-	EndTime        *time.Time
-	Status         string
+	ID               int64
+	Name             string
+	BonusAmount      float64
+	MaxUsesPerCode   int
+	StartTime        *time.Time
+	EndTime          *time.Time
+	Status           string
 	Notes            string
 	ActivityCopyText string
 	CreatedBy        int64

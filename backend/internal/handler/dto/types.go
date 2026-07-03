@@ -10,15 +10,15 @@ type User struct {
 	Balance       float64   `json:"balance"`
 	Concurrency   int       `json:"concurrency"`
 	Status        string    `json:"status"`
-	Phone            string    `json:"phone"`
-	PhoneVerified    bool      `json:"phone_verified"`
-	AllowedGroups    []int64   `json:"allowed_groups"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	Phone         string    `json:"phone"`
+	PhoneVerified bool      `json:"phone_verified"`
+	AllowedGroups []int64   `json:"allowed_groups"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 
 	// 手机号绑定
-	PhoneNumber        *string    `json:"phone_number,omitempty"`
-	PhoneBoundAt       *time.Time `json:"phone_bound_at,omitempty"`
+	PhoneNumber         *string    `json:"phone_number,omitempty"`
+	PhoneBoundAt        *time.Time `json:"phone_bound_at,omitempty"`
 	PhoneBonusGrantedAt *time.Time `json:"phone_bonus_granted_at,omitempty"`
 
 	APIKeys       []APIKey           `json:"api_keys,omitempty"`
@@ -323,8 +323,8 @@ type RedeemCode struct {
 	// so users can see why they were charged or credited
 	Notes *string `json:"notes,omitempty"`
 
-	User *User              `json:"user,omitempty"`
-	Plan *SubscriptionPlan  `json:"plan,omitempty"`
+	User *User             `json:"user,omitempty"`
+	Plan *SubscriptionPlan `json:"plan,omitempty"`
 }
 
 // AdminRedeemCode 是管理员接口使用的 redeem code DTO（包含 notes 等字段）。
@@ -463,11 +463,11 @@ type Setting struct {
 
 // SubscriptionPlan 订阅计划 DTO
 type SubscriptionPlan struct {
-	ID          int64    `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Visibility  string   `json:"visibility"`
-	Status      string   `json:"status"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Visibility  string `json:"visibility"`
+	Status      string `json:"status"`
 
 	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
 	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
@@ -502,8 +502,8 @@ type UserSubscription struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	User *User              `json:"user,omitempty"`
-	Plan *SubscriptionPlan   `json:"plan,omitempty"`
+	User *User             `json:"user,omitempty"`
+	Plan *SubscriptionPlan `json:"plan,omitempty"`
 }
 
 // AdminUserSubscription 是管理员接口使用的订阅 DTO（包含分配信息/备注等字段）。
@@ -570,9 +570,9 @@ type ChannelInviteBatch struct {
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 
-	Groups  []Group            `json:"groups,omitempty"`
+	Groups  []Group             `json:"groups,omitempty"`
 	Codes   []ChannelInviteCode `json:"codes,omitempty"`
-	Creator *User              `json:"creator,omitempty"`
+	Creator *User               `json:"creator,omitempty"`
 }
 
 // ChannelInviteCode 渠道邀请码（个体码）
@@ -597,6 +597,6 @@ type ChannelInviteCodeUsage struct {
 	BonusGrantedAt *time.Time `json:"bonus_granted_at"`
 	ClaimedAt      time.Time  `json:"claimed_at"`
 
-	Code  *ChannelInviteCode `json:"code,omitempty"`
-	User  *User              `json:"user,omitempty"`
+	Code *ChannelInviteCode `json:"code,omitempty"`
+	User *User              `json:"user,omitempty"`
 }

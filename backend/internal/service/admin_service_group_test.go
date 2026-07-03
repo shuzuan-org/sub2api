@@ -17,15 +17,15 @@ type groupRepoStubForAdmin struct {
 	getByID *Group // GetByID 返回值
 	getErr  error  // GetByID 返回的错误
 
-	listWithFiltersCalls       int
-	listWithFiltersParams      pagination.PaginationParams
-	listWithFiltersPlatform    string
-	listWithFiltersStatus      string
-	listWithFiltersSearch      string
-	listWithFiltersVisibility  string
-	listWithFiltersGroups      []Group
-	listWithFiltersResult      *pagination.PaginationResult
-	listWithFiltersErr         error
+	listWithFiltersCalls      int
+	listWithFiltersParams     pagination.PaginationParams
+	listWithFiltersPlatform   string
+	listWithFiltersStatus     string
+	listWithFiltersSearch     string
+	listWithFiltersVisibility string
+	listWithFiltersGroups     []Group
+	listWithFiltersResult     *pagination.PaginationResult
+	listWithFiltersErr        error
 }
 
 func (s *groupRepoStubForAdmin) Create(_ context.Context, g *Group) error {
@@ -503,8 +503,7 @@ func (s *groupRepoStubForInvalidRequestFallback) SetVisiblePlans(_ context.Conte
 func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsUnsupportedPlatform(t *testing.T) {
 	fallbackID := int64(10)
 	repo := &groupRepoStubForInvalidRequestFallback{
-		groups: map[int64]*Group{
-		},
+		groups: map[int64]*Group{},
 	}
 	svc := &adminServiceImpl{groupRepo: repo}
 
@@ -672,10 +671,10 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackClearsOnZero(t *testing.
 func TestAdminService_UpdateGroup_InvalidRequestFallbackSetSuccess(t *testing.T) {
 	fallbackID := int64(10)
 	existing := &Group{
-		ID:               1,
-		Name:             "g1",
-		Platform:         PlatformAnthropic,
-		Status:           StatusActive,
+		ID:       1,
+		Name:     "g1",
+		Platform: PlatformAnthropic,
+		Status:   StatusActive,
 	}
 	repo := &groupRepoStubForInvalidRequestFallback{
 		groups: map[int64]*Group{
@@ -697,10 +696,10 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackSetSuccess(t *testing.T)
 func TestAdminService_UpdateGroup_InvalidRequestFallbackAllowsAntigravity(t *testing.T) {
 	fallbackID := int64(10)
 	existing := &Group{
-		ID:               1,
-		Name:             "g1",
-		Platform:         PlatformAntigravity,
-		Status:           StatusActive,
+		ID:       1,
+		Name:     "g1",
+		Platform: PlatformAntigravity,
+		Status:   StatusActive,
 	}
 	repo := &groupRepoStubForInvalidRequestFallback{
 		groups: map[int64]*Group{

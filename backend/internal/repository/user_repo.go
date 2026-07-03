@@ -449,7 +449,7 @@ func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 	return r.client.User.Query().Where(dbuser.EmailEQ(email)).Exist(ctx)
 }
 
-// GetByPhone 按手机号查找用户（仅匹配 phone IS NOT NULL AND phone <> ''）
+// GetByPhone 按手机号查找用户（仅匹配 phone IS NOT NULL AND phone <> ”）
 func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*service.User, error) {
 	m, err := r.client.User.Query().
 		Where(dbuser.PhoneEQ(phone), dbuser.PhoneNEQ("")).
@@ -469,7 +469,7 @@ func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*service
 	return out, nil
 }
 
-// ExistsByPhone 检查手机号是否已存在（仅匹配 phone IS NOT NULL AND phone <> ''）
+// ExistsByPhone 检查手机号是否已存在（仅匹配 phone IS NOT NULL AND phone <> ”）
 func (r *userRepository) ExistsByPhone(ctx context.Context, phone string) (bool, error) {
 	return r.client.User.Query().
 		Where(dbuser.PhoneEQ(phone), dbuser.PhoneNEQ("")).

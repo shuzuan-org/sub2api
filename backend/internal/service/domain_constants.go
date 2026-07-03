@@ -120,13 +120,13 @@ const (
 	SettingKeyTurnstileSecretKey = "turnstile_secret_key" // Turnstile Secret Key
 
 	// 手机号登录设置
-	SettingKeyPhoneLoginEnabled        = "phone_login_enabled"         // 是否启用手机号登录
-	SettingKeyTencentSmsSecretID       = "tencent_sms_secret_id"       // 腾讯云短信 SecretId
-	SettingKeyTencentSmsSecretKey      = "tencent_sms_secret_key"      // 腾讯云短信 SecretKey
-	SettingKeyTencentSmsSdkAppID       = "tencent_sms_sdk_app_id"     // 腾讯云短信应用 ID
-	SettingKeyTencentSmsSignName       = "tencent_sms_sign_name"       // 腾讯云短信签名
-	SettingKeyTencentSmsTemplateID     = "tencent_sms_template_id"     // 腾讯云短信模板 ID
-	SettingKeyTencentSmsRegion         = "tencent_sms_region"          // 腾讯云短信 Region（默认 ap-guangzhou）
+	SettingKeyPhoneLoginEnabled    = "phone_login_enabled"     // 是否启用手机号登录
+	SettingKeyTencentSmsSecretID   = "tencent_sms_secret_id"   // 腾讯云短信 SecretId
+	SettingKeyTencentSmsSecretKey  = "tencent_sms_secret_key"  // 腾讯云短信 SecretKey
+	SettingKeyTencentSmsSdkAppID   = "tencent_sms_sdk_app_id"  // 腾讯云短信应用 ID
+	SettingKeyTencentSmsSignName   = "tencent_sms_sign_name"   // 腾讯云短信签名
+	SettingKeyTencentSmsTemplateID = "tencent_sms_template_id" // 腾讯云短信模板 ID
+	SettingKeyTencentSmsRegion     = "tencent_sms_region"      // 腾讯云短信 Region（默认 ap-guangzhou）
 
 	// TOTP 双因素认证设置
 	SettingKeyTotpEnabled = "totp_enabled" // 是否启用 TOTP 2FA 功能
@@ -274,13 +274,13 @@ const (
 	SettingKeyEnableMetadataPassthrough = "enable_metadata_passthrough"
 
 	// 腾讯云短信服务设置
-	SettingKeySMSTencentEnabled       = "sms_tencent_enabled"        // 是否启用腾讯云短信
-	SettingKeySMSTencentSecretID      = "sms_tencent_secret_id"      // 腾讯云 SecretId
-	SettingKeySMSTencentSecretKey     = "sms_tencent_secret_key"     // 腾讯云 SecretKey
-	SettingKeySMSTencentRegion        = "sms_tencent_region"         // 腾讯云地域（默认 ap-guangzhou）
-	SettingKeySMSTencentSdkAppID      = "sms_tencent_sdk_app_id"     // 腾讯云短信应用 ID
-	SettingKeySMSTencentSignName      = "sms_tencent_sign_name"      // 腾讯云短信签名
-	SettingKeySMSTencentTemplateID    = "sms_tencent_template_id"    // 腾讯云短信模板 ID
+	SettingKeySMSTencentEnabled    = "sms_tencent_enabled"     // 是否启用腾讯云短信
+	SettingKeySMSTencentSecretID   = "sms_tencent_secret_id"   // 腾讯云 SecretId
+	SettingKeySMSTencentSecretKey  = "sms_tencent_secret_key"  // 腾讯云 SecretKey
+	SettingKeySMSTencentRegion     = "sms_tencent_region"      // 腾讯云地域（默认 ap-guangzhou）
+	SettingKeySMSTencentSdkAppID   = "sms_tencent_sdk_app_id"  // 腾讯云短信应用 ID
+	SettingKeySMSTencentSignName   = "sms_tencent_sign_name"   // 腾讯云短信签名
+	SettingKeySMSTencentTemplateID = "sms_tencent_template_id" // 腾讯云短信模板 ID
 
 )
 

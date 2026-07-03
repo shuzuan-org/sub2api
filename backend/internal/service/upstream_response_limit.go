@@ -91,7 +91,7 @@ func decompressGzip(body []byte, maxBytes int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	decompressed, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func decompressGzip(body []byte, maxBytes int64) ([]byte, error) {
 
 func decompressDeflate(body []byte, maxBytes int64) ([]byte, error) {
 	reader := flate.NewReader(bytes.NewReader(body))
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	decompressed, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
 	if err != nil {
 		return nil, err
@@ -114,4 +114,3 @@ func decompressDeflate(body []byte, maxBytes int64) ([]byte, error) {
 	}
 	return decompressed, nil
 }
-

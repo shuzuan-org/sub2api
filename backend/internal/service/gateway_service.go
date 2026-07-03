@@ -5115,7 +5115,6 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			if firstNonEmptyLine && trimmedLine != "" {
 				firstNonEmptyLine = false
 				if errStatus, errBody, matched := parseInlineAnthropicErrorJSON(trimmedLine); matched {
-					sawTerminalEvent = true
 					if writeInlineUpstreamErrorResponse(c, flusher, errStatus, errBody) {
 						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("upstream inline error: status=%d", errStatus)
 					}

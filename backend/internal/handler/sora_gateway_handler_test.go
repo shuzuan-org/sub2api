@@ -137,7 +137,9 @@ func (r *stubAccountRepo) ListByGroup(ctx context.Context, groupID int64) ([]ser
 	return nil, nil
 }
 func (r *stubAccountRepo) ListActive(ctx context.Context) ([]service.Account, error) { return nil, nil }
-func (r *stubAccountRepo) ListWithModelPricing(ctx context.Context) ([]service.Account, error) { return nil, nil }
+func (r *stubAccountRepo) ListWithModelPricing(ctx context.Context) ([]service.Account, error) {
+	return nil, nil
+}
 func (r *stubAccountRepo) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	return r.listSchedulableByPlatform(platform), nil
 }

@@ -1017,7 +1017,7 @@ func (s *OAuthAuthorizationService) hashOAuthSecret(raw string) (string, string,
 
 func HashOAuthSecretWithKey(value, key string) string {
 	mac := hmac.New(sha256.New, []byte(key))
-	mac.Write([]byte(value))
+	_, _ = mac.Write([]byte(value))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -1092,9 +1092,9 @@ func randomUserCode() (string, error) {
 			return "", err
 		}
 		if i == 4 {
-			b.WriteByte('-')
+			_ = b.WriteByte('-')
 		}
-		b.WriteByte(alphabet[n.Int64()])
+		_ = b.WriteByte(alphabet[n.Int64()])
 	}
 	return b.String(), nil
 }

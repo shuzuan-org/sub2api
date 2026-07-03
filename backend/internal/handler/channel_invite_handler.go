@@ -15,7 +15,7 @@ type ValidateCodeResponse struct {
 	Valid         bool   `json:"valid"`
 	Type          string `json:"type,omitempty"`           // "channel" | "friend"
 	RemainingUses int    `json:"remaining_uses,omitempty"` // 渠道码剩余次数
-	BatchStatus   string `json:"batch_status,omitempty"`  // 渠道活动状态
+	BatchStatus   string `json:"batch_status,omitempty"`   // 渠道活动状态
 	Reason        string `json:"reason,omitempty"`         // 无效原因
 }
 

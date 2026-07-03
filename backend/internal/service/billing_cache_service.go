@@ -467,9 +467,9 @@ func (s *BillingCacheService) QueueUpdateSubscriptionUsage(userID int64, costUSD
 	}
 	// 队列满时同步回退，确保订阅用量及时更新。
 	if s.enqueueCacheWrite(cacheWriteTask{
-		kind:    cacheWriteUpdateSubscriptionUsage,
-		userID:  userID,
-		amount:  costUSD,
+		kind:   cacheWriteUpdateSubscriptionUsage,
+		userID: userID,
+		amount: costUSD,
 	}) {
 		return
 	}

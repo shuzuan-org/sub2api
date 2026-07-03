@@ -24,8 +24,8 @@ import (
 
 // U 代币换算常量。所有从外部获取的 USD 定价在入内存时统一乘以 USDToU 转为 U。
 const (
-	RMBToU   = 10.0            // 1 RMB = 10 U
-	USDToRMB = 7.0             // 1 USD = 7 RMB
+	RMBToU   = 10.0              // 1 RMB = 10 U
+	USDToRMB = 7.0               // 1 USD = 7 RMB
 	USDToU   = USDToRMB * RMBToU // 1 USD = 70 U
 )
 
@@ -1048,9 +1048,9 @@ func convertPricingMapToU(data map[string]*LiteLLMModelPricing) {
 
 // ModelPricingSummary 用于 API 返回的模型价格摘要
 type ModelPricingSummary struct {
-	Model          string  `json:"model"`
-	InputPerMTok   float64 `json:"input_per_mtok"`  // U per million tokens
-	OutputPerMTok  float64 `json:"output_per_mtok"` // U per million tokens
+	Model         string  `json:"model"`
+	InputPerMTok  float64 `json:"input_per_mtok"`  // U per million tokens
+	OutputPerMTok float64 `json:"output_per_mtok"` // U per million tokens
 }
 
 // ListModelsByProvider 返回指定 provider（platform）下的模型及其价格摘要。

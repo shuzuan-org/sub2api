@@ -21,7 +21,7 @@ func TestMergedSubscriptionState_ActivePlanIDs(t *testing.T) {
 		s := &MergedSubscriptionState{
 			FIFOQueue: []UserSubscription{
 				{PlanID: 1, ExpiresAt: future},
-				{PlanID: 2, ExpiresAt: past}, // expired -> excluded
+				{PlanID: 2, ExpiresAt: past},   // expired -> excluded
 				{PlanID: 1, ExpiresAt: future}, // duplicate plan -> deduped
 				{PlanID: 3, ExpiresAt: future},
 			},
