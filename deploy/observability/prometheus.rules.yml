@@ -1,0 +1,79 @@
+# sub2api 错误告警规则
+#
+# 数据源：sub2api_ops_error_total（与 ops_error_logs 同源的错误聚合计数）+
+#         sub2api_http_requests_total（总请求，算比率用）。
+# 阈值均为保守默认，可按实际流量/SLO 调整；每条注明依据。
+# 触发后经 Alertmanager 路由（本地未接 Alertmanager 时，规则仍会在 Prometheus /alerts 显示 firing）。
+#
+# annotation 里的 dashboard 链接指向"Sub2api 错误分析与排障"看板，便于从告警跳到下钻。
+
+groups:
+  - name: sub2api-errors
+    rules:
+      # 内部错误（phase=internal 是我们自己的 bug/未预期异常）——最高优先。
+      # 依据：健康服务内部错误率应趋近 0；持续 >0.05 req/s 说明有代码/依赖故障。
+      - alert: Sub2apiInternalErrorSpike
+        expr: sum(rate(sub2api_ops_error_total{phase="internal"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: page
+          service: sub2api
+        annotations:
+          summary: "sub2api 内部错误持续升高（phase=internal）"
+          description: "近 5m 内部错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m 超过 0.05。多为代码 bug 或核心依赖（DB/Redis）故障。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（by phase 面板，选 phase=internal）"
+
+      # 出现任何 P1 错误（最高严重级别）。
+      # 依据：P1 由 classifyOpsSeverity 判定为最严重，出现即应有人看。
+      - alert: Sub2apiP1ErrorsPresent
+        expr: sum(increase(sub2api_ops_error_total{severity="P1"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: page
+          service: sub2api
+        annotations:
+          summary: "sub2api 出现 P1 错误"
+          description: "近 5m 新增 {{ printf \"%.0f\" $value }} 条 P1 错误。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（未解决 P1 表）"
+
+      # 真实错误率（排除业务限制）过高。
+      # 依据：business_limited=true 为额度/并发/计费等预期拦截，不应触发可用性告警；
+      #       其余错误占总请求 >2% 持续 10m 视为服务质量劣化。
+      - alert: Sub2apiHighRealErrorRatio
+        expr: |
+          sum(rate(sub2api_ops_error_total{business_limited="false"}[5m]))
+            / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "sub2api 真实错误率超过 2%"
+          description: "近 5m 真实错误率（排除业务限制）{{ $value | humanizePercentage }}，持续 10m。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（真实错误率 / by type）"
+
+      # 单个上游平台劣化（upstream 阶段错误按 platform 拆分）。
+      # 依据：某平台 upstream 阶段真实错误 >0.1 req/s 持续 10m，通常是该上游/账号池不稳。
+      - alert: Sub2apiUpstreamPlatformDegraded
+        expr: sum by (platform) (rate(sub2api_ops_error_total{phase="upstream", business_limited="false"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "sub2api 上游平台 {{ $labels.platform }} 错误升高"
+          description: "平台 {{ $labels.platform }} 近 5m upstream 阶段真实错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（by platform，Top 上游状态码表）"
+
+      # 鉴权阶段错误突增（批量 token 过期 / 凭据失效）。
+      # 依据：auth 阶段错误短时突增多为账号 token 集体过期或上游认证策略变化。
+      - alert: Sub2apiAuthErrorSpike
+        expr: sum(rate(sub2api_ops_error_total{phase="auth"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "sub2api 鉴权阶段错误突增（phase=auth）"
+          description: "近 5m auth 阶段错误率 {{ printf \"%.3f\" $value }} req/s，持续 5m。多为账号 token 集体过期/凭据失效。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（by phase，选 phase=auth）"

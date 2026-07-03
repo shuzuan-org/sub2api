@@ -21,6 +21,7 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus.rules.yml:/etc/prometheus/prometheus.rules.yml:ro
       - sub2api-prometheus-data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -51,6 +52,13 @@ services:
       GF_SECURITY_ALLOW_EMBEDDING: "true"
       GF_USERS_DEFAULT_THEME: "dark"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/sub2api-stability.json"
+      # ops_error_logs 下钻数据源（sub2api-pg）的连接参数。本地默认连开发栈 postgres 容器；
+      # 生产用只读账号 grafana_ro 时，改设 PG_HOST/PG_DATABASE/PG_RO_USER/PG_RO_PASSWORD。
+      PG_HOST: "${PG_HOST:-postgres}"
+      PG_DATABASE: "${PG_DATABASE:-${POSTGRES_DB:-sub2api}}"
+      PG_RO_USER: "${PG_RO_USER:-${POSTGRES_USER:-sub2api}}"
+      PG_RO_PASSWORD: "${PG_RO_PASSWORD:-${POSTGRES_PASSWORD}}"
+      PG_SSLMODE: "${PG_SSLMODE:-disable}"
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro

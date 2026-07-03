@@ -1,0 +1,283 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "title": "Sub2api 错误分析与排障",
+  "tags": ["sub2api", "errors", "ops"],
+  "timezone": "Asia/Shanghai",
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "platform",
+        "label": "平台",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(sub2api_ops_error_total, platform)",
+        "definition": "label_values(sub2api_ops_error_total, platform)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "type",
+        "label": "错误类型",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(sub2api_ops_error_total, type)",
+        "definition": "label_values(sub2api_ops_error_total, type)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "phase",
+        "label": "阶段",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(sub2api_ops_error_total, phase)",
+        "definition": "label_values(sub2api_ops_error_total, phase)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "错误总览（Prometheus 聚合）",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "成功率（排除业务限制与客户端 400）",
+      "description": "1 - 真实错误率。真实错误 = sub2api_ops_error_total{business_limited=\"false\", type!=\"invalid_request_error\"}，即排除额度/并发/计费等业务限制、以及客户端非法请求。SLO 目标 ≥99.9%。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 4,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 0.99 },
+            { "color": "green", "value": 0.999 }
+          ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "1 - (sum(rate(sub2api_ops_error_total{business_limited=\"false\", type!=\"invalid_request_error\"}[5m])) / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9))", "legendFormat": "成功率" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "真实错误率",
+      "description": "sum(rate(sub2api_ops_error_total{business_limited=\"false\"}[5m])) / 总请求率。改造/发布后应稳定在低位。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "decimals": 4,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.01 },
+            { "color": "red", "value": 0.02 }
+          ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(rate(sub2api_ops_error_total{business_limited=\"false\"}[5m])) / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9)", "legendFormat": "真实错误率" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "P1 错误（近 5m）",
+      "description": "sum(increase(sub2api_ops_error_total{severity=\"P1\"}[5m]))。P1 为最高严重级别，>0 即应关注（对应告警 P1ErrorsPresent）。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(increase(sub2api_ops_error_total{severity=\"P1\"}[5m]))", "legendFormat": "P1" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "业务限制率（429/额度，参考）",
+      "description": "sum(rate(sub2api_ops_error_total{business_limited=\"true\"}[5m])) / 总请求率。属预期内业务拦截，不计入 SLO，仅供观察容量/额度压力。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "decimals": 4, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(rate(sub2api_ops_error_total{business_limited=\"true\"}[5m])) / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9)", "legendFormat": "业务限制率" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "错误结构下钻（按 平台/类型/阶段 过滤）",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "错误率 by type",
+      "description": "sub2api_ops_error_total 按 error_type 聚合 —— 看错误结构。受 $platform / $phase 过滤。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" }, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (type) (rate(sub2api_ops_error_total{platform=~\"$platform\", phase=~\"$phase\"}[5m]))", "legendFormat": "{{type}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "错误率 by platform（哪个上游在劣化）",
+      "description": "sub2api_ops_error_total 按 platform 聚合。受 $type / $phase 过滤。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" }, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (platform) (rate(sub2api_ops_error_total{type=~\"$type\", phase=~\"$phase\"}[5m]))", "legendFormat": "{{platform}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "错误率 by phase（定位 auth/upstream/internal）",
+      "description": "sub2api_ops_error_total 按 error_phase 聚合 —— 定位错误发生在鉴权/路由/上游/内部哪一段。受 $platform / $type 过滤。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" }, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (phase) (rate(sub2api_ops_error_total{platform=~\"$platform\", type=~\"$type\"}[5m]))", "legendFormat": "{{phase}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "错误率 by severity",
+      "description": "sub2api_ops_error_total 按 severity(P1/P2/P3) 聚合。受 $platform / $type / $phase 过滤。",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" }, "showPoints": "never" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (severity) (rate(sub2api_ops_error_total{platform=~\"$platform\", type=~\"$type\", phase=~\"$phase\"}[5m]))", "legendFormat": "{{severity}}" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "逐请求下钻（ops_error_logs / PostgreSQL）",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }
+    },
+    {
+      "type": "table",
+      "title": "最近错误明细（Prometheus 发现尖峰 → 这里按同一时间窗/平台看逐请求）",
+      "description": "查 ops_error_logs。受 $platform / $type / $phase 过滤（正则匹配，All=全部）；按仪表板时间范围过滤。request_id 可与后端日志关联。",
+      "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 26 },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "filterable": true } }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "时间", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT created_at AS \"时间\", platform AS \"平台\", status_code AS \"对外码\", upstream_status_code AS \"上游码\", error_type AS \"类型\", error_phase AS \"阶段\", severity AS \"级别\", is_business_limited AS \"业务限\", account_id AS \"账号\", request_id AS \"请求ID\", client_request_id AS \"客户端ID\", left(coalesce(error_message,''), 200) AS \"错误信息\" FROM ops_error_logs WHERE $__timeFilter(created_at) AND status_code >= 400 AND coalesce(platform,'') ~ '^$platform$' AND error_type ~ '^$type$' AND error_phase ~ '^$phase$' ORDER BY created_at DESC LIMIT 200"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top 失败账号（时间范围内）",
+      "description": "定位是哪个上游账号在集中报错。受 $platform 过滤。",
+      "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 36 },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "filterable": true } }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "错误数", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT account_id AS \"账号\", count(*) AS \"错误数\", max(created_at) AS \"最近\" FROM ops_error_logs WHERE $__timeFilter(created_at) AND status_code >= 400 AND account_id IS NOT NULL AND coalesce(platform,'') ~ '^$platform$' GROUP BY account_id ORDER BY count(*) DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top 上游状态码 by 平台（时间范围内）",
+      "description": "看各上游返回的原始状态码分布（高基数维度，只在 PG 明细可见）。",
+      "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 36 },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "filterable": true } }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "次数", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT platform AS \"平台\", upstream_status_code AS \"上游码\", count(*) AS \"次数\" FROM ops_error_logs WHERE $__timeFilter(created_at) AND upstream_status_code IS NOT NULL AND coalesce(platform,'') ~ '^$platform$' GROUP BY platform, upstream_status_code ORDER BY count(*) DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "未解决 P1（当前开放事件）",
+      "description": "severity=P1 且 resolved=false，不受时间范围限制 —— 当前待处理的高危错误。",
+      "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 36 },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "filterable": true } }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "时间", "desc": true }] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "sub2api-pg" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT created_at AS \"时间\", platform AS \"平台\", error_type AS \"类型\", account_id AS \"账号\", request_id AS \"请求ID\", left(coalesce(error_message,''), 200) AS \"错误信息\" FROM ops_error_logs WHERE severity = 'P1' AND resolved = false ORDER BY created_at DESC LIMIT 50"
+        }
+      ]
+    }
+  ]
+}

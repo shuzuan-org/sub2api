@@ -43,6 +43,24 @@ var (
 		Help: "Upstream errors shaped to client by returned status and error type.",
 	}, []string{"status", "type"})
 
+	// OpsErrorTotal 与 ops_error_logs 同源的错误聚合计数（低基数）。
+	//
+	// 在 OpsErrorLoggerMiddleware 完成分类、入队 ops_error_logs 之前同步递增，
+	// 保证 Prometheus 聚合与 DB 明细一一对应、永不漂移；且因发生在异步入队之前，
+	// 队列丢弃只影响 DB 明细完整性，不影响本指标的正确性。
+	//
+	// 标签全部为低基数枚举：
+	//   - platform:         anthropic|openai|gemini|antigravity|sora|deepseek|""（分组平台）
+	//   - phase:            request|auth|routing|upstream|network|internal（classifyOpsPhase）
+	//   - type:             normalizeOpsErrorType 的有界词表（10 类）
+	//   - severity:         P1|P2|P3（classifyOpsSeverity）
+	//   - business_limited: true|false（额度/并发/计费等业务限制，用于 SLO 中排除）
+	// 高基数维度（upstream_status/account_id/request_id/message）一律不进指标，只留 ops_error_logs 供 PG 下钻。
+	OpsErrorTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "sub2api_ops_error_total",
+		Help: "Classified errors (same source as ops_error_logs) by platform, phase, type, severity and business-limited flag.",
+	}, []string{"platform", "phase", "type", "severity", "business_limited"})
+
 	// StreamTruncationTotal 流式中途截断次数，按成因区分（项2/5）。
 	// cause: "upstream"（上游静默截断，补发 SSE error）| "client"（客户端主动断）。
 	StreamTruncationTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -82,6 +100,31 @@ var (
 		Buckets: []float64{0.1, 0.5, 1, 5, 15, 30, 60, 300, 1800, 7200},
 	})
 )
+
+// init 预初始化 OpsErrorTotal 的关键序列为 0。
+//
+// Prometheus CounterVec 的带标签序列在首次 Inc 前不存在，会让 Grafana 面板
+// 在"尚未出错"时显示 No data 而非 0，也会让 rate()/告警表达式缺基线。这里把
+// 告警与 SLO 面板会引用的组合预置为 0（沿用本仓 stream/tool 指标的既有做法）。
+// 仅覆盖高价值组合，不做全叉乘（避免制造大量恒零序列）。
+func init() {
+	platforms := []string{"anthropic", "openai", "gemini", "antigravity", "sora"}
+	severities := []string{"P1", "P2", "P3"}
+	// 告警/看板主要关注的非业务限制错误类型。
+	realErrorTypes := []string{"upstream_error", "rate_limit_error", "api_error", "authentication_error"}
+	for _, p := range platforms {
+		for _, s := range severities {
+			for _, t := range realErrorTypes {
+				OpsErrorTotal.WithLabelValues(p, "upstream", t, s, "false")
+			}
+		}
+	}
+	// 内部错误（我们自己的 bug）与鉴权阶段错误：单独预置，供对应告警读到 0 基线。
+	for _, s := range severities {
+		OpsErrorTotal.WithLabelValues("", "internal", "api_error", s, "false")
+		OpsErrorTotal.WithLabelValues("", "auth", "authentication_error", s, "false")
+	}
+}
 
 // Handler 返回 /metrics 的 HTTP handler（基于默认 registry）。
 func Handler() http.Handler { return promhttp.Handler() }
