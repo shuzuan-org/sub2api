@@ -173,5 +173,5 @@ groups:
           service: sub2api
         annotations:
           summary: "上游 HTTP 连接池负载过高（in-flight/缓存客户端 > 80%）"
-          description: "当前 in-flight = {{ printf \"%.0f\" (sub2api_upstream_pool_in_flight) }}，缓存客户端 = {{ printf \"%.0f\" (sub2api_upstream_pool_clients_cached) }}。可能需要扩容账号或调整连接池参数。"
+          description: "当前 in-flight / clients_cached 比值 = {{ $value | humanizePercentage }}。可能需要扩容账号或调整连接池参数。"
           dashboard: "Grafana → Sub2api 按模型稳定性"
