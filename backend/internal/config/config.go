@@ -831,6 +831,14 @@ type OpsConfig struct {
 	// This config flag is the "hard switch" for deployments that want to disable ops completely.
 	Enabled bool `mapstructure:"enabled"`
 
+	// PrometheusModelMetricsAllowlist is the static allowlist of model names for Prometheus
+	// label normalization. Models outside this list are bucketed into "__other__" to avoid
+	// label cardinality explosion. When empty, NormalizeModel passes through raw values.
+	//
+	// Dynamic refresh (e.g. from DB account table) can be implemented later via
+	// metrics.SetAllowedModels() called on a timer.
+	PrometheusModelMetricsAllowlist []string `mapstructure:"prometheus_model_metrics_allowlist" yaml:"prometheus_model_metrics_allowlist"`
+
 	// UsePreaggregatedTables prefers ops_metrics_hourly/daily for long-window dashboard queries.
 	UsePreaggregatedTables bool `mapstructure:"use_preaggregated_tables"`
 

@@ -1110,9 +1110,14 @@ func recordOpsErrorMetric(entry *service.OpsInsertErrorLogInput) {
 		return
 	}
 	metrics.OpsErrorTotal.WithLabelValues(
-		entry.Platform, entry.ErrorPhase, entry.ErrorType, entry.Severity,
-		strconv.FormatBool(entry.IsBusinessLimited),
+		entry.Platform, metrics.NormalizeModel(entry.Model), entry.ErrorPhase, entry.ErrorType,
+		entry.Severity, strconv.FormatBool(entry.IsBusinessLimited),
 	).Inc()
+
+	// 同时记录上游 HTTP 状态码分布（如 429/503/500 的细分）。
+	if entry.UpstreamStatusCode != nil && *entry.UpstreamStatusCode > 0 {
+		metrics.RecordUpstreamStatus(entry.Platform, entry.Model, *entry.UpstreamStatusCode)
+	}
 }
 
 func normalizeOpsErrorType(errType string, code string) string {

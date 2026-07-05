@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -8995,4 +8996,107 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 写入文件（调试用，并发写入可能交错但不影响可读性）
 	_, _ = f.WriteString(buf.String())
+}
+
+// AccountPoolStats returns a snapshot of account pool health grouped by (platform, model).
+// Used by Prometheus gauge collector for per-model account availability monitoring.
+func (s *GatewayService) AccountPoolStats(ctx context.Context) []metrics.AccountPoolStat {
+	if s == nil || s.accountRepo == nil {
+		return nil
+	}
+
+	accounts, err := s.accountRepo.ListSchedulable(ctx)
+	if err != nil {
+		return nil
+	}
+
+	// Build counts: key "platform|model" -> total
+	type key struct{ platform, model string }
+	counts := make(map[key]int)
+	for _, acc := range accounts {
+		platform := acc.Platform
+		if platform == "" {
+			continue
+		}
+		// Resolve models supported by this account via its model mapping.
+		mapping := acc.GetModelMapping()
+		if len(mapping) == 0 {
+			// If no mapping, the account maps all models — track as wildcard per platform.
+			counts[key{platform: platform, model: ""}]++
+			continue
+		}
+		for model := range mapping {
+			if model == "" {
+				continue
+			}
+			counts[key{platform: platform, model: model}]++
+		}
+	}
+
+	// Also count total accounts (active + schedulable) for the "total" gauge.
+	totalAccounts, err := s.accountRepo.ListActive(ctx)
+	totalCounts := make(map[key]int)
+	if err == nil {
+		for _, acc := range totalAccounts {
+			platform := acc.Platform
+			if platform == "" {
+				continue
+			}
+			mapping := acc.GetModelMapping()
+			if len(mapping) == 0 {
+				totalCounts[key{platform: platform, model: ""}]++
+				continue
+			}
+			for model := range mapping {
+				if model == "" {
+					continue
+				}
+				totalCounts[key{platform: platform, model: model}]++
+			}
+		}
+	}
+
+	// Merge into result.
+	allKeys := make(map[key]struct{})
+	for k := range counts {
+		allKeys[k] = struct{}{}
+	}
+	for k := range totalCounts {
+		allKeys[k] = struct{}{}
+	}
+
+	out := make([]metrics.AccountPoolStat, 0, len(allKeys))
+	for k := range allKeys {
+		total := totalCounts[k]
+		avail := counts[k]
+		out = append(out, metrics.AccountPoolStat{
+			Platform:    k.platform,
+			Model:       k.model,
+			Total:       total,
+			Available:   avail,
+			Unavailable: total - avail,
+		})
+	}
+	return out
+}
+
+// UpstreamPoolStats returns a snapshot of the HTTP upstream client pool.
+func (s *GatewayService) UpstreamPoolStats() metrics.UpstreamPoolStat {
+	if s == nil || s.httpUpstream == nil {
+		return metrics.UpstreamPoolStat{}
+	}
+	type poolStatser interface {
+		PoolStats() struct {
+			ClientsCached int
+			InFlightTotal int
+		}
+	}
+	if ps, ok := s.httpUpstream.(poolStatser); ok {
+		stats := ps.PoolStats()
+		return metrics.UpstreamPoolStat{
+			ClientsCached: stats.ClientsCached,
+			InFlightTotal: stats.InFlightTotal,
+		}
+	}
+	return metrics.UpstreamPoolStat{}
 }

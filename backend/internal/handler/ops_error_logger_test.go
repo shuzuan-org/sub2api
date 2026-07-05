@@ -304,27 +304,27 @@ func TestRecordOpsErrorMetric_EmitsCorrectLabels(t *testing.T) {
 	tests := []struct {
 		name   string
 		entry  *service.OpsInsertErrorLogInput
-		labels []string // platform, phase, type, severity, business_limited
+		labels []string // platform, model, phase, type, severity, business_limited
 	}{
 		{
-			name:   "auth error",
-			entry:  &service.OpsInsertErrorLogInput{Platform: "anthropic", ErrorPhase: "auth", ErrorType: "authentication_error", Severity: "P2", IsBusinessLimited: false},
-			labels: []string{"anthropic", "auth", "authentication_error", "P2", "false"},
+			name:   "auth error with model",
+			entry:  &service.OpsInsertErrorLogInput{Platform: "anthropic", Model: "claude-sonnet-4-5", ErrorPhase: "auth", ErrorType: "authentication_error", Severity: "P2", IsBusinessLimited: false},
+			labels: []string{"anthropic", "claude-sonnet-4-5", "auth", "authentication_error", "P2", "false"},
 		},
 		{
 			name:   "business-limited rate limit",
-			entry:  &service.OpsInsertErrorLogInput{Platform: "openai", ErrorPhase: "request", ErrorType: "rate_limit_error", Severity: "P3", IsBusinessLimited: true},
-			labels: []string{"openai", "request", "rate_limit_error", "P3", "true"},
+			entry:  &service.OpsInsertErrorLogInput{Platform: "openai", Model: "gpt-5.1", ErrorPhase: "request", ErrorType: "rate_limit_error", Severity: "P3", IsBusinessLimited: true},
+			labels: []string{"openai", "gpt-5.1", "request", "rate_limit_error", "P3", "true"},
 		},
 		{
 			name:   "upstream 5xx",
-			entry:  &service.OpsInsertErrorLogInput{Platform: "gemini", ErrorPhase: "upstream", ErrorType: "upstream_error", Severity: "P1", IsBusinessLimited: false},
-			labels: []string{"gemini", "upstream", "upstream_error", "P1", "false"},
+			entry:  &service.OpsInsertErrorLogInput{Platform: "gemini", Model: "gemini-2.5-pro", ErrorPhase: "upstream", ErrorType: "upstream_error", Severity: "P1", IsBusinessLimited: false},
+			labels: []string{"gemini", "gemini-2.5-pro", "upstream", "upstream_error", "P1", "false"},
 		},
 		{
-			name:   "internal error empty platform",
-			entry:  &service.OpsInsertErrorLogInput{Platform: "", ErrorPhase: "internal", ErrorType: "api_error", Severity: "P1", IsBusinessLimited: false},
-			labels: []string{"", "internal", "api_error", "P1", "false"},
+			name:   "internal error empty platform and model",
+			entry:  &service.OpsInsertErrorLogInput{Platform: "", Model: "", ErrorPhase: "internal", ErrorType: "api_error", Severity: "P1", IsBusinessLimited: false},
+			labels: []string{"", "", "internal", "api_error", "P1", "false"},
 		},
 	}
 	for _, tt := range tests {

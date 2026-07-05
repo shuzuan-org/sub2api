@@ -762,6 +762,68 @@ ops:
   # 其他详细设置（数据清理、预聚合等）在运维监控设置对话框中配置
   enabled: true
 
+  # Model name allowlist for Prometheus label cardinality control.
+  # Models outside this list are bucketed into "__other__" in sub2api_ops_error_total
+  # and other model-labelled metrics. Canonical names only — the system normalizes
+  # effort-suffixed variants (e.g. gpt-5.1-low) and short aliases (e.g. sonnet-4.5)
+  # before they reach metrics.
+  #
+  # Keep this list in sync with actively served production models (~50 models budget).
+  prometheus_model_metrics_allowlist:
+    # --- Anthropic (Claude) ---
+    - claude-opus-4-8
+    - claude-opus-4-7
+    - claude-opus-4-6
+    - claude-opus-4-5-20251101
+    - claude-opus-4-1
+    - claude-opus-4-20250514
+    - claude-sonnet-4-6
+    - claude-sonnet-4-5
+    - claude-sonnet-4-5-20250929
+    - claude-sonnet-4-20250514
+    - claude-haiku-4-5
+    - claude-haiku-4-5-20251001
+    # --- OpenAI (GPT/Codex) ---
+    - gpt-5.5
+    - gpt-5.4
+    - gpt-5.4-mini
+    - gpt-5.4-nano
+    - gpt-5.2
+    - gpt-5.2-codex
+    - gpt-5.1
+    - gpt-5.1-codex
+    - gpt-5.1-codex-max
+    - gpt-5.1-codex-mini
+    - gpt-5.3-codex
+    - codex-mini-latest
+    # --- Gemini ---
+    - gemini-2.5-flash
+    - gemini-2.5-flash-lite
+    - gemini-2.5-flash-thinking
+    - gemini-2.5-pro
+    - gemini-3-flash
+    - gemini-3-pro-high
+    - gemini-3-pro-low
+    - gemini-3.1-pro-high
+    - gemini-3.1-pro-low
+    # --- DeepSeek ---
+    - deepseek-chat
+    - deepseek-reasoner
+    - deepseek-v4-pro
+    - deepseek-v4-flash
+    # --- Sora ---
+    - gpt-image
+    - sora2-landscape-10s
+    - sora2-portrait-10s
+    - sora2pro-landscape-10s
+    - sora2pro-portrait-10s
+    - prompt-enhance-short-10s
+    - prompt-enhance-medium-10s
+    - prompt-enhance-long-10s
+    # --- Antigravity (cross-platform) ---
+    - gpt-oss-120b-medium
+    - tab_flash_lite_preview
+
 # =============================================================================
 # JWT Configuration
 # JWT 配置

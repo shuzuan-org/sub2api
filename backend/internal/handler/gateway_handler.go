@@ -470,6 +470,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
+			h.recordUpstreamMetrics(account.Platform, parsedReq.Model, result)
 			h.submitUsageRecordTask(func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -803,6 +804,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
+			h.recordUpstreamMetrics(account.Platform, parsedReq.Model, result)
 			h.submitUsageRecordTask(func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -1932,6 +1934,33 @@ func (h *GatewayHandler) maybeLogCompatibilityFallbackMetrics(reqLog *zap.Logger
 		zap.Float64("session_hash_legacy_read_hit_rate", metrics.SessionHashLegacyReadHitRate),
 		zap.Int64("metadata_legacy_fallback_total", metrics.MetadataLegacyFallbackTotal),
 	)
+}
+
+// AccountPoolStats returns a snapshot of account pool health grouped by (platform, model).
+// Used by Prometheus gauge collector for per-model account availability monitoring.
+func (h *GatewayHandler) AccountPoolStats(ctx context.Context) []metrics.AccountPoolStat {
+	if h == nil || h.gatewayService == nil {
+		return nil
+	}
+	return h.gatewayService.AccountPoolStats(ctx)
+}
+
+// UpstreamPoolStats returns a snapshot of the HTTP upstream client pool.
+func (h *GatewayHandler) UpstreamPoolStats() metrics.UpstreamPoolStat {
+	if h == nil || h.gatewayService == nil {
+		return metrics.UpstreamPoolStat{}
+	}
+	return h.gatewayService.UpstreamPoolStats()
+}
+
+// recordUpstreamMetrics records upstream latency and status code to Prometheus after a successful forward.
+func (h *GatewayHandler) recordUpstreamMetrics(platform, model string, result *service.ForwardResult) {
+	totalMs := result.Duration.Milliseconds()
+	metrics.RecordUpstreamLatency(platform, model, "total", totalMs)
+	if result.FirstTokenMs != nil {
+		metrics.RecordUpstreamLatency(platform, model, "ttft", int64(*result.FirstTokenMs))
+	}
+	metrics.RecordUpstreamStatus(platform, model, 200)
 }
 
 func (h *GatewayHandler) submitUsageRecordTask(task service.UsageRecordTask) {
