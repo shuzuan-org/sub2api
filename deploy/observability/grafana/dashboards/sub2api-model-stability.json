@@ -191,7 +191,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "P50"
         }
       ]
@@ -252,7 +252,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "P95"
         }
       ]
@@ -523,7 +523,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum by (model) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "{{model}} P50"
         },
         {
@@ -532,7 +532,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (model) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "{{model}} P95"
         },
         {
@@ -541,7 +541,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum by (model) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "{{model}} P99"
         }
       ]
@@ -577,7 +577,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum by (model) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "{{model}} P50"
         },
         {
@@ -586,8 +586,17 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (model) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
           "legendFormat": "{{model}} P95"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P99"
         }
       ]
     },

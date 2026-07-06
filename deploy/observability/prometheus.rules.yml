@@ -101,7 +101,7 @@ groups:
       - alert: Sub2apiModelHighLatency
         expr: |
           histogram_quantile(0.95,
-            sum by (platform, model) (
+            sum by (platform, model, le) (
               rate(sub2api_upstream_latency_seconds_bucket{phase="ttft"}[10m])
             )
           ) > 30
