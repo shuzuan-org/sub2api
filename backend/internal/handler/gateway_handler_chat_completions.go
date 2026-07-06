@@ -242,6 +242,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 
 		// 6. Record usage
+		if result != nil {
+			recordUpstreamSuccessMetrics(account.Platform, result.Model, result.Duration, result.FirstTokenMs)
+		}
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)

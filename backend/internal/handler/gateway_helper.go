@@ -16,6 +16,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// recordUpstreamSuccessMetrics records upstream latency (total + ttft) and a 200
+// status for a successful forward. Shared by all gateway handlers (anthropic /
+// openai / gemini / sora) so the per-model upstream_status / latency metrics are
+// not limited to the anthropic path. Emitting 200 here mirrors the error path,
+// where ops_error_logger records the non-2xx upstream status.
+func recordUpstreamSuccessMetrics(platform, model string, dur time.Duration, firstTokenMs *int) {
+	metrics.RecordUpstreamLatency(platform, model, "total", dur.Milliseconds())
+	if firstTokenMs != nil {
+		metrics.RecordUpstreamLatency(platform, model, "ttft", int64(*firstTokenMs))
+	}
+	metrics.RecordUpstreamStatus(platform, model, 200)
+}
+
 // claudeCodeValidator is a singleton validator for Claude Code client detection
 var claudeCodeValidator = service.NewClaudeCodeValidator()
 
