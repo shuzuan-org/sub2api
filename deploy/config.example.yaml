@@ -770,6 +770,13 @@ ops:
   #
   # Keep this list in sync with actively served production models (~50 models budget).
   prometheus_model_metrics_allowlist:
+    # --- 运行时补充（据 usage_logs 实际流量，2026-07-06）---
+    - glm-5.2
+    - glm-5
+    - glm-4.6
+    - MiniMax-M3
+    - DeepSeek-V4-Pro
+    - claude-3-5-haiku-20241022
     # --- Anthropic (Claude) ---
     - claude-opus-4-8
     - claude-opus-4-7
