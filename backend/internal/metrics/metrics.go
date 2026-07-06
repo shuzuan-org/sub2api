@@ -207,6 +207,7 @@ func ObserveHTTP(path, method string, status int, elapsed time.Duration) {
 //   - platform:    anthropic|openai|gemini|antigravity|sora|deepseek|""
 //   - model:       NormalizeModel 归一化后的模型名
 //   - upstream_status: "200"|"400"|"401"|"403"|"429"|"500"|"502"|"503"|"other"
+//
 // 记录时机：每次上游 HTTP 往返完成后（无论成功/失败）。
 var UpstreamStatusTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 	Name: "sub2api_upstream_status_total",
@@ -219,10 +220,11 @@ var UpstreamStatusTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 //   - platform:    anthropic|openai|gemini|antigravity|sora|deepseek|""
 //   - model:       NormalizeModel 归一化后的模型名
 //   - phase:       "ttft"（首 token 时间，仅流式请求）| "total"（完整往返时间）
+//
 // Buckets 覆盖从 0.1s 到 300s，适配 LLM 请求的典型延迟范围。
 var UpstreamLatencySeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Name: "sub2api_upstream_latency_seconds",
-	Help: "Upstream request latency in seconds by platform, model and phase (ttft|total).",
+	Name:    "sub2api_upstream_latency_seconds",
+	Help:    "Upstream request latency in seconds by platform, model and phase (ttft|total).",
 	Buckets: []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300},
 }, []string{"platform", "model", "phase"})
 
@@ -286,17 +288,52 @@ func RecordUpstreamLatency(platform, model, phase string, durationMs int64) {
 	UpstreamLatencySeconds.WithLabelValues(platform, model, phase).Observe(float64(durationMs) / 1000.0)
 }
 
+// LLMTokensTotal Token 消耗总量，按模型 + token 类型累加。
+//
+// 标签（全部低基数）：
+//   - model: NormalizeModel 归一化后的模型名（白名单外归入 "__other__"）
+//   - type:  input | output | cache_read | cache_creation
+//
+// 记录时机：每次 usage 落库收口（writeUsageLogBestEffort）时同步累加，
+// 与 usage_logs 表同源；在落库前打点，因此不受异步写队列丢弃影响。
+// 用 rate()/increase() 在 Grafana 观察每模型输入/输出 token 消耗速率。
+var LLMTokensTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "sub2api_llm_tokens_total",
+	Help: "LLM token consumption by model and token type (input|output|cache_read|cache_creation).",
+}, []string{"model", "type"})
+
+// RecordTokenUsage 累加一次请求的 token 消耗。
+// model 经 NormalizeModel 归一化；各类别 <=0 时跳过（不产生无谓的零值序列）。
+func RecordTokenUsage(model string, input, output, cacheRead, cacheCreation int) {
+	model = NormalizeModel(model)
+	if model == "" {
+		model = "__other__"
+	}
+	if input > 0 {
+		LLMTokensTotal.WithLabelValues(model, "input").Add(float64(input))
+	}
+	if output > 0 {
+		LLMTokensTotal.WithLabelValues(model, "output").Add(float64(output))
+	}
+	if cacheRead > 0 {
+		LLMTokensTotal.WithLabelValues(model, "cache_read").Add(float64(cacheRead))
+	}
+	if cacheCreation > 0 {
+		LLMTokensTotal.WithLabelValues(model, "cache_creation").Add(float64(cacheCreation))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 账号池可用性指标（GaugeVec + Collector，每次 scrape 时从 accountRepo 重新计算）
 // ---------------------------------------------------------------------------
 
 // AccountPoolStat 描述一个 (platform, model) 组合的账号池状态。
 type AccountPoolStat struct {
-	Platform     string
-	Model        string
-	Total        int // 配置的总账号数（active + schedulable）
-	Available    int // 当前可调度（IsSchedulable）的账号数
-	Unavailable  int // 不可调度的账号数（临时封禁/限流/过载等）
+	Platform    string
+	Model       string
+	Total       int // 配置的总账号数（active + schedulable）
+	Available   int // 当前可调度（IsSchedulable）的账号数
+	Unavailable int // 不可调度的账号数（临时封禁/限流/过载等）
 }
 
 // AccountPoolStatsFunc is the callback that returns fresh account pool stats on each scrape.
@@ -306,9 +343,9 @@ type AccountPoolStatsFunc func() []AccountPoolStat
 type accountPoolCollector struct {
 	statsFunc AccountPoolStatsFunc
 
-	availableDesc    *prometheus.Desc
-	totalDesc        *prometheus.Desc
-	unavailableDesc  *prometheus.Desc
+	availableDesc   *prometheus.Desc
+	totalDesc       *prometheus.Desc
+	unavailableDesc *prometheus.Desc
 }
 
 func newAccountPoolCollector(statsFunc AccountPoolStatsFunc) *accountPoolCollector {
@@ -372,8 +409,8 @@ func RegisterAccountPoolGauges(statsFunc AccountPoolStatsFunc) {
 
 // UpstreamPoolStat 返回 HTTP 上游连接池的瞬时统计值。
 type UpstreamPoolStat struct {
-	ClientsCached  int // 缓存的上游客户端实例数量
-	InFlightTotal  int // 总进行中请求数（跨所有客户端）
+	ClientsCached int // 缓存的上游客户端实例数量
+	InFlightTotal int // 总进行中请求数（跨所有客户端）
 }
 
 // UpstreamPoolStatsFunc is the callback that returns fresh upstream HTTP pool stats on each scrape.
@@ -404,9 +441,9 @@ func RegisterUpstreamPoolGauges(statsFunc UpstreamPoolStatsFunc) {
 		})
 
 		collector := &upstreamPoolCollector{
-			statsFunc:    statsFunc,
-			cachedGauge:  upstreamPoolClientsCached,
-			flightGauge:  upstreamPoolInFlight,
+			statsFunc:   statsFunc,
+			cachedGauge: upstreamPoolClientsCached,
+			flightGauge: upstreamPoolInFlight,
 		}
 		prometheus.MustRegister(collector)
 	})

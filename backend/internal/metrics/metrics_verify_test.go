@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // TestAllMetricsRegistered verifies that all expected Prometheus metrics are
@@ -164,6 +166,41 @@ func TestNormalizeModel(t *testing.T) {
 	// Verify AllowedModelCount.
 	if n := AllowedModelCount(); n != 3 {
 		t.Errorf("AllowedModelCount() = %d, want 3", n)
+	}
+}
+
+// TestRecordTokenUsage verifies token consumption is accumulated per model+type,
+// unknown models bucket to __other__, and non-positive values are skipped.
+func TestRecordTokenUsage(t *testing.T) {
+	SetAllowedModels([]string{"claude-sonnet-4-5"})
+
+	base := func(model, typ string) float64 {
+		return testutil.ToFloat64(LLMTokensTotal.WithLabelValues(model, typ))
+	}
+	inBefore := base("claude-sonnet-4-5", "input")
+	outBefore := base("claude-sonnet-4-5", "output")
+	crBefore := base("claude-sonnet-4-5", "cache_read")
+	ccBefore := base("claude-sonnet-4-5", "cache_creation")
+	otherBefore := base("__other__", "input")
+
+	RecordTokenUsage("claude-sonnet-4-5", 100, 40, 25, 10)
+	RecordTokenUsage("claude-sonnet-4-5", 0, -5, 0, 0) // non-positive skipped
+	RecordTokenUsage("mystery-model", 7, 0, 0, 0)      // unknown → __other__
+
+	if got := base("claude-sonnet-4-5", "input") - inBefore; got != 100 {
+		t.Errorf("input delta = %v, want 100", got)
+	}
+	if got := base("claude-sonnet-4-5", "output") - outBefore; got != 40 {
+		t.Errorf("output delta = %v, want 40", got)
+	}
+	if got := base("claude-sonnet-4-5", "cache_read") - crBefore; got != 25 {
+		t.Errorf("cache_read delta = %v, want 25", got)
+	}
+	if got := base("claude-sonnet-4-5", "cache_creation") - ccBefore; got != 10 {
+		t.Errorf("cache_creation delta = %v, want 10", got)
+	}
+	if got := base("__other__", "input") - otherBefore; got != 7 {
+		t.Errorf("__other__ input delta = %v, want 7", got)
 	}
 }
 

@@ -7846,6 +7846,14 @@ func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usage
 	if repo == nil || usageLog == nil {
 		return
 	}
+	// Token 消耗指标：落库前同步打点，与 usage_logs 同源且不受写队列丢弃影响。
+	metrics.RecordTokenUsage(
+		usageLog.Model,
+		usageLog.InputTokens,
+		usageLog.OutputTokens,
+		usageLog.CacheReadTokens,
+		usageLog.CacheCreationTokens,
+	)
 	usageCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
