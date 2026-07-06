@@ -1504,6 +1504,8 @@ func (h *GatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarte
 func shouldEmitStreamTruncation(c *gin.Context) bool {
 	if c.Request != nil && c.Request.Context().Err() != nil {
 		metrics.StreamTruncationTotal.WithLabelValues("client").Inc()
+		// 流式阶段被客户端中断（项5）：与 slotwait 阶段共用 phase/cause 词表。
+		metrics.RequestInterruptedTotal.WithLabelValues("stream", "client").Inc()
 		return false
 	}
 	if sent, ok := c.Get(terminalErrorSentKey); ok {

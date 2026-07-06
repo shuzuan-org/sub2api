@@ -354,7 +354,8 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 		select {
 		case <-ctx.Done():
 			// 等待并发槽位期间被中断（项5 可观测）：区分客户端主动断连 vs 等待超时。
-			cause := "timeout"
+			// cause 词表与指标声明对齐：client|shutdown|deadline。
+			cause := "deadline"
 			if ctx.Err() == context.Canceled {
 				cause = "client"
 			}

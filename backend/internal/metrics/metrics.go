@@ -131,6 +131,36 @@ func init() {
 		OpsErrorTotal.WithLabelValues("", "", "internal", "api_error", s, "false")
 		OpsErrorTotal.WithLabelValues("", "", "auth", "authentication_error", s, "false")
 	}
+
+	// 稳定性看板（项1/2/4/5）引用的低频事件指标：全部为有界小词表，预置 0
+	// 避免"从未发生"与"没在采集"在面板上不可区分（No data vs 0）。
+	for _, cause := range []string{"upstream", "client"} {
+		StreamTruncationTotal.WithLabelValues(cause)
+	}
+	for _, phase := range []string{"slotwait", "stream"} {
+		for _, cause := range []string{"client", "shutdown", "deadline"} {
+			RequestInterruptedTotal.WithLabelValues(phase, cause)
+		}
+	}
+	for _, kind := range []string{"apply_name_failed", "apply_args_failed"} {
+		ToolErrorTotal.WithLabelValues(kind)
+	}
+	// 上游错误透传：按透传派生规则（ErrTypeForUpstreamStatus）预置常见状态码组合，
+	// 另保留规则系统默认参数在用的 502/upstream_error。
+	for status, errType := range map[string]string{
+		"400": "invalid_request_error",
+		"401": "authentication_error",
+		"403": "permission_error",
+		"404": "not_found_error",
+		"429": "rate_limit_error",
+		"500": "api_error",
+		"502": "api_error",
+		"503": "api_error",
+		"529": "overloaded_error",
+	} {
+		UpstreamErrorShapedTotal.WithLabelValues(status, errType)
+	}
+	UpstreamErrorShapedTotal.WithLabelValues("502", "upstream_error")
 }
 
 // BootstrapModelMetrics 在配置加载后调用，用已知的模型白名单补注册 model 维度的零值序列。

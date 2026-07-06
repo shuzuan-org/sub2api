@@ -76,6 +76,11 @@ func TestAllMetricsRegistered(t *testing.T) {
 		"sub2api_account_pool_unavailable",
 		"sub2api_upstream_pool_clients_cached",
 		"sub2api_upstream_pool_in_flight",
+		// 稳定性看板低频事件指标：init() 预初始化为 0，应恒出现（修 No data）。
+		"sub2api_stream_truncation_total",
+		"sub2api_request_interrupted_total",
+		"sub2api_tool_error_total",
+		"sub2api_upstream_error_shaped_total",
 	}
 
 	for _, name := range requiredMetrics {

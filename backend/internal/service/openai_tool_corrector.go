@@ -40,6 +40,14 @@ var codexToolNameMapping = map[string]string{
 	"webFetch":  "webfetch",
 }
 
+// init 用映射表同源预初始化矫正指标的全部 kind 序列为 0，
+// 让稳定性看板在"从未矫正"时显示 0 而非 No data（词表有界：len(mapping)）。
+func init() {
+	for from, to := range codexToolNameMapping {
+		metrics.ToolCorrectionTotal.WithLabelValues(from + "->" + to)
+	}
+}
+
 // ToolCorrectionStats 记录工具修正的统计信息（导出用于 JSON 序列化）
 type ToolCorrectionStats struct {
 	TotalCorrected    int            `json:"total_corrected"`
@@ -179,6 +187,9 @@ func (c *CodexToolCorrector) correctFunctionAtPath(data []byte, functionPath str
 			c.recordCorrection(name, correctName)
 			corrected = true
 			name = correctName // 使用修正后的名称进行参数修正
+		} else {
+			// 可观测（项4）：矫正应写而未写成功，不再静默吞掉。
+			metrics.ToolErrorTotal.WithLabelValues("apply_name_failed").Inc()
 		}
 	}
 
@@ -216,6 +227,8 @@ func (c *CodexToolCorrector) correctToolParametersAtPath(data []byte, argumentsP
 		}
 		next, err := sjson.SetBytes(data, argumentsPath, nextArgsJSON)
 		if err != nil {
+			// 可观测（项4）：参数矫正应写而未写成功。
+			metrics.ToolErrorTotal.WithLabelValues("apply_args_failed").Inc()
 			return data, false
 		}
 		return next, true
@@ -229,6 +242,8 @@ func (c *CodexToolCorrector) correctToolParametersAtPath(data []byte, argumentsP
 		}
 		next, err := sjson.SetRawBytes(data, argumentsPath, []byte(nextArgsJSON))
 		if err != nil {
+			// 可观测（项4）：参数矫正应写而未写成功。
+			metrics.ToolErrorTotal.WithLabelValues("apply_args_failed").Inc()
 			return data, false
 		}
 		return next, true
