@@ -18,7 +18,7 @@ datasources:
     type: postgres
     uid: sub2api-pg
     access: proxy
-    url: $PG_HOST:5432
+    url: $PG_HOST:$PG_PORT
     user: $PG_RO_USER
     secureJsonData:
       password: $PG_RO_PASSWORD

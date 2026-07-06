@@ -55,6 +55,7 @@ services:
       # ops_error_logs 下钻数据源（sub2api-pg）的连接参数。本地默认连开发栈 postgres 容器；
       # 生产用只读账号 grafana_ro 时，改设 PG_HOST/PG_DATABASE/PG_RO_USER/PG_RO_PASSWORD。
       PG_HOST: "${PG_HOST:-postgres}"
+      PG_PORT: "${PG_PORT:-5432}"
       PG_DATABASE: "${PG_DATABASE:-${POSTGRES_DB:-sub2api}}"
       PG_RO_USER: "${PG_RO_USER:-${POSTGRES_USER:-sub2api}}"
       PG_RO_PASSWORD: "${PG_RO_PASSWORD:-${POSTGRES_PASSWORD}}"
