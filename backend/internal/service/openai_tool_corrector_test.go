@@ -1,7 +1,10 @@
 package service
 
 import (
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"encoding/json"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"testing"
 )
 
@@ -511,5 +514,29 @@ func TestCorrectToolParameters(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestArgCorrectionEmitsMetric 验证参数矫正会累加 sub2api_tool_correction_total（项4 盲区修复）。
+func TestArgCorrectionEmitsMetric(t *testing.T) {
+	corrector := NewCodexToolCorrector()
+
+	kind := "args:bash.work_dir->workdir"
+	before := testutil.ToFloat64(metrics.ToolCorrectionTotal.WithLabelValues(kind))
+
+	input := `{"tool_calls":[{"function":{"name":"bash","arguments":"{\"command\":\"ls\",\"work_dir\":\"/tmp\"}"}}]}`
+	out, changed := corrector.CorrectToolCallsInSSEData(input)
+	if !changed {
+		t.Fatalf("expected correction to apply, got unchanged: %s", out)
+	}
+
+	after := testutil.ToFloat64(metrics.ToolCorrectionTotal.WithLabelValues(kind))
+	if delta := after - before; delta != 1 {
+		t.Errorf("kind %q delta = %v, want 1", kind, delta)
+	}
+
+	// 预初始化：全部 arg kind 序列应已存在（值可读即存在）。
+	for _, k := range argCorrectionKinds {
+		_ = testutil.ToFloat64(metrics.ToolCorrectionTotal.WithLabelValues(k))
 	}
 }
