@@ -33,6 +33,7 @@ type AdminHandlers struct {
 	SubscriptionPlan      *admin.SubscriptionPlanHandler
 	Alipay                *admin.AlipayHandler
 	ChannelInvite         *admin.ChannelInviteHandler
+	UserOperations        *admin.UserOperationsHandler
 }
 
 // Handlers contains all HTTP handlers
