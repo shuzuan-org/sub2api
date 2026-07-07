@@ -249,12 +249,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
-          "calcs": [
-            "last",
-            "sum"
-          ]
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
