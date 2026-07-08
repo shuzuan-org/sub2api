@@ -1031,7 +1031,28 @@ export default {
     prevPage: 'Prev',
     nextPage: 'Next',
     dataNote:
-      'Note: Recharged count, total commission and withdrawable are placeholder fields; commission settlement will be integrated later. Total recharge and status currently show default values.'
+      'Note: Recharged count, total commission and withdrawable are placeholder fields; commission settlement will be integrated later. Total recharge and status currently show default values.',
+    channel: {
+      sectionTitle: 'Channel Invite',
+      sectionHint: 'Invite codes and stats for channel activities you own',
+      statusActive: 'Active',
+      statusDisabled: 'Disabled',
+      statusExpired: 'Expired',
+      statusUpcoming: 'Not Started',
+      code: 'Channel Invite Code',
+      copyCode: 'Copy Code',
+      copyLink: 'Copy Invite Link',
+      bonusPerCode: 'Bonus per Code (U)',
+      codeCount: 'Code Count',
+      invitedCount: 'Invited Users',
+      usersTitle: 'Invited Users',
+      colUser: 'User',
+      colClaimedAt: 'Registered (Claimed) At',
+      colBonus: 'Bonus Status',
+      bonusGranted: 'Granted',
+      bonusPending: 'Pending',
+      empty: 'No invited users yet'
+    }
   },
 
   // Table
