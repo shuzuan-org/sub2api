@@ -1038,7 +1038,28 @@ export default {
     prevPage: '上一页',
     nextPage: '下一页',
     dataNote:
-      '数据备注：充值人数、累计佣金、可提取佣金为占位字段，佣金结算能力后续接入；累计充值与状态当前默认显示为初始值。'
+      '数据备注：充值人数、累计佣金、可提取佣金为占位字段，佣金结算能力后续接入；累计充值与状态当前默认显示为初始值。',
+    channel: {
+      sectionTitle: '渠道邀请',
+      sectionHint: '你名下的渠道活动邀请码与邀请数据',
+      statusActive: '进行中',
+      statusDisabled: '已停用',
+      statusExpired: '已过期',
+      statusUpcoming: '未开始',
+      code: '渠道邀请码',
+      copyCode: '复制邀请码',
+      copyLink: '复制邀请链接',
+      bonusPerCode: '单码 U 积分',
+      codeCount: '邀请码数量',
+      invitedCount: '已邀请用户数',
+      usersTitle: '被邀请用户',
+      colUser: '用户',
+      colClaimedAt: '注册（兑换）时间',
+      colBonus: '奖励状态',
+      bonusGranted: '已发放',
+      bonusPending: '待发放',
+      empty: '暂无被邀请用户'
+    }
   },
 
   // Table
