@@ -530,14 +530,11 @@ function channelStatusBadge(batch: ChannelOwnedBatch): { cls: string; key: strin
 }
 
 async function loadBatchUsages(batchId: number, page: number) {
-  const state = batchUsages[batchId] ?? {
-    records: [],
-    page: 1,
-    pages: 1,
-    total: 0,
-    loading: false
+  if (!batchUsages[batchId]) {
+    batchUsages[batchId] = { records: [], page: 1, pages: 1, total: 0, loading: false }
   }
-  batchUsages[batchId] = state
+  // 必须从 reactive 容器读回代理对象再修改，直接改装入前的原始对象不会触发重渲染
+  const state = batchUsages[batchId]
   state.loading = true
   try {
     const res = await inviteAPI.getChannelBatchUsages(batchId, {
