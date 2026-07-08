@@ -1044,6 +1044,7 @@ export default {
       copyLink: 'Copy Invite Link',
       bonusPerCode: 'Bonus per Code (U)',
       codeCount: 'Code Count',
+      unlimited: 'Unlimited',
       invitedCount: 'Invited Users',
       usersTitle: 'Invited Users',
       colUser: 'User',

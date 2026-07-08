@@ -1051,6 +1051,7 @@ export default {
       copyLink: '复制邀请链接',
       bonusPerCode: '单码 U 积分',
       codeCount: '邀请码数量',
+      unlimited: '不限',
       invitedCount: '已邀请用户数',
       usersTitle: '被邀请用户',
       colUser: '用户',

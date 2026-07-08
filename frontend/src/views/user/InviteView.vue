@@ -289,7 +289,7 @@
                     {{ t('invite.channel.codeCount') }}
                   </p>
                   <p class="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
-                    {{ batch.code_count }}
+                    {{ batchCodeQuota(batch) ?? t('invite.channel.unlimited') }}
                   </p>
                 </div>
                 <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
@@ -518,6 +518,17 @@ const channelPageSize = 10
 
 function channelInviteLink(code: string): string {
   return `${window.location.origin}/register?invite=${code}`
+}
+
+// 邀请码总数 = 各码 max_uses 之和（与渠道活动配置的「每码最多使用次数」口径一致）；
+// 任一码 max_uses=0 表示不限次数，返回 null 由展示层显示「不限」。
+function batchCodeQuota(batch: ChannelOwnedBatch): number | null {
+  let total = 0
+  for (const c of batch.codes) {
+    if (c.max_uses <= 0) return null
+    total += c.max_uses
+  }
+  return total
 }
 
 function channelStatusBadge(batch: ChannelOwnedBatch): { cls: string; key: string } {
