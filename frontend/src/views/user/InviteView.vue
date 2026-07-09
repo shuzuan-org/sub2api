@@ -455,11 +455,12 @@ const search = ref('')
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
+// 域名默认使用当前访问域名（与渠道邀请码口径一致），后端配置的站点地址仅作兜底
 const inviteLink = computed(() => {
-  if (summary.value?.link) return summary.value.link
   if (summary.value?.code) {
     return `${window.location.origin}/register?invite=${summary.value.code}`
   }
+  if (summary.value?.link) return summary.value.link
   return ''
 })
 
