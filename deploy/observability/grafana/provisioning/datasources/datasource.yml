@@ -13,7 +13,8 @@ datasources:
   # sub2api-pg —— 只读连 ops_error_logs，供错误看板做高基数逐请求下钻。
   # 本地走同一 docker 网络的 postgres 容器（服务名 postgres）；连接参数由 compose
   # 注入的环境变量提供（见 docker-compose.observability.yml 的 grafana.environment）。
-  # 生产环境应指向只读账号 grafana_ro（仅 GRANT SELECT ON ops_error_logs）。
+  # 生产环境应指向只读账号 grafana_ro（GRANT SELECT ON ops_error_logs + accounts(id, name) 列级只读，
+  # 后者供“Top 失败账号”面板 join 出账号名）。
   - name: sub2api-pg
     type: postgres
     uid: sub2api-pg

@@ -239,7 +239,7 @@
           "datasource": { "type": "postgres", "uid": "sub2api-pg" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT account_id AS \"账号\", count(*) AS \"错误数\", max(created_at) AS \"最近\" FROM ops_error_logs WHERE $__timeFilter(created_at) AND status_code >= 400 AND account_id IS NOT NULL AND coalesce(platform,'') ~ '^$platform$' GROUP BY account_id ORDER BY count(*) DESC LIMIT 20"
+          "rawSql": "SELECT coalesce(a.name, '#' || e.account_id::text) AS \"账号\", e.account_id AS \"ID\", count(*) AS \"错误数\", max(e.created_at) AS \"最近\" FROM ops_error_logs e LEFT JOIN accounts a ON a.id = e.account_id WHERE $__timeFilter(e.created_at) AND e.status_code >= 400 AND e.account_id IS NOT NULL AND coalesce(e.platform,'') ~ '^$platform$' GROUP BY 1, 2 ORDER BY count(*) DESC LIMIT 20"
         }
       ]
     },
