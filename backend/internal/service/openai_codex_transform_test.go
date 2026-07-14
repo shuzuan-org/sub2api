@@ -312,6 +312,29 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 	}
 }
 
+func TestNormalizeCodexModel_Gpt56(t *testing.T) {
+	cases := map[string]string{
+		"gpt-5.6-sol":              "gpt-5.6-sol",
+		"gpt-5.6-sol-high":         "gpt-5.6-sol",
+		"gpt-5.6-sol-chat-latest":  "gpt-5.6-sol",
+		"gpt 5.6 sol":              "gpt-5.6-sol",
+		"gpt-5.6-terra":            "gpt-5.6-terra",
+		"gpt-5.6-terra-xhigh":      "gpt-5.6-terra",
+		"gpt-5.6-terra-chat-latest": "gpt-5.6-terra",
+		"gpt 5.6 terra":            "gpt-5.6-terra",
+		"gpt-5.6-luna":             "gpt-5.6-luna",
+		"gpt-5.6-luna-medium":      "gpt-5.6-luna",
+		"gpt 5.6 luna":             "gpt-5.6-luna",
+		// 裸 gpt-5.6 回退到 terra
+		"gpt-5.6":                  "gpt-5.6-terra",
+		"gpt 5.6":                  "gpt-5.6-terra",
+	}
+
+	for input, expected := range cases {
+		require.Equal(t, expected, normalizeCodexModel(input))
+	}
+}
+
 func TestApplyCodexOAuthTransform_CodexCLI_PreservesExistingInstructions(t *testing.T) {
 	// Codex CLI 场景：已有 instructions 时不修改
 

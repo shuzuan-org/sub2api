@@ -110,16 +110,16 @@ type CostBreakdown struct {
 
 // PricingSnapshot 记录计费时实际使用的 per-token 单价（U 单位）
 type PricingSnapshot struct {
-	Input            float64 `json:"input"`
-	Output           float64 `json:"output"`
-	CacheCreation    float64 `json:"cache_creation,omitempty"`
-	CacheRead        float64 `json:"cache_read,omitempty"`
-	InputPriority    float64 `json:"input_priority,omitempty"`
-	OutputPriority   float64 `json:"output_priority,omitempty"`
-	CacheReadPri     float64 `json:"cache_read_priority,omitempty"`
-	CacheCreation5m  float64 `json:"cache_creation_5m,omitempty"`
-	CacheCreation1h  float64 `json:"cache_creation_1h,omitempty"`
-	Source           string  `json:"source"` // "account" / "litellm" / "fallback"
+	Input           float64 `json:"input"`
+	Output          float64 `json:"output"`
+	CacheCreation   float64 `json:"cache_creation,omitempty"`
+	CacheRead       float64 `json:"cache_read,omitempty"`
+	InputPriority   float64 `json:"input_priority,omitempty"`
+	OutputPriority  float64 `json:"output_priority,omitempty"`
+	CacheReadPri    float64 `json:"cache_read_priority,omitempty"`
+	CacheCreation5m float64 `json:"cache_creation_5m,omitempty"`
+	CacheCreation1h float64 `json:"cache_creation_1h,omitempty"`
+	Source          string  `json:"source"` // "account" / "litellm" / "fallback"
 }
 
 // BillingService 计费服务
@@ -226,6 +226,48 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:         0.125e-6,
 		CacheReadPricePerTokenPriority: 0.25e-6,
 		SupportsCacheBreakdown:         false,
+	}
+	// OpenAI GPT-5.6（官方价格）
+	s.fallbackPrices["gpt-5.6-sol"] = &ModelPricing{
+		InputPricePerToken:         5e-6,  // $5 per MTok
+		OutputPricePerToken:        30e-6, // $30 per MTok
+		CacheCreationPricePerToken: 5e-6,  // $5 per MTok
+		CacheReadPricePerToken:     0.5e-6,
+		SupportsCacheBreakdown:     false,
+	}
+	s.fallbackPrices["gpt-5.6-terra"] = &ModelPricing{
+		InputPricePerToken:             2.5e-6, // $2.5 per MTok
+		InputPricePerTokenPriority:     5e-6,   // $5 per MTok
+		OutputPricePerToken:            15e-6,  // $15 per MTok
+		OutputPricePerTokenPriority:    30e-6,  // $30 per MTok
+		CacheCreationPricePerToken:     2.5e-6, // $2.5 per MTok
+		CacheReadPricePerToken:         0.25e-6,
+		CacheReadPricePerTokenPriority: 0.5e-6,
+		SupportsCacheBreakdown:         false,
+	}
+	s.fallbackPrices["gpt-5.6-luna"] = &ModelPricing{
+		InputPricePerToken:     1e-6, // $1 per MTok
+		OutputPricePerToken:    6e-6, // $6 per MTok
+		CacheReadPricePerToken: 1e-7,
+		SupportsCacheBreakdown: false,
+	}
+	// OpenAI GPT-5.5（官方价格）
+	s.fallbackPrices["gpt-5.5"] = &ModelPricing{
+		InputPricePerToken:             5e-6,  // $5 per MTok
+		InputPricePerTokenPriority:     10e-6, // $10 per MTok
+		OutputPricePerToken:            30e-6, // $30 per MTok
+		OutputPricePerTokenPriority:    60e-6, // $60 per MTok
+		CacheCreationPricePerToken:     5e-6,  // $5 per MTok
+		CacheReadPricePerToken:         0.5e-6,
+		CacheReadPricePerTokenPriority: 1e-6,
+		SupportsCacheBreakdown:         false,
+	}
+	s.fallbackPrices["gpt-5.5-pro"] = &ModelPricing{
+		InputPricePerToken:         30e-6,  // $30 per MTok
+		OutputPricePerToken:        180e-6, // $180 per MTok
+		CacheCreationPricePerToken: 30e-6,  // $30 per MTok
+		CacheReadPricePerToken:     3e-6,
+		SupportsCacheBreakdown:     false,
 	}
 	// OpenAI GPT-5.4（业务指定价格）
 	s.fallbackPrices["gpt-5.4"] = &ModelPricing{
@@ -354,6 +396,16 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	if strings.Contains(modelLower, "gpt-5") || strings.Contains(modelLower, "codex") {
 		normalized := normalizeCodexModel(modelLower)
 		switch normalized {
+		case "gpt-5.6-sol":
+			return s.fallbackPrices["gpt-5.6-sol"]
+		case "gpt-5.6-terra":
+			return s.fallbackPrices["gpt-5.6-terra"]
+		case "gpt-5.6-luna":
+			return s.fallbackPrices["gpt-5.6-luna"]
+		case "gpt-5.5-pro":
+			return s.fallbackPrices["gpt-5.5-pro"]
+		case "gpt-5.5":
+			return s.fallbackPrices["gpt-5.5"]
 		case "gpt-5.4-mini":
 			return s.fallbackPrices["gpt-5.4-mini"]
 		case "gpt-5.4-nano":
