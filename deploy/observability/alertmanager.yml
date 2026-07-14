@@ -1,0 +1,27 @@
+# Alertmanager —— 把 prometheus.rules.yml 里 firing 的告警通过邮件发到运维邮箱。
+#
+# 发信账号：superstarwulin@126.com（smtp.126.com:465，隐式 TLS，v0.28+ 按端口自动识别）。
+# SMTP 授权码放 gitignored 的 observability/alertmanager_smtp_password（单行明文，
+# 在 126 邮箱 设置→POP3/SMTP/IMAP 里开启 SMTP 服务后生成）。
+global:
+  smtp_smarthost: "smtp.126.com:465"
+  smtp_from: "superstarwulin@126.com"
+  smtp_auth_username: "superstarwulin@126.com"
+  smtp_auth_password_file: "/etc/alertmanager/smtp_password"
+  # 465 已是隐式 TLS，全程加密；require_tls 默认 true 会在 TLS 连接上再发 STARTTLS，
+  # 126 会报 "454 Command not permitted when TLS active"，必须关掉。
+  smtp_require_tls: false
+
+route:
+  receiver: email-ops
+  # 同名告警（如同一平台的多条 upstream 劣化）合并成一封邮件
+  group_by: [alertname, platform]
+  group_wait: 30s        # 首次触发先等 30s 攒齐同组告警
+  group_interval: 5m     # 同组新增告警最快 5m 追发一封
+  repeat_interval: 4h    # 未恢复的告警每 4h 重复提醒
+
+receivers:
+  - name: email-ops
+    email_configs:
+      - to: "superstarwulin@126.com"
+        send_resolved: true   # 恢复时也发一封，闭环
