@@ -388,7 +388,7 @@ func newAccountPoolCollector(statsFunc AccountPoolStatsFunc) *accountPoolCollect
 		),
 		totalDesc: prometheus.NewDesc(
 			"sub2api_account_pool_total",
-			"Total number of accounts by platform and model.",
+			"Total number of planned-in accounts (active and manually schedulable) by platform and model.",
 			[]string{"platform", "model"}, nil,
 		),
 		unavailableDesc: prometheus.NewDesc(

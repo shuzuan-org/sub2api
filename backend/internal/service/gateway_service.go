@@ -9042,10 +9042,16 @@ func (s *GatewayService) AccountPoolStats(ctx context.Context) []metrics.Account
 	}
 
 	// Also count total accounts (active + schedulable) for the "total" gauge.
+	// schedulable=false 是人为下线的运营决策，不计入容量分母；
+	// 这样 available/total 只反映计划内账号的故障性不可用（限流/过载/临时封禁），
+	// 避免账号池告警把长期手动下线的账号当成容量缺口。
 	totalAccounts, err := s.accountRepo.ListActive(ctx)
 	totalCounts := make(map[key]int)
 	if err == nil {
 		for _, acc := range totalAccounts {
+			if !acc.Schedulable {
+				continue
+			}
 			platform := acc.Platform
 			if platform == "" {
 				continue

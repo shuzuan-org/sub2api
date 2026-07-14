@@ -132,6 +132,8 @@ groups:
 
       # 账号池枯竭（单模型无可用账号）。
       # 依据：某模型可用账号不足总数 20% 持续 5m，需要紧急补充。
+      # 口径：total 只含"计划内"账号（active 且 schedulable=true，人为下线不计入），
+      #       故本告警只反映故障性不可用（限流/过载/临时封禁/账号 error）。
       - alert: Sub2apiModelAccountPoolExhausted
         expr: |
           sub2api_account_pool_available
