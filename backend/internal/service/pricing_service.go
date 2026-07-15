@@ -34,14 +34,56 @@ var (
 	openAIModelBasePattern     = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?)(?:-|$)`)
 	openAIGPT55FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:               5e-06 * USDToU, // $5 per MTok → U
+		InputCostPerTokenPriority:       1e-05 * USDToU,
 		OutputCostPerToken:              3e-05 * USDToU, // $30 per MTok → U
+		OutputCostPerTokenPriority:      6e-05 * USDToU,
+		CacheCreationInputTokenCost:     5e-06 * USDToU,
 		CacheReadInputTokenCost:         5e-07 * USDToU, // $0.5 per MTok → U
+		CacheReadInputTokenCostPriority: 1e-06 * USDToU,
 		LongContextInputTokenThreshold:  272000,
 		LongContextInputCostMultiplier:  2.0, // >272k: input $5→$10
 		LongContextOutputCostMultiplier: 1.5, // >272k: output $30→$45
 		LiteLLMProvider:                 "openai",
 		Mode:                            "chat",
 		SupportsPromptCaching:           true,
+	}
+	openAIGPT55ProFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:           3e-05 * USDToU,
+		OutputCostPerToken:          1.8e-04 * USDToU,
+		CacheCreationInputTokenCost: 3e-05 * USDToU,
+		CacheReadInputTokenCost:     3e-06 * USDToU,
+		LiteLLMProvider:             "openai",
+		Mode:                        "responses",
+		SupportsPromptCaching:       true,
+	}
+	openAIGPT56SolFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:           5e-06 * USDToU,
+		OutputCostPerToken:          3e-05 * USDToU,
+		CacheCreationInputTokenCost: 5e-06 * USDToU,
+		CacheReadInputTokenCost:     5e-07 * USDToU,
+		LiteLLMProvider:             "openai",
+		Mode:                        "responses",
+		SupportsPromptCaching:       true,
+	}
+	openAIGPT56TerraFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:               2.5e-06 * USDToU,
+		InputCostPerTokenPriority:       5e-06 * USDToU,
+		OutputCostPerToken:              1.5e-05 * USDToU,
+		OutputCostPerTokenPriority:      3e-05 * USDToU,
+		CacheCreationInputTokenCost:     2.5e-06 * USDToU,
+		CacheReadInputTokenCost:         2.5e-07 * USDToU,
+		CacheReadInputTokenCostPriority: 5e-07 * USDToU,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	}
+	openAIGPT56LunaFallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken:       1e-06 * USDToU,
+		OutputCostPerToken:      6e-06 * USDToU,
+		CacheReadInputTokenCost: 1e-07 * USDToU,
+		LiteLLMProvider:         "openai",
+		Mode:                    "chat",
+		SupportsPromptCaching:   true,
 	}
 	openAIGPT54FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:               2.5e-06 * USDToU, // $2.5 per MTok → U
@@ -884,11 +926,15 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // matchOpenAIModel OpenAI 模型回退匹配策略
 // 回退顺序：
 // 1. gpt-5.3-codex-spark* -> gpt-5.1-codex（按业务要求固定计费）
-// 2. gpt-5.2-codex -> gpt-5.2（去掉后缀如 -codex, -mini, -max 等）
-// 3. gpt-5.2-20251222 -> gpt-5.2（去掉日期版本号）
-// 4. gpt-5.3-codex -> gpt-5.2-codex
-// 5. gpt-5.4* -> 业务静态兜底价
-// 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
+// 2. gpt-5.6-sol* -> gpt-5.6-sol 静态兜底价
+// 3. gpt-5.6-terra* -> gpt-5.6-terra 静态兜底价
+// 4. gpt-5.6-luna* -> gpt-5.6-luna 静态兜底价
+// 5. gpt-5.5-pro* -> gpt-5.5-pro 静态兜底价（避免 pro 日期版被 base 规则降级成 gpt-5.5）
+// 6. gpt-5.2-codex -> gpt-5.2（去掉后缀如 -codex, -mini, -max 等）
+// 7. gpt-5.2-20251222 -> gpt-5.2（去掉日期版本号）
+// 8. gpt-5.3-codex -> gpt-5.2-codex
+// 9. gpt-5.5* / gpt-5.4* -> 静态兜底价
+// 10. 最终回退到 DefaultTestModel (gpt-5.1-codex)
 func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 	if strings.HasPrefix(model, "gpt-5.3-codex-spark") {
 		if pricing, ok := s.pricingData["gpt-5.1-codex"]; ok {
@@ -897,6 +943,34 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.1-codex"))
 			return pricing
 		}
+	}
+
+	if strings.HasPrefix(model, "gpt-5.6-sol") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-sol(static)"))
+		return openAIGPT56SolFallbackPricing
+	}
+	if strings.HasPrefix(model, "gpt-5.6-terra") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-terra(static)"))
+		return openAIGPT56TerraFallbackPricing
+	}
+	if strings.HasPrefix(model, "gpt-5.6-luna") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-luna(static)"))
+		return openAIGPT56LunaFallbackPricing
+	}
+	// 裸 gpt-5.6（无档位后缀）回退到 terra，与 normalizeCodexModel 行为一致
+	if strings.HasPrefix(model, "gpt-5.6") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-terra(static)"))
+		return openAIGPT56TerraFallbackPricing
+	}
+
+	if strings.HasPrefix(model, "gpt-5.5-pro") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5-pro(static)"))
+		return openAIGPT55ProFallbackPricing
 	}
 
 	// 尝试的回退变体
@@ -916,6 +990,12 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.2-codex"))
 			return pricing
 		}
+	}
+
+	if strings.HasPrefix(model, "gpt-5.5") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5(static)"))
+		return openAIGPT55FallbackPricing
 	}
 
 	if strings.HasPrefix(model, "gpt-5.4-mini") {
