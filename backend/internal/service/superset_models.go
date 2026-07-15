@@ -433,7 +433,7 @@ func (s *GatewayService) fetchModelsPage(req *http.Request, proxyURL string, acc
 	if err != nil {
 		return body, fmt.Errorf("upstream request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Drain so the connection can be reused (Go won't pool a connection with an
 		// unread body).

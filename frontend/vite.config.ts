@@ -56,7 +56,7 @@ function gzipStaticAssets(): Plugin {
         return
       }
 
-      for (const [fileName, item] of Object.entries(bundle)) {
+      for (const fileName of Object.keys(bundle)) {
         if (!compressible.test(fileName) || fileName.endsWith('.gz')) {
           continue
         }

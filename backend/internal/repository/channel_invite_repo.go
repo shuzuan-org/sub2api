@@ -181,6 +181,19 @@ func (r *channelInviteRepository) ListBatches(ctx context.Context, params pagina
 	return out, paginationResultFromTotal(int64(total), params), nil
 }
 
+func (r *channelInviteRepository) ListBatchesByCreator(ctx context.Context, createdBy int64) ([]service.ChannelInviteBatch, error) {
+	// 渠道合作方名下批次（一般只有几个），预载 codes，计数由 service 层从预载数据计算，避免 N+1。
+	batches, err := r.client.ChannelInviteBatch.Query().
+		Where(channelinvitebatch.CreatedByEQ(createdBy)).
+		WithCodes().
+		Order(dbent.Desc(channelinvitebatch.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return channelInviteBatchEntitiesToService(batches), nil
+}
+
 // ======================== 码操作 ========================
 
 func (r *channelInviteRepository) CreateCodes(ctx context.Context, codes []service.ChannelInviteCode) error {

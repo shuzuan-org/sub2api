@@ -1,0 +1,987 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "title": "Sub2api 按模型稳定性",
+  "tags": [
+    "sub2api",
+    "model",
+    "stability"
+  ],
+  "timezone": "Asia/Shanghai",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "platform",
+        "label": "平台",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(sub2api_ops_error_total, platform)",
+        "definition": "label_values(sub2api_ops_error_total, platform)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "model",
+        "label": "模型",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(sub2api_ops_error_total{platform=~\"$platform\"}, model)",
+        "definition": "label_values(sub2api_ops_error_total{platform=~\"$platform\"}, model)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "概览",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "请求成功率",
+      "description": "1 - 真实错误率（排除业务限制与客户端 400）。SLO 目标 ≥99.9%。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 4,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.99
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - (sum(rate(sub2api_ops_error_total{business_limited=\"false\", type!=\"invalid_request_error\", platform=~\"$platform\", model=~\"$model\"}[5m])) / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9))",
+          "legendFormat": "成功率"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "TTFT P50",
+      "description": "首 token 时间中位数（所有模型聚合）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "P50"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "TTFT P95",
+      "description": "首 token 时间 P95。>30s 触发告警。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 15
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "P95"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "上游 429/5xx 频率",
+      "description": "上游 429+5xx 错误速率（req/s）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "decimals": 3,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(sub2api_upstream_status_total{upstream_status=~\"429|5..\", platform=~\"$platform\", model=~\"$model\"}[5m]))",
+          "legendFormat": "429+5xx rate"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "错误分析",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "错误率 by model（排除业务限制）",
+      "description": "各模型的真实错误率时序。按平台和模型筛选后展示。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (model) (rate(sub2api_ops_error_total{business_limited=\"false\", type!=\"invalid_request_error\", platform=~\"$platform\", model=~\"$model\"}[5m])) / clamp_min(sum by (model) (rate(sub2api_http_requests_total[5m])), 1e-9)",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "上游状态码分布",
+      "description": "上游 HTTP 状态码分布（429、502、503、5xx 等）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (upstream_status) (rate(sub2api_upstream_status_total{platform=~\"$platform\", model=~\"$model\"}[5m]))",
+          "legendFormat": "{{upstream_status}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "错误类型分布",
+      "description": "按错误类型拆分：upstream_error、rate_limit_error、api_error 等。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (type) (rate(sub2api_ops_error_total{business_limited=\"false\", platform=~\"$platform\", model=~\"$model\"}[5m]))",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "错误阶段分布",
+      "description": "按错误阶段拆分：upstream、auth、routing、internal 等。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (phase) (rate(sub2api_ops_error_total{business_limited=\"false\", platform=~\"$platform\", model=~\"$model\"}[5m]))",
+          "legendFormat": "{{phase}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "延迟分析",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "TTFT P50 / P95 / P99",
+      "description": "首 token 时间的分位数时序。可按平台和模型筛选。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "P50",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P50"
+        },
+        {
+          "refId": "P95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P95"
+        },
+        {
+          "refId": "P99",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"ttft\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P99"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "总延迟 P50 / P95 / P99",
+      "description": "完整上游往返时间的分位数时序。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "P50",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P50"
+        },
+        {
+          "refId": "P95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P95"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (model, le) (rate(sub2api_upstream_latency_seconds_bucket{phase=\"total\", platform=~\"$platform\", model=~\"$model\"}[5m])))",
+          "legendFormat": "{{model}} P99"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "容量",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "账号池可用率 by model",
+      "description": "各模型可用账号数 / 总账号数。低于 20% 触发 page 告警。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_account_pool_available{platform=~\"$platform\", model=~\"$model\"} / clamp_min(sub2api_account_pool_total{platform=~\"$platform\", model=~\"$model\"}, 1)",
+          "legendFormat": "{{platform}}/{{model}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "账号池可用数量",
+      "description": "各模型当前可调度账号数的绝对数量。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "total",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_account_pool_total{platform=~\"$platform\", model=~\"$model\"}",
+          "legendFormat": "{{model}} total"
+        },
+        {
+          "refId": "avail",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_account_pool_available{platform=~\"$platform\", model=~\"$model\"}",
+          "legendFormat": "{{model}} avail"
+        },
+        {
+          "refId": "unavail",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_account_pool_unavailable{platform=~\"$platform\", model=~\"$model\"}",
+          "legendFormat": "{{model}} unavail"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP 上游连接池负载",
+      "description": "缓存客户端数 vs 总 in-flight 请求数。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 51
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_upstream_pool_clients_cached",
+          "legendFormat": "clients cached"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_upstream_pool_in_flight",
+          "legendFormat": "in-flight"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB 连接池水位",
+      "description": "DB 连接池的 open / in-use / idle 状态。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 51
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_db_pool_open_connections",
+          "legendFormat": "open"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_db_pool_in_use",
+          "legendFormat": "in-use"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sub2api_db_pool_idle",
+          "legendFormat": "idle"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Token 消耗",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "输入/输出 Token 速率（按类型堆叠）",
+      "description": "sub2api_llm_tokens_total 按 token 类型拆分的消耗速率：input/output（核心）+ cache_read/cache_creation。单位 tokens/s。注意：本指标无 platform 标签，$platform 不生效，仅受 $model 过滤。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (type) (rate(sub2api_llm_tokens_total{model=~\"$model\"}[5m]))",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Token 消耗速率 by model（全类型）",
+      "description": "各模型的总 token 消耗速率（input+output+cache 合计）。单位 tokens/s。仅受 $model 过滤（本指标无 platform 标签）。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal"
+            },
+            "spanNulls": true
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (model) (rate(sub2api_llm_tokens_total{model=~\"$model\"}[5m]))",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "上游错误明细（PostgreSQL）",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 71
+      }
+    },
+    {
+      "type": "table",
+      "title": "逐请求下钻",
+      "description": "查 ops_error_logs。按 dashboard 时间范围和 $platform / $model 过滤。request_id 可与后端日志关联。",
+      "datasource": {
+        "type": "postgres",
+        "uid": "sub2api-pg"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "sub2api-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT created_at AS \"时间\", platform AS \"平台\", upstream_model AS \"上游模型\", upstream_status_code AS \"上游码\", error_type AS \"错误类型\", error_phase AS \"阶段\", severity AS \"级别\", account_id AS \"账号\", left(coalesce(error_message,''), 200) AS \"错误信息\", request_id AS \"请求ID\" FROM ops_error_logs WHERE $__timeFilter(created_at) AND status_code >= 400 AND coalesce(platform,'') ~ '^$platform$' AND (coalesce(requested_model,'') ~ '^$model$' OR coalesce(upstream_model,'') ~ '^$model$') ORDER BY created_at DESC LIMIT 100"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "上游状态码分组",
+      "description": "按上游状态码汇总错误次数，受 $platform / $model 过滤。快速定位哪种上游错误最多。",
+      "datasource": {
+        "type": "postgres",
+        "uid": "sub2api-pg"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 86
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "sub2api-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT upstream_status_code AS \"上游状态码\", count(*) AS \"错误次数\", max(created_at) AS \"最近发生\" FROM ops_error_logs WHERE $__timeFilter(created_at) AND upstream_status_code IS NOT NULL AND coalesce(platform,'') ~ '^$platform$' AND (coalesce(requested_model,'') ~ '^$model$' OR coalesce(upstream_model,'') ~ '^$model$') GROUP BY upstream_status_code ORDER BY count(*) DESC LIMIT 20"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "最近 P1 未解决",
+      "description": "未解决的 P1 严重错误，需立即处理。受 $platform / $model 过滤。",
+      "datasource": {
+        "type": "postgres",
+        "uid": "sub2api-pg"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 86
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "sub2api-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT created_at AS \"时间\", platform AS \"平台\", upstream_model AS \"模型\", upstream_status_code AS \"上游码\", account_id AS \"账号\", left(coalesce(error_message,''), 200) AS \"错误信息\", request_id AS \"请求ID\" FROM ops_error_logs WHERE severity = 'P1' AND resolved = false AND coalesce(platform,'') ~ '^$platform$' AND (coalesce(requested_model,'') ~ '^$model$' OR coalesce(upstream_model,'') ~ '^$model$') ORDER BY created_at DESC LIMIT 50"
+        }
+      ]
+    }
+  ]
+}

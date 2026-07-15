@@ -155,6 +155,11 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// （允许过期/配额耗尽的 Key 查询自身用量和分组信息）。
 		skipBilling := c.Request.URL.Path == "/v1/usage" || c.Request.URL.Path == "/v1/group"
 
+		// skipBalanceReject: 模型列表是只读发现端点，不消耗额度，余额不足也应可访问。
+		// 与 skipBilling 不同，这里仍执行 Key 状态/过期/配额/分组可见性检查与订阅状态加载，
+		// 只豁免末尾「无订阅且余额<=0」的硬拒绝，避免影响 callerRemaining 的订阅剩余展示。
+		skipBalanceReject := c.Request.URL.Path == "/v1/models"
+
 		var mergedState *service.MergedSubscriptionState
 
 		if subscriptionService != nil {
@@ -217,7 +222,8 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			}
 
 			// 无活跃订阅（或订阅超限 fallback）：检查余额
-			if !hasSubscription {
+			// skipBalanceReject（/v1/models 等只读发现端点）豁免此硬拒绝。
+			if !hasSubscription && !skipBalanceReject {
 				if apiKey.User.Balance <= 0 {
 					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 					return

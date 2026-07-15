@@ -10,6 +10,9 @@ redis_data/
 # Environment configuration (contains sensitive information)
 .env
 
+# Alertmanager SMTP 授权码（明文，单行）
+observability/alertmanager_smtp_password
+
 # Backup files
 *.backup
 *.bak

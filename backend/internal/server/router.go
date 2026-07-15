@@ -2,12 +2,14 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/server/routes"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -32,6 +34,7 @@ func SetupRouter(
 	settingService *service.SettingService,
 	cfg *config.Config,
 	redisClient *redis.Client,
+	sqlDB *sql.DB,
 ) *gin.Engine {
 	// 缓存 iframe 页面的 origin 列表，用于动态注入 CSP frame-src
 	var cachedFrameOrigins atomic.Pointer[[]string]
@@ -52,6 +55,7 @@ func SetupRouter(
 
 	// 应用中间件
 	r.Use(middleware2.RequestLogger())
+	r.Use(middleware2.Metrics())
 	r.Use(middleware2.Logger())
 	r.Use(middleware2.CORS(cfg.CORS))
 	r.Use(middleware2.SecurityHeaders(cfg.Security.CSP, func() []string {
@@ -81,7 +85,7 @@ func SetupRouter(
 	}
 
 	// 注册路由
-	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient)
+	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient, sqlDB)
 
 	return r
 }
@@ -99,9 +103,29 @@ func registerRoutes(
 	settingService *service.SettingService,
 	cfg *config.Config,
 	redisClient *redis.Client,
+	sqlDB *sql.DB,
 ) {
-	// 通用路由（健康检查、状态等）
-	routes.RegisterCommonRoutes(r)
+	// 通用路由（健康检查、就绪检查、/metrics、状态等）
+	routes.RegisterCommonRoutes(r, sqlDB, redisClient)
+
+	// 注册 DB 连接池水位指标（幂等，仅首次生效）。
+	metrics.RegisterDBStats(sqlDB)
+
+	// Bootstrap 模型维度指标：用配置的 allowlist 初始化模型名归一化白名单，
+	// 并为每个已知模型补注册 OpsErrorTotal 的零值序列（确保 Grafana 显示 0 而非 No data）。
+	if cfg != nil {
+		metrics.BootstrapModelMetrics(cfg.Ops.PrometheusModelMetricsAllowlist)
+	}
+
+	// 注册账号池可用性指标（每次 /metrics scrape 时从 accountRepo 重新计算）。
+	metrics.RegisterAccountPoolGauges(func() []metrics.AccountPoolStat {
+		return h.Gateway.AccountPoolStats(context.Background())
+	})
+
+	// 注册 HTTP 上游连接池水位指标。
+	metrics.RegisterUpstreamPoolGauges(func() metrics.UpstreamPoolStat {
+		return h.Gateway.UpstreamPoolStats()
+	})
 
 	// API v1
 	v1 := r.Group("/api/v1")

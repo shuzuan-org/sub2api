@@ -332,7 +332,7 @@ func (h *AuthHandler) OAuthUserInfo(c *gin.Context) {
 
 func writeOAuthError(c *gin.Context, err error) {
 	status := http.StatusBadRequest
-	code := "invalid_request"
+	var code string
 	switch {
 	case errors.Is(err, service.ErrOAuthInvalidClient):
 		status = http.StatusUnauthorized

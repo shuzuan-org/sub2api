@@ -216,6 +216,26 @@ func (s *UserSubscriptionRepoSuite) TestGetActiveByUserIDAndPlanID_ExpiredIgnore
 	s.Require().Error(err, "expected error for expired subscription")
 }
 
+// 叠加购买：同一 (user, plan) 重复购买会新建记录而非续期，有效期重叠期间
+// 并存多条 active 记录。查询必须返回过期最晚的一条，而不是 NotSingularError
+// ——后者会被计费层包成 503 并推开全局熔断器。
+func (s *UserSubscriptionRepoSuite) TestGetActiveByUserIDAndPlanID_OverlappingStacked() {
+	user := s.mustCreateUser("stacked@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("p-stacked")
+
+	s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetExpiresAt(time.Now().Add(24 * time.Hour))
+	})
+	later := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetExpiresAt(time.Now().Add(72 * time.Hour))
+	})
+
+	got, err := s.repo.GetActiveByUserIDAndPlanID(s.ctx, user.ID, plan.ID)
+	s.Require().NoError(err, "overlapping active subscriptions must not error")
+	s.Require().Equal(later.ID, got.ID, "expected the latest-expiring subscription")
+	s.Require().NotNil(got.Plan, "expected Plan preload")
+}
+
 // --- ListByUserID / ListActiveByUserID ---
 
 func (s *UserSubscriptionRepoSuite) TestListByUserID() {

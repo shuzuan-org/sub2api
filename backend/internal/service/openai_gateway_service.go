@@ -3111,31 +3111,8 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	}
 
 	// Return appropriate error response
-	var errType, errMsg string
-	var statusCode int
-
-	switch resp.StatusCode {
-	case 401:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream authentication failed, please contact administrator"
-	case 402:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream payment required: insufficient balance or billing issue"
-	case 403:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream access forbidden, please contact administrator"
-	case 429:
-		statusCode = http.StatusTooManyRequests
-		errType = "rate_limit_error"
-		errMsg = "Upstream rate limit exceeded, please retry later"
-	default:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream request failed"
-	}
+	// 直接透传：对外返回上游原始状态码 + 上游 message（不再塑形成 502）。
+	statusCode, errType, errMsg := upstreamPassthroughDefaults(resp.StatusCode, body)
 
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{

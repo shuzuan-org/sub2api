@@ -219,6 +219,8 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	users := admin.Group("/users")
 	{
 		users.GET("", h.Admin.User.List)
+		// 用户运营画像查询（account=email/username 或 user_id）；静态段需在 /:id 之前注册同级不冲突
+		users.GET("/operations-report", h.Admin.UserOperations.GetReport)
 		users.GET("/:id", h.Admin.User.GetByID)
 		users.POST("", h.Admin.User.Create)
 		users.PUT("/:id", h.Admin.User.Update)

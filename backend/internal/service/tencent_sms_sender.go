@@ -50,7 +50,7 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 	}
 
 	// API v3 请求体
-	body := map[string]interface{}{
+	body := map[string]any{
 		"PhoneNumberSet":   []string{phone},
 		"SmsSdkAppId":      sdkAppID,
 		"SignName":         signName,
@@ -114,7 +114,7 @@ func (s *TencentSMSSender) SendSMS(ctx context.Context, phone, code, signName, t
 	if err != nil {
 		return fmt.Errorf("send sms request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 
@@ -166,6 +166,6 @@ func sha256Hex(data []byte) string {
 
 func hmacSHA256(key, data []byte) []byte {
 	h := hmac.New(sha256.New, key)
-	h.Write(data)
+	_, _ = h.Write(data)
 	return h.Sum(nil)
 }

@@ -61,8 +61,15 @@ func TestBuildModel_AnthropicClaude_FullTree(t *testing.T) {
 	if m.MaxInputTokens != 1000000 {
 		t.Errorf("max_input_tokens=%d want 1000000", m.MaxInputTokens)
 	}
-	effort := m.Capabilities["effort"].(map[string]any)
-	if effort["max"].(map[string]any)["supported"] != true {
+	effort, ok := m.Capabilities["effort"].(map[string]any)
+	if !ok {
+		t.Fatal("expected effort capabilities")
+	}
+	maxEffort, ok := effort["max"].(map[string]any)
+	if !ok {
+		t.Fatal("expected max effort capability")
+	}
+	if maxEffort["supported"] != true {
 		t.Error("opus should have effort.max supported=true")
 	}
 	if m.Object != "model" || m.OwnedBy != "sub2api" || m.Type != "model" {
@@ -75,8 +82,15 @@ func TestBuildModel_Haiku_EffortMaxFalse(t *testing.T) {
 	if m.MaxInputTokens != 200000 {
 		t.Errorf("haiku max_input_tokens=%d want 200000", m.MaxInputTokens)
 	}
-	effort := m.Capabilities["effort"].(map[string]any)
-	if effort["max"].(map[string]any)["supported"] != false {
+	effort, ok := m.Capabilities["effort"].(map[string]any)
+	if !ok {
+		t.Fatal("expected effort capabilities")
+	}
+	maxEffort, ok := effort["max"].(map[string]any)
+	if !ok {
+		t.Fatal("expected max effort capability")
+	}
+	if maxEffort["supported"] != false {
 		t.Error("haiku should have effort.max supported=false")
 	}
 }
@@ -408,7 +422,10 @@ func TestBuildModel_UpstreamCapabilitiesPassThrough(t *testing.T) {
 	if m.Capabilities == nil {
 		t.Fatal("expected capabilities, got nil")
 	}
-	img := m.Capabilities["image_input"].(map[string]any)
+	img, ok := m.Capabilities["image_input"].(map[string]any)
+	if !ok {
+		t.Fatal("expected image_input capability")
+	}
 	if img["supported"] != false {
 		t.Errorf("image_input.supported = %v, want false (real upstream)", img["supported"])
 	}
@@ -429,7 +446,10 @@ func TestBuildModel_NilCapabilitiesFallsBackToDefault(t *testing.T) {
 	if m.Capabilities == nil {
 		t.Fatal("expected default capabilities, got nil")
 	}
-	img := m.Capabilities["image_input"].(map[string]any)
+	img, ok := m.Capabilities["image_input"].(map[string]any)
+	if !ok {
+		t.Fatal("expected image_input capability")
+	}
 	if img["supported"] != true {
 		t.Errorf("default image_input.supported = %v, want true", img["supported"])
 	}

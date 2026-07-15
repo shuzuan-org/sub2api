@@ -917,3 +917,23 @@ func (d *decompressedBody) Close() error {
 	}
 	return d.closer.Close()
 }
+
+// HTTPUpstreamPoolStats contains snapshot statistics of the upstream HTTP client pool.
+type HTTPUpstreamPoolStats struct {
+	ClientsCached int // number of cached client instances
+	InFlightTotal int // sum of in-flight requests across all cached clients
+}
+
+// PoolStats returns a snapshot of the HTTP upstream client pool statistics.
+// It iterates the clients map under a read lock to compute the current state.
+func (s *httpUpstreamService) PoolStats() HTTPUpstreamPoolStats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var stats HTTPUpstreamPoolStats
+	stats.ClientsCached = len(s.clients)
+	for _, entry := range s.clients {
+		stats.InFlightTotal += int(atomic.LoadInt64(&entry.inFlight))
+	}
+	return stats
+}

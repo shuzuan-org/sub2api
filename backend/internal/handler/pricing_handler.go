@@ -16,7 +16,7 @@ import (
 // PublicPricingResponse is the cached response for the public pricing endpoint.
 type PublicPricingResponse struct {
 	Groups    []PublicGroupPricing `json:"groups"`
-	UpdatedAt time.Time           `json:"updated_at"`
+	UpdatedAt time.Time            `json:"updated_at"`
 }
 
 // PublicGroupPricing holds pricing data for a single public group.
@@ -88,7 +88,11 @@ func (h *PricingHandler) GetPublicModelPricing(c *gin.Context) {
 		return
 	}
 
-	resp := val.(*PublicPricingResponse)
+	resp, ok := val.(*PublicPricingResponse)
+	if !ok {
+		response.InternalError(c, "failed to load pricing data")
+		return
+	}
 	response.Success(c, resp)
 }
 

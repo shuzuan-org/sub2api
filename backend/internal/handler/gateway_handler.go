@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -300,7 +301,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, "") // Gemini 不使用会话限制
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
-					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
+					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts, please retry later", streamStarted)
 					return
 				}
 				action := fs.HandleSelectionExhausted(c.Request.Context())
@@ -469,6 +470,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
+			h.recordUpstreamMetrics(account.Platform, parsedReq.Model, result)
 			h.submitUsageRecordTask(func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -524,7 +526,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), currentAPIKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, parsedReq.MetadataUserID)
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
-					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
+					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts, please retry later", streamStarted)
 					return
 				}
 				action := fs.HandleSelectionExhausted(c.Request.Context())
@@ -802,6 +804,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
+			h.recordUpstreamMetrics(account.Platform, parsedReq.Model, result)
 			h.submitUsageRecordTask(func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -1020,7 +1023,6 @@ func (h *GatewayHandler) callerRemaining(c *gin.Context) (remaining float64, uni
 	}
 	return 0, "", false
 }
-
 
 // AntigravityModels 返回 Antigravity 支持的全部模型
 // GET /antigravity/models
@@ -1415,8 +1417,11 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
-	// 使用默认的错误映射
+	// 直接透传：状态码 + 上游真实 message（提取失败则用通用文案）。
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
+	if upstreamMsg != "" {
+		errMsg = upstreamMsg
+	}
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
@@ -1427,24 +1432,21 @@ func (h *GatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCod
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
-func (h *GatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "overloaded_error", "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "upstream_error", "Upstream request failed"
-	}
+// mapUpstreamError 直接透传上游错误状态码（不再塑形成 502），errType 按状态码派生，
+// message 用通用兜底文案（带 body 的调用点会用上游真实 message 覆盖）。
+func (h *GatewayHandler) mapUpstreamError(statusCode int) (status int, errType string, message string) {
+	// 记录一次对外错误返回（可观测：按对外 status/type 看错误结构）。
+	defer func() {
+		metrics.UpstreamErrorShapedTotal.WithLabelValues(strconv.Itoa(status), errType).Inc()
+	}()
+	return statusCode, service.ErrTypeForUpstreamStatus(statusCode), service.GenericUpstreamMsg(statusCode)
 }
 
 // handleStreamingAwareError handles errors that may occur after streaming has started
+// terminalErrorSentKey 标记本请求已向客户端补发过 terminal SSE error 事件，
+// 用于避免重复补发（cc2codex 的截断处理教训之一）。
+const terminalErrorSentKey = "sub2api_terminal_error_sent"
+
 func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
 	if streamStarted {
 		// Stream already started, send error as SSE event then close
@@ -1456,6 +1458,7 @@ func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, e
 				_ = c.Error(err)
 			}
 			flusher.Flush()
+			c.Set(terminalErrorSentKey, true)
 		}
 		return
 	}
@@ -1464,12 +1467,53 @@ func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, e
 	h.errorResponse(c, status, errType, message)
 }
 
-// ensureForwardErrorResponse 在 Forward 返回错误但尚未写响应时补写统一错误响应。
+// ensureForwardErrorResponse 在 Forward 返回错误时补写错误响应，确保客户端不会拿到"无终止事件的静默截断流"。
+//
+// 两种情形：
+//   - 尚未写任何字节：正常返回 JSON 错误（带状态码）。
+//   - 已落字节（流已开始）：HTTP 状态码无法再改，必须补发一个 terminal SSE error 事件，
+//     否则客户端表现为对话莫名卡死。此处吸取 cc2codex 的两个教训：
+//     1) ctx.Err() 门控——客户端主动断连时不向死连接写入、只记 cause=client，不污染上游截断指标；
+//     2) 去重——已补发过 terminal 事件则不再发，且绝不伪造成功/usage。
 func (h *GatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarted bool) bool {
-	if c == nil || c.Writer == nil || c.Writer.Written() {
+	if c == nil || c.Writer == nil {
 		return false
 	}
-	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", streamStarted)
+
+	if !streamStarted {
+		// 非流式（或流尚未开始）：已写完整响应则不覆盖；否则补一个 JSON 错误。
+		if c.Writer.Written() {
+			return false
+		}
+		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", false)
+		return true
+	}
+	// 流式已开始：补发 terminal SSE error 事件（ctx 门控 + 去重，见 shouldEmitStreamTruncation）。
+	if !shouldEmitStreamTruncation(c) {
+		return false
+	}
+	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream stream interrupted", true)
+	return true
+}
+
+// shouldEmitStreamTruncation 在"流已开始(已落字节)后又出错"时决定是否应补发一个 terminal SSE error 事件，
+// 并据 cc2codex 的截断处理教训记录成因：
+//   - 客户端主动断连(c.Request.Context() 已取消)：返回 false，不向死连接写入，记 cause=client；
+//   - 本请求已补发过 terminal 事件：返回 false，避免重复补发；
+//   - 否则视为上游静默截断：记 cause=upstream 并返回 true，由调用方补发事件。
+func shouldEmitStreamTruncation(c *gin.Context) bool {
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		metrics.StreamTruncationTotal.WithLabelValues("client").Inc()
+		// 流式阶段被客户端中断（项5）：与 slotwait 阶段共用 phase/cause 词表。
+		metrics.RequestInterruptedTotal.WithLabelValues("stream", "client").Inc()
+		return false
+	}
+	if sent, ok := c.Get(terminalErrorSentKey); ok {
+		if b, _ := sent.(bool); b {
+			return false
+		}
+	}
+	metrics.StreamTruncationTotal.WithLabelValues("upstream").Inc()
 	return true
 }
 
@@ -1892,6 +1936,33 @@ func (h *GatewayHandler) maybeLogCompatibilityFallbackMetrics(reqLog *zap.Logger
 		zap.Float64("session_hash_legacy_read_hit_rate", metrics.SessionHashLegacyReadHitRate),
 		zap.Int64("metadata_legacy_fallback_total", metrics.MetadataLegacyFallbackTotal),
 	)
+}
+
+// AccountPoolStats returns a snapshot of account pool health grouped by (platform, model).
+// Used by Prometheus gauge collector for per-model account availability monitoring.
+func (h *GatewayHandler) AccountPoolStats(ctx context.Context) []metrics.AccountPoolStat {
+	if h == nil || h.gatewayService == nil {
+		return nil
+	}
+	return h.gatewayService.AccountPoolStats(ctx)
+}
+
+// UpstreamPoolStats returns a snapshot of the HTTP upstream client pool.
+func (h *GatewayHandler) UpstreamPoolStats() metrics.UpstreamPoolStat {
+	if h == nil || h.gatewayService == nil {
+		return metrics.UpstreamPoolStat{}
+	}
+	return h.gatewayService.UpstreamPoolStats()
+}
+
+// recordUpstreamMetrics records upstream latency and status code to Prometheus after a successful forward.
+func (h *GatewayHandler) recordUpstreamMetrics(platform, model string, result *service.ForwardResult) {
+	totalMs := result.Duration.Milliseconds()
+	metrics.RecordUpstreamLatency(platform, model, "total", totalMs)
+	if result.FirstTokenMs != nil {
+		metrics.RecordUpstreamLatency(platform, model, "ttft", int64(*result.FirstTokenMs))
+	}
+	metrics.RecordUpstreamStatus(platform, model, 200)
 }
 
 func (h *GatewayHandler) submitUsageRecordTask(task service.UsageRecordTask) {

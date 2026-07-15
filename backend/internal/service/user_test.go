@@ -81,11 +81,11 @@ func TestUser_CanBindGroup(t *testing.T) {
 			want:          true,
 		},
 		{
-			name:          "assignment to a different group does not grant access",
-			visibility:    VisibilitySubscriber,
-			allowedGroups: []int64{7, 99},
+			name:           "assignment to a different group does not grant access",
+			visibility:     VisibilitySubscriber,
+			allowedGroups:  []int64{7, 99},
 			userActivePlan: nil,
-			want:          false,
+			want:           false,
 		},
 	}
 

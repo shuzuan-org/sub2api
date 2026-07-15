@@ -1,0 +1,179 @@
+# sub2api 错误告警规则
+#
+# 数据源：sub2api_ops_error_total（与 ops_error_logs 同源的错误聚合计数）+
+#         sub2api_http_requests_total（总请求，算比率用）。
+# 阈值均为保守默认，可按实际流量/SLO 调整；每条注明依据。
+# 触发后经 Alertmanager 路由（本地未接 Alertmanager 时，规则仍会在 Prometheus /alerts 显示 firing）。
+#
+# annotation 里的 dashboard 链接指向"Sub2api 错误分析与排障"看板，便于从告警跳到下钻。
+
+groups:
+  - name: sub2api-errors
+    rules:
+      # 内部错误（phase=internal 是我们自己的 bug/未预期异常）——最高优先。
+      # 依据：健康服务内部错误率应趋近 0；持续 >0.05 req/s 说明有代码/依赖故障。
+      - alert: Sub2apiInternalErrorSpike
+        expr: sum(rate(sub2api_ops_error_total{phase="internal"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: page
+          service: sub2api
+        annotations:
+          summary: "sub2api 内部错误持续升高（phase=internal）"
+          description: "近 5m 内部错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m 超过 0.05。多为代码 bug 或核心依赖（DB/Redis）故障。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（by phase 面板，选 phase=internal）"
+
+      # 出现任何 P1 错误（最高严重级别）。
+      # 依据：P1 由 classifyOpsSeverity 判定为最严重，出现即应有人看。
+      - alert: Sub2apiP1ErrorsPresent
+        expr: sum(increase(sub2api_ops_error_total{severity="P1"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: page
+          service: sub2api
+        annotations:
+          summary: "sub2api 出现 P1 错误"
+          description: "近 5m 新增 {{ printf \"%.0f\" $value }} 条 P1 错误。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（未解决 P1 表）"
+
+      # 真实错误率（排除业务限制）过高。
+      # 依据：business_limited=true 为额度/并发/计费等预期拦截，不应触发可用性告警；
+      #       其余错误占总请求 >2% 持续 10m 视为服务质量劣化。
+      - alert: Sub2apiHighRealErrorRatio
+        expr: |
+          sum(rate(sub2api_ops_error_total{business_limited="false"}[5m]))
+            / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "sub2api 真实错误率超过 2%"
+          description: "近 5m 真实错误率（排除业务限制）{{ $value | humanizePercentage }}，持续 10m。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（真实错误率 / by type）"
+
+      # 单个上游平台劣化（upstream 阶段错误按 platform 拆分）。
+      # 依据：某平台 upstream 阶段真实错误 >0.1 req/s 持续 10m，通常是该上游/账号池不稳。
+      - alert: Sub2apiUpstreamPlatformDegraded
+        expr: sum by (platform) (rate(sub2api_ops_error_total{phase="upstream", business_limited="false"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "sub2api 上游平台 {{ $labels.platform }} 错误升高"
+          description: "平台 {{ $labels.platform }} 近 5m upstream 阶段真实错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（by platform，Top 上游状态码表）"
+
+      # 鉴权阶段错误突增（批量 token 过期 / 凭据失效）。
+      # 依据：auth 阶段错误短时突增多为账号 token 集体过期或上游认证策略变化。
+      - alert: Sub2apiAuthErrorSpike
+        expr: sum(rate(sub2api_ops_error_total{phase="auth"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "sub2api 鉴权阶段错误突增（phase=auth）"
+          description: "近 5m auth 阶段错误率 {{ printf \"%.3f\" $value }} req/s，持续 5m。多为账号 token 集体过期/凭据失效。"
+          dashboard: "Grafana → Sub2api 错误分析与排障（by phase，选 phase=auth）"
+
+  - name: sub2api-model-metrics
+    rules:
+      # 单个模型上游错误持续升高（比平台级告警更精细）。
+      # 依据：某模型 upstream 阶段真实错误 >0.1 req/s 持续 10m，通常是该模型上游不稳。
+      - alert: Sub2apiModelUpstreamDegraded
+        expr: |
+          sum by (platform, model) (
+            rate(sub2api_ops_error_total{phase="upstream", business_limited="false"}[10m])
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 上游错误升高"
+          description: "近 10m upstream 阶段真实错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m。多为该模型上游不稳或账号池问题。"
+          dashboard: "Grafana → Sub2api 按模型稳定性"
+
+      # 模型 TTFT 延迟飙升（首 token 时间过长）。
+      # 依据：TTFT P95 >30s 持续 15m，该模型上游可能排队严重或过载。
+      - alert: Sub2apiModelHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (platform, model, le) (
+              rate(sub2api_upstream_latency_seconds_bucket{phase="ttft"}[10m])
+            )
+          ) > 30
+        for: 15m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} TTFT P95 超过 30s"
+          description: "当前 TTFT P95 = {{ printf \"%.1f\" $value }}s。该模型上游可能排队严重或过载。"
+          dashboard: "Grafana → Sub2api 按模型稳定性"
+
+      # 模型上游 429 限流频率过高（吞吐瓶颈预警）。
+      # 依据：某模型上游 429 >0.05 req/s 持续 10m，账号 RPM 配额可能不足。
+      - alert: Sub2apiModelRateLimited
+        expr: |
+          sum by (platform, model) (
+            rate(sub2api_upstream_status_total{upstream_status="429"}[10m])
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 上游 429 限流频率升高"
+          description: "近 10m 上游 429 率 {{ printf \"%.3f\" $value }} req/s。该模型账号 RPM 配额可能不足，需检查账号池。"
+          dashboard: "Grafana → Sub2api 按模型稳定性"
+
+      # 账号池枯竭（单模型无可用账号）。
+      # 依据：某模型可用账号不足总数 20% 持续 5m，需要紧急补充。
+      # 口径：total 只含"计划内"账号（active 且 schedulable=true，人为下线不计入），
+      #       故本告警只反映故障性不可用（限流/过载/临时封禁/账号 error）。
+      - alert: Sub2apiModelAccountPoolExhausted
+        expr: |
+          sub2api_account_pool_available
+            / clamp_min(sub2api_account_pool_total, 1) < 0.2
+        for: 5m
+        labels:
+          severity: page
+          service: sub2api
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 可用账号不足 20%"
+          description: "当前可用账号数 = {{ printf \"%.0f\" $value }}。急需补充账号或解除封禁。"
+          dashboard: "Grafana → Sub2api 按模型稳定性"
+
+      # 上游 5xx 错误率升高（上游服务端故障）。
+      # 依据：某模型上游 5xx >0.05 req/s 持续 5m。
+      - alert: Sub2apiModelUpstream5xx
+        expr: |
+          sum by (platform, model) (
+            rate(sub2api_upstream_status_total{upstream_status=~"5.."}[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 上游 5xx 错误率升高"
+          description: "近 5m 上游 5xx 率 {{ printf \"%.3f\" $value }} req/s。该模型上游服务可能故障。"
+          dashboard: "Grafana → Sub2api 按模型稳定性"
+
+      # 上游 HTTP 连接池即将打满（资源预警）。
+      # 依据：in-flight 请求超过缓存客户端数的 80%，说明连接复用在逼近日益极限。
+      - alert: Sub2apiUpstreamPoolSaturated
+        expr: |
+          sub2api_upstream_pool_in_flight
+            / clamp_min(sub2api_upstream_pool_clients_cached, 1) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: sub2api
+        annotations:
+          summary: "上游 HTTP 连接池负载过高（in-flight/缓存客户端 > 80%）"
+          description: "当前 in-flight / clients_cached 比值 = {{ $value | humanizePercentage }}。可能需要扩容账号或调整连接池参数。"
+          dashboard: "Grafana → Sub2api 按模型稳定性"

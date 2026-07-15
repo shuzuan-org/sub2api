@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -919,6 +920,11 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		entry.RequestHeadersJSON = extractOpsRetryRequestHeaders(c)
 		attachOpsRequestBodyToEntry(c, entry)
 
+		// 与 ops_error_logs 同源的 Prometheus 聚合打点：用同一份分类字段，
+		// 且在异步入队之前同步递增——保证指标与 DB 明细一一对应，队列丢弃亦不影响聚合。
+		// entry.Platform 已在上文经分组平台覆盖（取最终值）。
+		recordOpsErrorMetric(entry)
+
 		enqueueOpsErrorLog(ops, entry)
 	}
 }
@@ -1094,6 +1100,24 @@ func isKnownOpsErrorType(t string) bool {
 		return true
 	}
 	return false
+}
+
+// recordOpsErrorMetric 递增与 ops_error_logs 同源的 Prometheus 聚合计数。
+// 用 entry 已定稿的分类字段（低基数），供 Grafana 趋势/SLO 面板与 Prometheus 告警使用。
+// 提取为独立函数以便单测直接验证标签正确性，无需拉起整条 OpsService 管道。
+func recordOpsErrorMetric(entry *service.OpsInsertErrorLogInput) {
+	if entry == nil {
+		return
+	}
+	metrics.OpsErrorTotal.WithLabelValues(
+		entry.Platform, metrics.NormalizeModel(entry.Model), entry.ErrorPhase, entry.ErrorType,
+		entry.Severity, strconv.FormatBool(entry.IsBusinessLimited),
+	).Inc()
+
+	// 同时记录上游 HTTP 状态码分布（如 429/503/500 的细分）。
+	if entry.UpstreamStatusCode != nil && *entry.UpstreamStatusCode > 0 {
+		metrics.RecordUpstreamStatus(entry.Platform, entry.Model, *entry.UpstreamStatusCode)
+	}
 }
 
 func normalizeOpsErrorType(errType string, code string) string {

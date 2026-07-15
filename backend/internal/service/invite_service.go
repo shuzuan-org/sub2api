@@ -28,11 +28,11 @@ const inviterReferralBonusAmount = 100.0
 // InviteeRecord 邀请明细记录（一条 = 一个被邀请用户）。
 // 充值/佣金相关字段本期为占位（恒为 0），状态恒为 registered。
 type InviteeRecord struct {
-	Email        string
-	Username     string
-	RegisteredAt time.Time
+	Email         string
+	Username      string
+	RegisteredAt  time.Time
 	TotalRecharge float64 // 占位：本期恒 0
-	Status       string  // 占位：恒 "registered"
+	Status        string  // 占位：恒 "registered"
 }
 
 // InviteService 邀请好友服务。

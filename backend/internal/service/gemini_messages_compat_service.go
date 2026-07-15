@@ -1682,93 +1682,18 @@ func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, acc
 		}
 	}
 
-	switch upstreamStatus {
-	case 400:
-		if statusCode == 0 {
-			statusCode = http.StatusBadRequest
-		}
-		if errType == "" {
-			errType = "invalid_request_error"
-		}
+	// 直接透传：对外返回上游原始状态码 + 上游 message（不再塑形成 502）。
+	// 保留 mapGeminiErrorBodyToClaudeError 已解析出的字段优先级。
+	if statusCode == 0 {
+		statusCode = upstreamStatus
+	}
+	if errType == "" {
+		errType = ErrTypeForUpstreamStatus(upstreamStatus)
+	}
+	if errMsg == "" {
+		errMsg = sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
 		if errMsg == "" {
-			errMsg = "Invalid request"
-		}
-	case 401:
-		if statusCode == 0 {
-			statusCode = http.StatusBadGateway
-		}
-		if errType == "" {
-			errType = "authentication_error"
-		}
-		if errMsg == "" {
-			errMsg = "Upstream authentication failed, please contact administrator"
-		}
-	case 403:
-		if statusCode == 0 {
-			statusCode = http.StatusBadGateway
-		}
-		if errType == "" {
-			errType = "permission_error"
-		}
-		if errMsg == "" {
-			errMsg = "Upstream access forbidden, please contact administrator"
-		}
-	case 404:
-		if statusCode == 0 {
-			statusCode = http.StatusNotFound
-		}
-		if errType == "" {
-			errType = "not_found_error"
-		}
-		if errMsg == "" {
-			errMsg = "Resource not found"
-		}
-	case 429:
-		if statusCode == 0 {
-			statusCode = http.StatusTooManyRequests
-		}
-		if errType == "" {
-			errType = "rate_limit_error"
-		}
-		if errMsg == "" {
-			errMsg = "Upstream rate limit exceeded, please retry later"
-		}
-	case 529:
-		if statusCode == 0 {
-			statusCode = http.StatusServiceUnavailable
-		}
-		if errType == "" {
-			errType = "overloaded_error"
-		}
-		if errMsg == "" {
-			errMsg = "Upstream service overloaded, please retry later"
-		}
-	case 500, 502, 503, 504:
-		if statusCode == 0 {
-			statusCode = http.StatusBadGateway
-		}
-		if errType == "" {
-			switch upstreamStatus {
-			case 504:
-				errType = "timeout_error"
-			case 503:
-				errType = "overloaded_error"
-			default:
-				errType = "api_error"
-			}
-		}
-		if errMsg == "" {
-			errMsg = "Upstream service temporarily unavailable"
-		}
-	default:
-		if statusCode == 0 {
-			statusCode = http.StatusBadGateway
-		}
-		if errType == "" {
-			errType = "upstream_error"
-		}
-		if errMsg == "" {
-			errMsg = "Upstream request failed"
+			errMsg = GenericUpstreamMsg(upstreamStatus)
 		}
 	}
 

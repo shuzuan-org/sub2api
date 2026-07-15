@@ -25,8 +25,8 @@ type AccountPricingSyncService struct {
 }
 
 const (
-	pricingSyncTaskName     = "pricing_sync:check"
-	pricingSyncDefaultInterval = 6 * time.Hour
+	pricingSyncTaskName         = "pricing_sync:check"
+	pricingSyncDefaultInterval  = 6 * time.Hour
 	pricingSyncDefaultThreshold = 0.05 // 5%
 )
 
@@ -147,11 +147,11 @@ func (s *AccountPricingSyncService) checkModelPricing(ctx context.Context, accou
 	)
 
 	event := &OpsAlertEvent{
-		RuleID:   0, // 系统自动检测，不关联规则
-		Severity: "warning",
-		Status:   OpsAlertStatusFiring,
-		Title:    title,
-		Description: desc,
+		RuleID:         0, // 系统自动检测，不关联规则
+		Severity:       "warning",
+		Status:         OpsAlertStatusFiring,
+		Title:          title,
+		Description:    desc,
 		MetricValue:    float64Ptr(maxDiff * 100),
 		ThresholdValue: float64Ptr(s.threshold * 100),
 		Dimensions: map[string]any{

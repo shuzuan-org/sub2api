@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -37,6 +38,36 @@ var codexToolNameMapping = map[string]string{
 	"fetch":     "webfetch",
 	"web_fetch": "webfetch",
 	"webFetch":  "webfetch",
+}
+
+// 参数矫正的有界 kind 词表（预初始化与打点共用，防止词表漂移）。
+// 与 correctToolArgumentsJSON 的矫正分支一一对应。
+const (
+	argKindBashWorkdir    = "args:bash.work_dir->workdir"
+	argKindBashWorkdirDup = "args:bash.work_dir->drop_duplicate"
+	argKindEditFilePath   = "args:edit.file_path->filePath"
+	argKindEditPath       = "args:edit.path->filePath"
+	argKindEditFile       = "args:edit.file->filePath"
+	argKindEditOldString  = "args:edit.old_string->oldString"
+	argKindEditNewString  = "args:edit.new_string->newString"
+	argKindEditReplaceAll = "args:edit.replace_all->replaceAll"
+)
+
+var argCorrectionKinds = []string{
+	argKindBashWorkdir, argKindBashWorkdirDup,
+	argKindEditFilePath, argKindEditPath, argKindEditFile,
+	argKindEditOldString, argKindEditNewString, argKindEditReplaceAll,
+}
+
+// init 用映射表/词表同源预初始化矫正指标的全部 kind 序列为 0，
+// 让稳定性看板在"从未矫正"时显示 0 而非 No data（词表有界）。
+func init() {
+	for from, to := range codexToolNameMapping {
+		metrics.ToolCorrectionTotal.WithLabelValues(from + "->" + to)
+	}
+	for _, kind := range argCorrectionKinds {
+		metrics.ToolCorrectionTotal.WithLabelValues(kind)
+	}
 }
 
 // ToolCorrectionStats 记录工具修正的统计信息（导出用于 JSON 序列化）
@@ -178,6 +209,9 @@ func (c *CodexToolCorrector) correctFunctionAtPath(data []byte, functionPath str
 			c.recordCorrection(name, correctName)
 			corrected = true
 			name = correctName // 使用修正后的名称进行参数修正
+		} else {
+			// 可观测（项4）：矫正应写而未写成功，不再静默吞掉。
+			metrics.ToolErrorTotal.WithLabelValues("apply_name_failed").Inc()
 		}
 	}
 
@@ -215,6 +249,8 @@ func (c *CodexToolCorrector) correctToolParametersAtPath(data []byte, argumentsP
 		}
 		next, err := sjson.SetBytes(data, argumentsPath, nextArgsJSON)
 		if err != nil {
+			// 可观测（项4）：参数矫正应写而未写成功。
+			metrics.ToolErrorTotal.WithLabelValues("apply_args_failed").Inc()
 			return data, false
 		}
 		return next, true
@@ -228,6 +264,8 @@ func (c *CodexToolCorrector) correctToolParametersAtPath(data []byte, argumentsP
 		}
 		next, err := sjson.SetRawBytes(data, argumentsPath, []byte(nextArgsJSON))
 		if err != nil {
+			// 可观测（项4）：参数矫正应写而未写成功。
+			metrics.ToolErrorTotal.WithLabelValues("apply_args_failed").Inc()
 			return data, false
 		}
 		return next, true
@@ -256,12 +294,14 @@ func (c *CodexToolCorrector) correctToolArgumentsJSON(argsJSON, toolName string)
 			if next, changed := moveJSONField(updated, "work_dir", "workdir"); changed {
 				updated = next
 				corrected = true
+				c.recordArgCorrection(argKindBashWorkdir)
 				logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'work_dir' to 'workdir' in bash tool")
 			}
 		} else {
 			if next, changed := deleteJSONField(updated, "work_dir"); changed {
 				updated = next
 				corrected = true
+				c.recordArgCorrection(argKindBashWorkdirDup)
 				logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Removed duplicate 'work_dir' parameter from bash tool")
 			}
 		}
@@ -272,14 +312,17 @@ func (c *CodexToolCorrector) correctToolArgumentsJSON(argsJSON, toolName string)
 			if next, changed := moveJSONField(updated, "file_path", "filePath"); changed {
 				updated = next
 				corrected = true
+				c.recordArgCorrection(argKindEditFilePath)
 				logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'file_path' to 'filePath' in edit tool")
 			} else if next, changed := moveJSONField(updated, "path", "filePath"); changed {
 				updated = next
 				corrected = true
+				c.recordArgCorrection(argKindEditPath)
 				logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'path' to 'filePath' in edit tool")
 			} else if next, changed := moveJSONField(updated, "file", "filePath"); changed {
 				updated = next
 				corrected = true
+				c.recordArgCorrection(argKindEditFile)
 				logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'file' to 'filePath' in edit tool")
 			}
 		}
@@ -287,18 +330,21 @@ func (c *CodexToolCorrector) correctToolArgumentsJSON(argsJSON, toolName string)
 		if next, changed := moveJSONField(updated, "old_string", "oldString"); changed {
 			updated = next
 			corrected = true
+			c.recordArgCorrection(argKindEditOldString)
 			logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'old_string' to 'oldString' in edit tool")
 		}
 
 		if next, changed := moveJSONField(updated, "new_string", "newString"); changed {
 			updated = next
 			corrected = true
+			c.recordArgCorrection(argKindEditNewString)
 			logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'new_string' to 'newString' in edit tool")
 		}
 
 		if next, changed := moveJSONField(updated, "replace_all", "replaceAll"); changed {
 			updated = next
 			corrected = true
+			c.recordArgCorrection(argKindEditReplaceAll)
 			logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Renamed 'replace_all' to 'replaceAll' in edit tool")
 		}
 	}
@@ -344,8 +390,23 @@ func (c *CodexToolCorrector) recordCorrection(from, to string) {
 	key := fmt.Sprintf("%s->%s", from, to)
 	c.stats.CorrectionsByTool[key]++
 
+	// 可观测（项4）：让"tool-call 被容错默默矫正了多少"这个盲区可见。
+	// from/to 均来自固定的 codexToolNameMapping，标签基数有界。
+	metrics.ToolCorrectionTotal.WithLabelValues(key).Inc()
+
 	logger.LegacyPrintf("service.openai_tool_corrector", "[CodexToolCorrector] Corrected tool call: %s -> %s (total: %d)",
 		from, to, c.stats.TotalCorrected)
+}
+
+// recordArgCorrection 记录一次工具参数矫正（项4 盲区修复：参数矫正原先只写日志不打点，
+// 导致面板"矫正量"低估实际容错量）。kind 取自 argCorrectionKinds 有界词表。
+func (c *CodexToolCorrector) recordArgCorrection(kind string) {
+	c.mu.Lock()
+	c.stats.TotalCorrected++
+	c.stats.CorrectionsByTool[kind]++
+	c.mu.Unlock()
+
+	metrics.ToolCorrectionTotal.WithLabelValues(kind).Inc()
 }
 
 // GetStats 获取工具修正统计信息

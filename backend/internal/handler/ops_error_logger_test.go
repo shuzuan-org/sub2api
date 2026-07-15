@@ -6,9 +6,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -273,6 +275,71 @@ func TestNormalizeOpsErrorType(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestNormalizeOpsErrorType_OutputAlwaysBounded 是基数守卫：normalizeOpsErrorType 的输出
+// 直接作为 Prometheus 标签 type，必须始终落在有界枚举内，否则会造成标签爆炸。
+func TestNormalizeOpsErrorType_OutputAlwaysBounded(t *testing.T) {
+	types := []string{
+		"", "<nil>", "null", "weird_type", "500", "429", "SOME_RANDOM",
+		"invalid_request_error", "authentication_error", "rate_limit_error",
+		"billing_error", "subscription_error", "upstream_error", "overloaded_error",
+		"api_error", "not_found_error", "forbidden_error",
+	}
+	codes := []string{
+		"", "INSUFFICIENT_BALANCE", "USAGE_LIMIT_EXCEEDED", "SUBSCRIPTION_NOT_FOUND",
+		"SUBSCRIPTION_INVALID", "random_code", "123",
+	}
+	for _, et := range types {
+		for _, code := range codes {
+			got := normalizeOpsErrorType(et, code)
+			require.Truef(t, isKnownOpsErrorType(got),
+				"normalizeOpsErrorType(%q,%q)=%q escapes the bounded label set", et, code, got)
+		}
+	}
+}
+
+// TestRecordOpsErrorMetric_EmitsCorrectLabels 验证同源打点用 entry 的分类字段递增正确的标签序列。
+func TestRecordOpsErrorMetric_EmitsCorrectLabels(t *testing.T) {
+	tests := []struct {
+		name   string
+		entry  *service.OpsInsertErrorLogInput
+		labels []string // platform, model, phase, type, severity, business_limited
+	}{
+		{
+			name:   "auth error with model",
+			entry:  &service.OpsInsertErrorLogInput{Platform: "anthropic", Model: "claude-sonnet-4-5", ErrorPhase: "auth", ErrorType: "authentication_error", Severity: "P2", IsBusinessLimited: false},
+			labels: []string{"anthropic", "claude-sonnet-4-5", "auth", "authentication_error", "P2", "false"},
+		},
+		{
+			name:   "business-limited rate limit",
+			entry:  &service.OpsInsertErrorLogInput{Platform: "openai", Model: "gpt-5.1", ErrorPhase: "request", ErrorType: "rate_limit_error", Severity: "P3", IsBusinessLimited: true},
+			labels: []string{"openai", "gpt-5.1", "request", "rate_limit_error", "P3", "true"},
+		},
+		{
+			name:   "upstream 5xx",
+			entry:  &service.OpsInsertErrorLogInput{Platform: "gemini", Model: "gemini-2.5-pro", ErrorPhase: "upstream", ErrorType: "upstream_error", Severity: "P1", IsBusinessLimited: false},
+			labels: []string{"gemini", "gemini-2.5-pro", "upstream", "upstream_error", "P1", "false"},
+		},
+		{
+			name:   "internal error empty platform and model",
+			entry:  &service.OpsInsertErrorLogInput{Platform: "", Model: "", ErrorPhase: "internal", ErrorType: "api_error", Severity: "P1", IsBusinessLimited: false},
+			labels: []string{"", "", "internal", "api_error", "P1", "false"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 用增量断言，避免受 init() 预初始化及其它测试对全局计数器的影响。
+			before := testutil.ToFloat64(metrics.OpsErrorTotal.WithLabelValues(tt.labels...))
+			recordOpsErrorMetric(tt.entry)
+			after := testutil.ToFloat64(metrics.OpsErrorTotal.WithLabelValues(tt.labels...))
+			require.Equal(t, before+1, after)
+		})
+	}
+}
+
+func TestRecordOpsErrorMetric_NilEntryNoPanic(t *testing.T) {
+	require.NotPanics(t, func() { recordOpsErrorMetric(nil) })
 }
 
 func TestSetOpsEndpointContext_SetsContextKeys(t *testing.T) {

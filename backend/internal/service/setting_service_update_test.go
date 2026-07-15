@@ -96,8 +96,7 @@ func TestSettingService_UpdateSettings_DefaultSubscriptions_ValidGroup(t *testin
 func TestSettingService_UpdateSettings_DefaultSubscriptions_RejectsNonSubscriptionGroup(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	groupReader := &defaultSubGroupReaderStub{
-		byID: map[int64]*Group{
-		},
+		byID: map[int64]*Group{},
 	}
 	svc := NewSettingService(repo, &config.Config{})
 	svc.SetDefaultSubscriptionGroupReader(groupReader)

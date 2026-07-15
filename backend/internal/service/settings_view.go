@@ -81,14 +81,14 @@ type SystemSettings struct {
 	EnableMetadataPassthrough    bool // 是否透传客户端原始 metadata（默认 false）
 
 	// 腾讯云短信服务配置
-	SMSTencentEnabled       bool   // 是否启用腾讯云短信
-	SMSTencentSecretID      string // 腾讯云 SecretId
-	SMSTencentSecretKey     string // 腾讯云 SecretKey
+	SMSTencentEnabled             bool   // 是否启用腾讯云短信
+	SMSTencentSecretID            string // 腾讯云 SecretId
+	SMSTencentSecretKey           string // 腾讯云 SecretKey
 	SMSTencentSecretKeyConfigured bool   // 前端展示：SecretKey 是否已配置
-	SMSTencentRegion        string // 腾讯云地域
-	SMSTencentSdkAppID      string // 腾讯云短信应用 ID
-	SMSTencentSignName      string // 腾讯云短信签名
-	SMSTencentTemplateID    string // 腾讯云短信模板 ID
+	SMSTencentRegion              string // 腾讯云地域
+	SMSTencentSdkAppID            string // 腾讯云短信应用 ID
+	SMSTencentSignName            string // 腾讯云短信签名
+	SMSTencentTemplateID          string // 腾讯云短信模板 ID
 
 	// 手机号登录
 	PhoneLoginEnabled bool
@@ -124,10 +124,10 @@ type PublicSettings struct {
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
 
-	LinuxDoOAuthEnabled   bool
-	BackendModeEnabled    bool
-	PhoneLoginEnabled     bool
-	Version               string
+	LinuxDoOAuthEnabled bool
+	BackendModeEnabled  bool
+	PhoneLoginEnabled   bool
+	Version             string
 }
 
 // SoraS3Settings Sora S3 存储配置

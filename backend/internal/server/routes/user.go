@@ -100,6 +100,9 @@ func RegisterUserRoutes(
 		channelInvite := authenticated.Group("/channel-invite")
 		{
 			channelInvite.POST("/claim", h.ChannelInvite.Claim)
+			// 渠道合作方（码主）视角：/invite 页渠道邀请区块
+			channelInvite.GET("/summary", h.ChannelInvite.GetOwnerSummary)
+			channelInvite.GET("/batches/:id/usages", h.ChannelInvite.ListOwnerBatchUsages)
 		}
 
 		// 用户订阅

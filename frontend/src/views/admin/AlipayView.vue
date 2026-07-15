@@ -166,7 +166,9 @@ async function loadEnabled() {
   try {
     const cfg = await adminAlipayAPI.getConfig()
     enabled.value = cfg.enabled ?? false
-  } catch {}
+  } catch {
+    // Alipay config is optional; keep the default disabled state when unavailable.
+  }
 }
 
 async function toggleEnabled() {
@@ -183,7 +185,9 @@ async function loadPackages() {
     const pkgs = await adminAlipayAPI.getPackages()
     packages.value = pkgs
     nextPackageId = Math.max(nextPackageId, ...pkgs.map((p) => p.id + 1))
-  } catch {}
+  } catch {
+    // Packages can be absent before Alipay is configured; keep the empty list.
+  }
 }
 
 async function loadOrders() {

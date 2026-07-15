@@ -29,7 +29,7 @@ func NewInviteHandler(
 
 type inviteStats struct {
 	InvitedCount    int     `json:"invited_count"`
-	RechargedCount  int     `json:"recharged_count"` // 占位：本期恒 0
+	RechargedCount  int     `json:"recharged_count"`  // 占位：本期恒 0
 	TotalCommission float64 `json:"total_commission"` // 占位：本期恒 0
 	Withdrawable    float64 `json:"withdrawable"`     // 占位：本期恒 0
 }

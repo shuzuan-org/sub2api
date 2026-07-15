@@ -90,6 +90,13 @@ func (r *userSubscriptionRepository) GetLatestByUserIDAndPlanID(ctx context.Cont
 	return r.GetByUserIDAndPlanID(ctx, userID, planID)
 }
 
+// GetActiveByUserIDAndPlanID 返回指定用户对指定 plan 的有效订阅。
+//
+// 同一 (user, plan) 允许存在多条 active 且未过期的记录：购买是叠加语义
+// （见 SubscriptionService.PurchaseSubscription），重复购买会新建记录而非续期，
+// 有效期重叠期间就会并存多条。因此这里不能用 Only()——它会抛 NotSingularError。
+// 取过期最晚的一条：调用方（计费资格二次确认）只关心"是否仍有有效订阅"，
+// 真正的限额合并由 ListActiveByUserID + ValidateMergedState 负责。
 func (r *userSubscriptionRepository) GetActiveByUserIDAndPlanID(ctx context.Context, userID, planID int64) (*service.UserSubscription, error) {
 	client := clientFromContext(ctx, r.client)
 	m, err := client.UserSubscription.Query().
@@ -100,7 +107,8 @@ func (r *userSubscriptionRepository) GetActiveByUserIDAndPlanID(ctx context.Cont
 			usersubscription.ExpiresAtGT(time.Now()),
 		).
 		WithPlan().
-		Only(ctx)
+		Order(dbent.Desc(usersubscription.FieldExpiresAt), dbent.Desc(usersubscription.FieldID)).
+		First(ctx)
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
@@ -392,7 +400,7 @@ func (r *userSubscriptionRepository) GetCurrentUsage(ctx context.Context, id int
 	if queryErr != nil {
 		return 0, 0, 0, queryErr
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err = rows.Err(); err != nil {
 			return 0, 0, 0, err

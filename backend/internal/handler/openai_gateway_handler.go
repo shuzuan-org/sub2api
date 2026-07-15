@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -357,6 +358,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.ID, result.ResponseHeaders)
 			}
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
+			recordUpstreamSuccessMetrics(account.Platform, result.Model, result.Duration, result.FirstTokenMs)
 		} else {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, nil)
 		}
@@ -740,6 +742,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		}
 		if result != nil {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
+			recordUpstreamSuccessMetrics(account.Platform, result.Model, result.Duration, result.FirstTokenMs)
 		} else {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, nil)
 		}
@@ -807,6 +810,7 @@ func (h *OpenAIGatewayHandler) anthropicStreamingAwareError(c *gin.Context, stat
 			})
 			fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", errPayload) //nolint:errcheck
 			flusher.Flush()
+			c.Set(terminalErrorSentKey, true)
 		}
 		return
 	}
@@ -820,11 +824,23 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 }
 
 // ensureAnthropicErrorResponse writes a fallback Anthropic error if no response was written.
+// 已落字节时不再 no-op，而是补发 terminal SSE error 事件（避免无终止事件的静默截断）。
+// 处理同 ensureForwardErrorResponse：客户端断连不写死连接(记 client)、已发过则不重复发。
 func (h *OpenAIGatewayHandler) ensureAnthropicErrorResponse(c *gin.Context, streamStarted bool) bool {
-	if c == nil || c.Writer == nil || c.Writer.Written() {
+	if c == nil || c.Writer == nil {
 		return false
 	}
-	h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
+	if !streamStarted {
+		if c.Writer.Written() {
+			return false
+		}
+		h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", false)
+		return true
+	}
+	if !shouldEmitStreamTruncation(c) {
+		return false
+	}
+	h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream stream interrupted", true)
 	return true
 }
 
@@ -1250,6 +1266,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, result.ResponseHeaders)
 			}
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
+			recordUpstreamSuccessMetrics(account.Platform, result.Model, result.Duration, result.FirstTokenMs)
 			h.submitUsageRecordTask(func(taskCtx context.Context) {
 				if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 					Result:             result,
@@ -1458,8 +1475,11 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
-	// 使用默认的错误映射
+	// 直接透传：状态码 + 上游真实 message（提取失败则用通用文案）。
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
+	if upstreamMsg != "" {
+		errMsg = upstreamMsg
+	}
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
@@ -1470,21 +1490,13 @@ func (h *OpenAIGatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, sta
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
-func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "upstream_error", "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "upstream_error", "Upstream request failed"
-	}
+// mapUpstreamError 直接透传上游错误状态码（不再塑形成 502），errType 按状态码派生，
+// message 用通用兜底文案（带 body 的调用点会用上游真实 message 覆盖）。
+func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (status int, errType string, message string) {
+	defer func() {
+		metrics.UpstreamErrorShapedTotal.WithLabelValues(strconv.Itoa(status), errType).Inc()
+	}()
+	return statusCode, service.ErrTypeForUpstreamStatus(statusCode), service.GenericUpstreamMsg(statusCode)
 }
 
 // handleStreamingAwareError handles errors that may occur after streaming has started
@@ -1499,6 +1511,7 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status 
 				_ = c.Error(err)
 			}
 			flusher.Flush()
+			c.Set(terminalErrorSentKey, true)
 		}
 		return
 	}
@@ -1507,12 +1520,24 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status 
 	h.errorResponse(c, status, errType, message)
 }
 
-// ensureForwardErrorResponse 在 Forward 返回错误但尚未写响应时补写统一错误响应。
+// ensureForwardErrorResponse 在 Forward 返回错误时补写错误响应，确保客户端不会拿到"无终止事件的静默截断流"。
+// 语义同 GatewayHandler.ensureForwardErrorResponse：未写则返回 JSON 错误；已落字节则补发 terminal SSE error 事件，
+// 并吸取 cc2codex 教训——客户端断连不写死连接(记 client)、已发过 terminal 则不重复发。
 func (h *OpenAIGatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarted bool) bool {
-	if c == nil || c.Writer == nil || c.Writer.Written() {
+	if c == nil || c.Writer == nil {
 		return false
 	}
-	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", streamStarted)
+	if !streamStarted {
+		if c.Writer.Written() {
+			return false
+		}
+		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", false)
+		return true
+	}
+	if !shouldEmitStreamTruncation(c) {
+		return false
+	}
+	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream stream interrupted", true)
 	return true
 }
 

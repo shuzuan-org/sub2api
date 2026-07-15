@@ -10,10 +10,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
+
+// recordUpstreamSuccessMetrics records upstream latency (total + ttft) and a 200
+// status for a successful forward. Shared by all gateway handlers (anthropic /
+// openai / gemini / sora) so the per-model upstream_status / latency metrics are
+// not limited to the anthropic path. Emitting 200 here mirrors the error path,
+// where ops_error_logger records the non-2xx upstream status.
+func recordUpstreamSuccessMetrics(platform, model string, dur time.Duration, firstTokenMs *int) {
+	metrics.RecordUpstreamLatency(platform, model, "total", dur.Milliseconds())
+	if firstTokenMs != nil {
+		metrics.RecordUpstreamLatency(platform, model, "ttft", int64(*firstTokenMs))
+	}
+	metrics.RecordUpstreamStatus(platform, model, 200)
+}
 
 // claudeCodeValidator is a singleton validator for Claude Code client detection
 var claudeCodeValidator = service.NewClaudeCodeValidator()
@@ -339,6 +353,13 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 	for {
 		select {
 		case <-ctx.Done():
+			// 等待并发槽位期间被中断（项5 可观测）：区分客户端主动断连 vs 等待超时。
+			// cause 词表与指标声明对齐：client|shutdown|deadline。
+			cause := "deadline"
+			if ctx.Err() == context.Canceled {
+				cause = "client"
+			}
+			metrics.RequestInterruptedTotal.WithLabelValues("slotwait", cause).Inc()
 			return nil, &ConcurrencyError{
 				SlotType:  slotType,
 				IsTimeout: true,

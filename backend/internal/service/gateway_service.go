@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/metrics"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -5122,7 +5123,6 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			if firstNonEmptyLine && trimmedLine != "" {
 				firstNonEmptyLine = false
 				if errStatus, errBody, matched := parseInlineAnthropicErrorJSON(trimmedLine); matched {
-					sawTerminalEvent = true
 					if writeInlineUpstreamErrorResponse(c, flusher, errStatus, errBody) {
 						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("upstream inline error: status=%d", errStatus)
 					}
@@ -6563,30 +6563,9 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 			return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
 		}
 		return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, summary)
-	case 401:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream authentication failed, please contact administrator"
-	case 403:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream access forbidden, please contact administrator"
-	case 429:
-		statusCode = http.StatusTooManyRequests
-		errType = "rate_limit_error"
-		errMsg = "Upstream rate limit exceeded, please retry later"
-	case 529:
-		statusCode = http.StatusServiceUnavailable
-		errType = "overloaded_error"
-		errMsg = "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream service temporarily unavailable"
 	default:
-		statusCode = http.StatusBadGateway
-		errType = "upstream_error"
-		errMsg = "Upstream request failed"
+		// 直接透传：对外返回上游原始状态码 + 上游 message（不再塑形成 502）。
+		statusCode, errType, errMsg = upstreamPassthroughDefaults(resp.StatusCode, body)
 	}
 
 	// 返回自定义错误响应
@@ -6706,12 +6685,13 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 		return nil, fmt.Errorf("upstream error: %d (retries exhausted, passthrough rule matched) message=%s", resp.StatusCode, summary)
 	}
 
-	// 返回统一的重试耗尽错误响应
-	c.JSON(http.StatusBadGateway, gin.H{
+	// 直接透传：对外返回上游原始状态码 + 上游 message（不再塑形成 502）。
+	ptStatus, ptErrType, ptErrMsg := upstreamPassthroughDefaults(resp.StatusCode, respBody)
+	c.JSON(ptStatus, gin.H{
 		"type": "error",
 		"error": gin.H{
-			"type":    "upstream_error",
-			"message": "Upstream request failed after retries",
+			"type":    ptErrType,
+			"message": ptErrMsg,
 		},
 	})
 
@@ -7882,6 +7862,14 @@ func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usage
 	if repo == nil || usageLog == nil {
 		return
 	}
+	// Token 消耗指标：落库前同步打点，与 usage_logs 同源且不受写队列丢弃影响。
+	metrics.RecordTokenUsage(
+		usageLog.Model,
+		usageLog.InputTokens,
+		usageLog.OutputTokens,
+		usageLog.CacheReadTokens,
+		usageLog.CacheCreationTokens,
+	)
 	usageCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
@@ -9032,4 +9020,113 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 写入文件（调试用，并发写入可能交错但不影响可读性）
 	_, _ = f.WriteString(buf.String())
+}
+
+// AccountPoolStats returns a snapshot of account pool health grouped by (platform, model).
+// Used by Prometheus gauge collector for per-model account availability monitoring.
+func (s *GatewayService) AccountPoolStats(ctx context.Context) []metrics.AccountPoolStat {
+	if s == nil || s.accountRepo == nil {
+		return nil
+	}
+
+	accounts, err := s.accountRepo.ListSchedulable(ctx)
+	if err != nil {
+		return nil
+	}
+
+	// Build counts: key "platform|model" -> total
+	type key struct{ platform, model string }
+	counts := make(map[key]int)
+	for _, acc := range accounts {
+		platform := acc.Platform
+		if platform == "" {
+			continue
+		}
+		// Resolve models supported by this account via its model mapping.
+		mapping := acc.GetModelMapping()
+		if len(mapping) == 0 {
+			// If no mapping, the account maps all models — track as wildcard per platform.
+			counts[key{platform: platform, model: ""}]++
+			continue
+		}
+		for model := range mapping {
+			if model == "" {
+				continue
+			}
+			counts[key{platform: platform, model: model}]++
+		}
+	}
+
+	// Also count total accounts (active + schedulable) for the "total" gauge.
+	// schedulable=false 是人为下线的运营决策，不计入容量分母；
+	// 这样 available/total 只反映计划内账号的故障性不可用（限流/过载/临时封禁），
+	// 避免账号池告警把长期手动下线的账号当成容量缺口。
+	totalAccounts, err := s.accountRepo.ListActive(ctx)
+	totalCounts := make(map[key]int)
+	if err == nil {
+		for _, acc := range totalAccounts {
+			if !acc.Schedulable {
+				continue
+			}
+			platform := acc.Platform
+			if platform == "" {
+				continue
+			}
+			mapping := acc.GetModelMapping()
+			if len(mapping) == 0 {
+				totalCounts[key{platform: platform, model: ""}]++
+				continue
+			}
+			for model := range mapping {
+				if model == "" {
+					continue
+				}
+				totalCounts[key{platform: platform, model: model}]++
+			}
+		}
+	}
+
+	// Merge into result.
+	allKeys := make(map[key]struct{})
+	for k := range counts {
+		allKeys[k] = struct{}{}
+	}
+	for k := range totalCounts {
+		allKeys[k] = struct{}{}
+	}
+
+	out := make([]metrics.AccountPoolStat, 0, len(allKeys))
+	for k := range allKeys {
+		total := totalCounts[k]
+		avail := counts[k]
+		out = append(out, metrics.AccountPoolStat{
+			Platform:    k.platform,
+			Model:       k.model,
+			Total:       total,
+			Available:   avail,
+			Unavailable: total - avail,
+		})
+	}
+	return out
+}
+
+// UpstreamPoolStats returns a snapshot of the HTTP upstream client pool.
+func (s *GatewayService) UpstreamPoolStats() metrics.UpstreamPoolStat {
+	if s == nil || s.httpUpstream == nil {
+		return metrics.UpstreamPoolStat{}
+	}
+	type poolStatser interface {
+		PoolStats() struct {
+			ClientsCached int
+			InFlightTotal int
+		}
+	}
+	if ps, ok := s.httpUpstream.(poolStatser); ok {
+		stats := ps.PoolStats()
+		return metrics.UpstreamPoolStat{
+			ClientsCached: stats.ClientsCached,
+			InFlightTotal: stats.InFlightTotal,
+		}
+	}
+	return metrics.UpstreamPoolStat{}
 }

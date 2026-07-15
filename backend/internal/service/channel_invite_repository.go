@@ -14,6 +14,8 @@ type ChannelInviteRepository interface {
 	UpdateBatch(ctx context.Context, id int64, input *UpdateChannelInviteBatchInput) error
 	DeleteBatch(ctx context.Context, id int64) error
 	ListBatches(ctx context.Context, params pagination.PaginationParams, status, search string) ([]ChannelInviteBatch, *pagination.PaginationResult, error)
+	// ListBatchesByCreator 渠道合作方名下全部批次（预载 codes，按 ID 降序）
+	ListBatchesByCreator(ctx context.Context, createdBy int64) ([]ChannelInviteBatch, error)
 
 	// 码操作
 	CreateCodes(ctx context.Context, codes []ChannelInviteCode) error

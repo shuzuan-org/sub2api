@@ -503,6 +503,9 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		}
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
+		if result != nil {
+			recordUpstreamSuccessMetrics(account.Platform, result.Model, result.Duration, result.FirstTokenMs)
+		}
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
@@ -598,26 +601,17 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
 	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
-	// 使用默认的错误映射
+	// 直接透传：状态码 + 上游真实 message（提取失败则用通用文案）。
 	status, message := mapGeminiUpstreamError(statusCode)
+	if upstreamMsg != "" {
+		message = upstreamMsg
+	}
 	googleError(c, status, message)
 }
 
+// mapGeminiUpstreamError 直接透传上游错误状态码（不再塑形成 502），message 用通用兜底文案。
 func mapGeminiUpstreamError(statusCode int) (int, string) {
-	switch statusCode {
-	case 401:
-		return http.StatusBadGateway, "Upstream authentication failed, please contact administrator"
-	case 403:
-		return http.StatusBadGateway, "Upstream access forbidden, please contact administrator"
-	case 429:
-		return http.StatusTooManyRequests, "Upstream rate limit exceeded, please retry later"
-	case 529:
-		return http.StatusServiceUnavailable, "Upstream service overloaded, please retry later"
-	case 500, 502, 503, 504:
-		return http.StatusBadGateway, "Upstream service temporarily unavailable"
-	default:
-		return http.StatusBadGateway, "Upstream request failed"
-	}
+	return statusCode, service.GenericUpstreamMsg(statusCode)
 }
 
 type pathParseError struct{ msg string }

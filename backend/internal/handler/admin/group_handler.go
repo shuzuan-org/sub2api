@@ -30,10 +30,10 @@ func NewGroupHandler(adminService service.AdminService, dashboardService *servic
 
 // CreateGroupRequest represents create group request
 type CreateGroupRequest struct {
-	Name             string             `json:"name" binding:"required"`
-	Description      string             `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
-	RateMultiplier   float64            `json:"rate_multiplier"`
+	Name           string  `json:"name" binding:"required"`
+	Description    string  `json:"description"`
+	Platform       string  `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
+	RateMultiplier float64 `json:"rate_multiplier"`
 	// Visibility 可见性三档：public / subscriber / private。空值时由 is_exclusive 回退派生。
 	Visibility string `json:"visibility" binding:"omitempty,oneof=public subscriber private"`
 	// IsExclusive 已废弃：仅当 visibility 为空时用于兼容回退（true→private）。
@@ -68,17 +68,17 @@ type CreateGroupRequest struct {
 
 // UpdateGroupRequest represents update group request
 type UpdateGroupRequest struct {
-	Name             string             `json:"name"`
-	Description      string             `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
-	RateMultiplier   *float64           `json:"rate_multiplier"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Platform       string   `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity sora deepseek"`
+	RateMultiplier *float64 `json:"rate_multiplier"`
 	// Visibility 可见性三档；与 is_exclusive 二选一（优先 visibility）。
 	Visibility *string `json:"visibility" binding:"omitempty,oneof=public subscriber private"`
 	// IsExclusive 已废弃：仅当 visibility 未提供时用于兼容回退。
 	IsExclusive *bool `json:"is_exclusive"`
 	// VisiblePlanIDs 非 nil 时全量替换分组绑定的订阅计划集合。
 	VisiblePlanIDs *[]int64 `json:"visible_plan_ids"`
-	Status      string `json:"status" binding:"omitempty,oneof=active inactive"`
+	Status         string   `json:"status" binding:"omitempty,oneof=active inactive"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`

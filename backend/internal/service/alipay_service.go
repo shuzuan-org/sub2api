@@ -232,7 +232,7 @@ func (s *AlipayService) loadConfigFromCertDir() (*AlipayConfig, bool) {
 	appCert, ok2 := read(certFileAppPublicCert)
 	alipayCert, ok3 := read(certFileAlipayPubCert)
 	rootCert, ok4 := read(certFileAlipayRootCert)
-	if !(ok1 && ok2 && ok3 && ok4) {
+	if !ok1 || !ok2 || !ok3 || !ok4 {
 		return nil, false
 	}
 	return &AlipayConfig{

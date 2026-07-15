@@ -119,6 +119,41 @@ func (s *ChannelInviteService) ListBatches(ctx context.Context, params paginatio
 	return s.repo.ListBatches(ctx, params, status, search)
 }
 
+// ======================== 渠道合作方（码主）视角 ========================
+
+// GetOwnerSummary 渠道合作方名下全部批次（含预载的 codes），计数从预载数据计算。
+// 返回空切片表示该用户不是任何渠道活动的合作方。
+func (s *ChannelInviteService) GetOwnerSummary(ctx context.Context, userID int64) ([]ChannelInviteBatch, error) {
+	batches, err := s.repo.ListBatchesByCreator(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list batches by creator: %w", err)
+	}
+	for i := range batches {
+		batches[i].CodeCount = len(batches[i].Codes)
+		used := 0
+		for _, c := range batches[i].Codes {
+			used += c.UsedCount
+		}
+		batches[i].UsedCount = used
+	}
+	return batches, nil
+}
+
+// ListOwnerBatchUsages 渠道合作方查询自己批次的兑换记录（分页）。
+// 批次不存在或不属于该用户时统一返回 ErrChannelInviteBatchNotFound（不泄露存在性）。
+func (s *ChannelInviteService) ListOwnerBatchUsages(
+	ctx context.Context, userID, batchID int64, params pagination.PaginationParams,
+) ([]ChannelInviteCodeUsage, *pagination.PaginationResult, error) {
+	batch, err := s.repo.GetBatch(ctx, batchID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if batch.CreatedBy != userID {
+		return nil, nil, ErrChannelInviteBatchNotFound
+	}
+	return s.repo.ListUsagesByBatch(ctx, batchID, params)
+}
+
 // ======================== 码管理 ========================
 
 // GenerateCodes 批量生成邀请码
@@ -356,7 +391,7 @@ func isChannelCodeFormat(code string) bool {
 		return false
 	}
 	for _, c := range code {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
 			return false
 		}
 	}

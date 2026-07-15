@@ -35,16 +35,16 @@ type User struct {
 	TotpEnabledAt       *time.Time // TOTP 启用时间
 
 	// 手机号登录
-	Phone        string // 手机号（唯一约束通过部分索引实现）
-	PhoneVerified bool  // 手机号是否已验证
+	Phone         string // 手机号（唯一约束通过部分索引实现）
+	PhoneVerified bool   // 手机号是否已验证
 
 	// 邀请好友
 	ReferralCode *string // 用户专属邀请码（懒创建，6 位大写字母+数字）
 	ReferredBy   *int64  // 邀请人 user_id
 
 	// 手机号绑定
-	PhoneNumber        *string    // 绑定手机号（E.164 格式，如 +8613800138000）
-	PhoneBoundAt       *time.Time // 绑定时间
+	PhoneNumber         *string    // 绑定手机号（E.164 格式，如 +8613800138000）
+	PhoneBoundAt        *time.Time // 绑定时间
 	PhoneBonusGrantedAt *time.Time // 绑定赠送 100U 发放时间
 
 	APIKeys       []APIKey
