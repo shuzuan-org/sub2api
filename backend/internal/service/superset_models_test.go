@@ -382,3 +382,24 @@ func TestCloneModelMetaMap_CapabilitiesNotAliased(t *testing.T) {
 		t.Error("nil Capabilities should clone as nil")
 	}
 }
+
+func TestModelsEndpoint_TolerantOfV1SuffixedBase(t *testing.T) {
+	// Operators paste whatever URL the provider documents; an OpenAI-compatible base
+	// routinely already ends in /v1. Appending /v1/models there produced /v1/v1/models,
+	// which 404s and silently emptied that account's whole catalog.
+	cases := []struct{ base, want string }{
+		{"https://lisa.vspeak.top/v1", "https://lisa.vspeak.top/v1/models"},
+		{"https://lisa.vspeak.top/v1/", "https://lisa.vspeak.top/v1/models"},
+		{"https://lisa.vspeak.top", "https://lisa.vspeak.top/v1/models"},
+		{"https://lisa.vspeak.top/", "https://lisa.vspeak.top/v1/models"},
+		{"http://127.0.0.1:8188", "http://127.0.0.1:8188/v1/models"},
+		// A path that merely CONTAINS v1 is not a /v1 suffix and keeps its own /v1/models.
+		{"https://api.deepseek.com/anthropic", "https://api.deepseek.com/anthropic/v1/models"},
+		{"https://host/v1beta", "https://host/v1beta/v1/models"},
+	}
+	for _, tc := range cases {
+		if got := modelsEndpoint(tc.base); got != tc.want {
+			t.Errorf("modelsEndpoint(%q) = %q, want %q", tc.base, got, tc.want)
+		}
+	}
+}

@@ -531,3 +531,91 @@ func TestRealUpstreamNames_GraftsCapsFromSecondAlias(t *testing.T) {
 		t.Error("capabilities from alias-b were dropped")
 	}
 }
+
+func TestGPTWitnessFrom_SmallestPairedWindow(t *testing.T) {
+	// Among gpt-* ids with a real window, the witness is the SMALLEST one, paired with
+	// that same model's output cap (not the smallest output seen anywhere).
+	ids := []string{"gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.5", "claude-opus-4-8"}
+	metas := map[string]ModelMeta{
+		"gpt-5.6-sol":     {MaxInputTokens: 400000, MaxOutputTokens: 64000},
+		"gpt-5.6-luna":    {MaxInputTokens: 272000, MaxOutputTokens: 128000},
+		"gpt-5.5":         {}, // the unlisted sibling the witness exists for
+		"claude-opus-4-8": {MaxInputTokens: 1000000, MaxOutputTokens: 200000},
+	}
+	got := GPTWitnessFrom(ids, metas)
+	if got.MaxInputTokens != 272000 || got.MaxOutputTokens != 128000 {
+		t.Errorf("witness = %+v, want {272000 128000} (luna's pair, not sol's window nor claude's)", got)
+	}
+}
+
+func TestGPTWitnessFrom_NoGPTEvidence(t *testing.T) {
+	// A claude-only listing yields no witness: claude windows must never vouch for a GPT.
+	ids := []string{"claude-opus-4-8", "minimax-m3"}
+	metas := map[string]ModelMeta{
+		"claude-opus-4-8": {MaxInputTokens: 1000000, MaxOutputTokens: 200000},
+		"minimax-m3":      {MaxInputTokens: 512000, MaxOutputTokens: 512000},
+	}
+	if got := GPTWitnessFrom(ids, metas); got != (GPTWitness{}) {
+		t.Errorf("witness = %+v, want zero (no gpt-family evidence in listing)", got)
+	}
+}
+
+func TestBuildModelWithWitness_AnthropicOriginGPTInheritsEvidence(t *testing.T) {
+	// The production case: an anthropic-PROTOCOL group fronting a real GPT backend. Its
+	// listed siblings report 272k/128k, so an unlisted mapping key inherits those numbers
+	// instead of the 0 the old origin gate produced.
+	witness := GPTWitness{MaxInputTokens: 272000, MaxOutputTokens: 128000}
+	m := BuildModelWithWitness("gpt-5.5", OriginAnthropic, ModelMeta{}, witness)
+	if m.MaxInputTokens != 272000 {
+		t.Errorf("max_input_tokens = %d, want 272000 (from same-listing witness)", m.MaxInputTokens)
+	}
+	if m.MaxTokens != 128000 {
+		t.Errorf("max_tokens = %d, want 128000 (from same-listing witness)", m.MaxTokens)
+	}
+}
+
+func TestBuildModelWithWitness_RealMetaBeatsWitness(t *testing.T) {
+	// Evidence never overrides the model's OWN upstream numbers.
+	witness := GPTWitness{MaxInputTokens: 272000, MaxOutputTokens: 128000}
+	m := BuildModelWithWitness("gpt-5.5", OriginAnthropic, ModelMeta{MaxInputTokens: 512000, MaxOutputTokens: 512000}, witness)
+	if m.MaxInputTokens != 512000 || m.MaxTokens != 512000 {
+		t.Errorf("got %d/%d, want 512000/512000 (own upstream meta wins)", m.MaxInputTokens, m.MaxTokens)
+	}
+}
+
+func TestBuildModelWithWitness_DoesNotLeakToNonGPT(t *testing.T) {
+	// A GPT witness says nothing about a minimax/glm name sharing the listing.
+	witness := GPTWitness{MaxInputTokens: 272000, MaxOutputTokens: 128000}
+	m := BuildModelWithWitness("minimax-m3", OriginAnthropic, ModelMeta{}, witness)
+	if m.MaxInputTokens != 0 || m.MaxTokens != 0 {
+		t.Errorf("got %d/%d, want 0/0 (non-gpt name must not inherit GPT evidence)", m.MaxInputTokens, m.MaxTokens)
+	}
+}
+
+func TestBuildList_GPTWitnessAppliedAcrossListing(t *testing.T) {
+	// End-to-end shape of production group 7: three listed gpt-5.6-* carry real caps, four
+	// mapping-key siblings carry none, and the whole listing must agree on the family's
+	// capacity. Before the witness every unlisted name reported 0.
+	ids := []string{"gpt-5.1", "gpt-5.4", "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra"}
+	origins := map[string]Origin{}
+	for _, id := range ids {
+		origins[id] = OriginAnthropic // anthropic-protocol group fronting a GPT backend
+	}
+	metas := map[string]ModelMeta{
+		"gpt-5.6-luna":  {MaxInputTokens: 272000, MaxOutputTokens: 128000},
+		"gpt-5.6-sol":   {MaxInputTokens: 272000, MaxOutputTokens: 128000},
+		"gpt-5.6-terra": {MaxInputTokens: 272000, MaxOutputTokens: 128000},
+	}
+	list := BuildList(ids, origins, metas)
+	if len(list.Data) != len(ids) {
+		t.Fatalf("listing has %d models, want %d", len(list.Data), len(ids))
+	}
+	for _, m := range list.Data {
+		if m.MaxInputTokens != 272000 {
+			t.Errorf("%s max_input_tokens = %d, want 272000", m.ID, m.MaxInputTokens)
+		}
+		if m.MaxTokens != 128000 {
+			t.Errorf("%s max_tokens = %d, want 128000", m.ID, m.MaxTokens)
+		}
+	}
+}

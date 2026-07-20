@@ -987,7 +987,10 @@ func (h *GatewayHandler) Model(c *gin.Context) {
 		ids, metas, so = modelsuperset.RealUpstreamNames(ids, upstreams, metas, so)
 	}
 	if key, origin, ok := modelsuperset.MatchModelID(id, ids, so); ok {
-		obj := modelsuperset.BuildModel(key, origin, metas[key])
+		// Same witness the listing derives, over the same post-filter id set, so a
+		// single-lookup never reports different caps than GET /v1/models did.
+		witness := modelsuperset.GPTWitnessFrom(ids, metas)
+		obj := modelsuperset.BuildModelWithWitness(key, origin, metas[key], witness)
 		obj.ID = id // round-trip the client's exact spelling; DisplayName stays canonical
 		c.JSON(http.StatusOK, obj)
 		return

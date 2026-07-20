@@ -324,7 +324,7 @@ func (s *GatewayService) fetchAnthropicModels(ctx context.Context, account *Acco
 			h.Set("x-api-key", token)
 		}
 	}
-	return s.doFetchModels(ctx, account, strings.TrimRight(base, "/")+"/v1/models", setAuth)
+	return s.doFetchModels(ctx, account, modelsEndpoint(base), setAuth)
 }
 
 func (s *GatewayService) fetchOpenAIModels(ctx context.Context, account *Account) (map[string]modelsuperset.ModelMeta, error) {
@@ -343,7 +343,20 @@ func (s *GatewayService) fetchOpenAIModels(ctx context.Context, account *Account
 	setAuth := func(h http.Header) {
 		h.Set("Authorization", "Bearer "+token) // openai: always Bearer (oauth or apikey)
 	}
-	return s.doFetchModels(ctx, account, strings.TrimRight(base, "/")+"/v1/models", setAuth)
+	return s.doFetchModels(ctx, account, modelsEndpoint(base), setAuth)
+}
+
+// modelsEndpoint joins an upstream base URL with the models path. A base that already ends
+// in /v1 is common for OpenAI-compatible upstreams (operators paste the URL the provider
+// documents), and blindly appending /v1/models turns it into /v1/v1/models — the upstream
+// 404s, the catalog reads as empty, and every model in that account silently loses its real
+// caps while the only symptom is a WARN in the log.
+func modelsEndpoint(base string) string {
+	trimmed := strings.TrimRight(base, "/")
+	if strings.HasSuffix(trimmed, "/v1") {
+		return trimmed + "/models"
+	}
+	return trimmed + "/v1/models"
 }
 
 // doFetchModels fetches the full model id list from an upstream /v1/models endpoint,

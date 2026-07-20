@@ -14,12 +14,17 @@
 // capabilities tree would be a lie, so it is omitted entirely. We never fabricate
 // capabilities for a backend we did not derive them from.
 //
-// max_input_tokens is a neutral number and gets a per-family conventional fallback
-// when upstream doesn't report it: Claude names on an anthropic origin fall back to
-// the family context window (200k/1M), GPT names on an openai origin fall back to the
-// GPT-5-line input cap (272k). Any other combination stays 0 (honest "unknown") — in
-// particular a gpt-* ALIAS on an anthropic group (backed by minimax etc.) never gets
-// the GPT guess.
+// max_input_tokens is a neutral number and gets a fallback when upstream doesn't report
+// it: Claude names on an anthropic origin fall back to the family context window
+// (200k/1M); gpt-* names fall back to a same-listing GPT witness (real numbers from a
+// sibling the upstream DID report — see GPTWitness) and then, on an openai origin, to the
+// GPT-5-line input cap (272k). Any other combination stays 0 (honest "unknown").
+//
+// The witness exists because a group's gpt-* ids split into listed names (real caps) and
+// mapping keys the upstream serves but never lists (no caps). Gating the GPT fallback on
+// origin alone read every anthropic-protocol group as "gpt alias backed by someone else"
+// and left those mapping keys at 0 — even when the group's own listed siblings proved the
+// backend was genuinely GPT.
 //
 // The derivation logic (boundary-aware family matching, normalize, context window) is
 // ported from cc2codex's models.go/config.go.
@@ -228,10 +233,54 @@ func anthropicFamilyTier(normalized string) string {
 
 func capObj(supported bool) map[string]any { return map[string]any{"supported": supported} }
 
-// BuildModel derives a superset object for a model id. capabilities + max_input_tokens
-// are emitted ONLY for an Anthropic-origin Claude-family model (the honest case); for any
-// other origin/family the capabilities tree is omitted and max_input_tokens stays 0.
+// GPTWitness is REAL upstream-reported GPT capacity observed elsewhere in the SAME listing.
+// It exists because a group's gpt-* ids routinely split into two kinds: names the upstream
+// catalog lists (real caps) and names it serves but never lists (mapping keys, no caps).
+// The listed ones prove what the backend behind this group actually is, so their numbers —
+// not a guess — carry over to the unlisted siblings. A zero value means "no such evidence".
+type GPTWitness struct {
+	MaxInputTokens  int
+	MaxOutputTokens int
+}
+
+// GPTWitnessFrom derives the witness from one listing: among gpt-family ids whose upstream
+// reported a real input window, it takes the SMALLEST such window and pairs it with that
+// same model's output cap. Smallest, so an unlisted sibling is never promised more capacity
+// than the weakest proven member of its own family; one model's pair kept together, so the
+// two numbers stay mutually consistent. Sorted iteration makes ties deterministic.
+func GPTWitnessFrom(ids []string, metas map[string]ModelMeta) GPTWitness {
+	sorted := make([]string, len(ids))
+	copy(sorted, ids)
+	sort.Strings(sorted)
+
+	var witness GPTWitness
+	for _, id := range sorted {
+		meta := metas[id]
+		if meta.MaxInputTokens <= 0 || !isGPTFamily(NormalizeModelName(id)) {
+			continue
+		}
+		if witness.MaxInputTokens == 0 || meta.MaxInputTokens < witness.MaxInputTokens {
+			witness = GPTWitness{
+				MaxInputTokens:  meta.MaxInputTokens,
+				MaxOutputTokens: meta.MaxOutputTokens,
+			}
+		}
+	}
+	return witness
+}
+
+// BuildModel derives a superset object for a model id, with no cross-model evidence. Use
+// BuildModelWithWitness when a listing's other models can vouch for this one's capacity.
 func BuildModel(id string, origin Origin, meta ModelMeta) Model {
+	return BuildModelWithWitness(id, origin, meta, GPTWitness{})
+}
+
+// BuildModelWithWitness derives a superset object for a model id. capabilities are emitted
+// ONLY for an Anthropic-origin model (the honest case); max_input_tokens/max_tokens prefer
+// the real upstream value, then fall back per family (see the switches below), and stay 0
+// when nothing honest is available. witness supplies same-listing GPT evidence; pass a zero
+// value when there is none.
+func BuildModelWithWitness(id string, origin Origin, meta ModelMeta, witness GPTWitness) Model {
 	m := Model{
 		ID:          id,
 		Object:      "model",
@@ -259,22 +308,37 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 
 	// max_input_tokens is a neutral number: prefer the REAL upstream value (the true
 	// provider's window, even when the client-facing id is a Claude name backed by
-	// minimax etc.). When upstream didn't report it, fall back to the family guess —
-	// Claude names on an anthropic origin get the family context window, gpt-* names on
-	// an openai origin get the GPT-5-line input cap. Any other combination stays 0
-	// (honest "unknown"): a gpt-* alias on an anthropic group is backed by some other
-	// provider, so the GPT guess would be a lie there.
+	// minimax etc.). When upstream didn't report it, fall back in order of how much the
+	// number is grounded in observation:
+	//   - Claude names on an anthropic origin → the family context window.
+	//   - gpt-* names with a same-listing witness → that witness. Origin is deliberately
+	//     NOT gated here: an anthropic-PROTOCOL group can front a genuine GPT backend
+	//     (sub2api adapts it to the Claude Messages API), and its listed gpt-* siblings
+	//     reporting real windows is precisely the proof of that. The old origin gate read
+	//     those groups as "gpt alias backed by someone else" and left every unlisted gpt
+	//     name at 0 — see the mapping-key case in the package doc.
+	//   - gpt-* names on an openai origin → the GPT-5-line input cap.
+	// Anything else stays 0 (honest "unknown").
+	gptFamily := isGPTFamily(normalized)
 	switch {
 	case meta.MaxInputTokens > 0:
 		m.MaxInputTokens = meta.MaxInputTokens
 	case claudeFamily:
 		m.MaxInputTokens = modelContextWindow(normalized)
-	case origin == OriginOpenAI && isGPTFamily(normalized):
+	case gptFamily && witness.MaxInputTokens > 0:
+		m.MaxInputTokens = witness.MaxInputTokens
+	case origin == OriginOpenAI && gptFamily:
 		m.MaxInputTokens = gptMaxInputTokens
 	}
-	// Output cap: only the real upstream value, never fabricated.
-	if meta.MaxOutputTokens > 0 {
+	// Output cap: the real upstream value, else a same-listing GPT witness. Never a
+	// constant — an invented output cap gets echoed back as a max_tokens request and the
+	// upstream rejects it, which is worse than the client picking its own conservative
+	// value from 0/unknown.
+	switch {
+	case meta.MaxOutputTokens > 0:
 		m.MaxTokens = meta.MaxOutputTokens
+	case gptFamily && witness.MaxOutputTokens > 0:
+		m.MaxTokens = witness.MaxOutputTokens
 	}
 
 	// Capabilities: emit the Claude capability tree for ALL anthropic-origin models, not
@@ -346,9 +410,13 @@ func BuildList(ids []string, origins map[string]Origin, metas map[string]ModelMe
 	copy(sorted, ids)
 	sort.Strings(sorted)
 
+	// Derived once over the whole listing, so every gpt-* entry sees the same evidence and
+	// a listing can't disagree with itself about the family's capacity.
+	witness := GPTWitnessFrom(sorted, metas)
+
 	data := make([]Model, 0, len(sorted))
 	for _, id := range sorted {
-		data = append(data, BuildModel(id, origins[id], metas[id]))
+		data = append(data, BuildModelWithWitness(id, origins[id], metas[id], witness))
 	}
 
 	list := List{Object: "list", Data: data, HasMore: false}
