@@ -9,12 +9,17 @@
 // (RFC3339 string, Anthropic) are distinct keys — so each client reads the fields it
 // recognizes and ignores the rest. No content negotiation is needed.
 //
-// HONESTY: the capabilities tree and max_input_tokens are Claude-family-shaped. They
-// are emitted ONLY for Anthropic-origin Claude models, where they reflect what the
-// Anthropic family conventionally supports. For an OpenAI-origin model (e.g. gpt-5) a
-// Claude capabilities tree would be a lie, so it is omitted entirely and
-// max_input_tokens stays 0 (unknown). We never fabricate capabilities for a backend we
-// did not derive them from.
+// HONESTY: the capabilities tree is Claude-family-shaped and is emitted ONLY for
+// Anthropic-origin models. For an OpenAI-origin model (e.g. gpt-5) a Claude
+// capabilities tree would be a lie, so it is omitted entirely. We never fabricate
+// capabilities for a backend we did not derive them from.
+//
+// max_input_tokens is a neutral number and gets a per-family conventional fallback
+// when upstream doesn't report it: Claude names on an anthropic origin fall back to
+// the family context window (200k/1M), GPT names on an openai origin fall back to the
+// GPT-5-line input cap (272k). Any other combination stays 0 (honest "unknown") — in
+// particular a gpt-* ALIAS on an anthropic group (backed by minimax etc.) never gets
+// the GPT guess.
 //
 // The derivation logic (boundary-aware family matching, normalize, context window) is
 // ported from cc2codex's models.go/config.go.
@@ -196,6 +201,13 @@ func modelContextWindow(normalized string) int {
 	return 200000
 }
 
+// gptMaxInputTokens is the published input cap of the GPT-5 line (400k total context
+// minus the 128k output reservation), used as the family fallback for OpenAI-origin
+// gpt-* models whose upstream catalog reports no window (the ChatGPT-backend
+// /v1/models carries only ids). Matches the 272k long-context billing threshold in
+// pricing/billing.
+const gptMaxInputTokens = 272000
+
 // anthropicFamilyTier returns the Claude tier a model stands in for, for clients that gate
 // discovery on it. A claude-family name maps to its real tier; any other anthropic-origin
 // model (glm, minimax, deepseek, …) defaults to "sonnet" so it stays discoverable while
@@ -247,14 +259,18 @@ func BuildModel(id string, origin Origin, meta ModelMeta) Model {
 
 	// max_input_tokens is a neutral number: prefer the REAL upstream value (the true
 	// provider's window, even when the client-facing id is a Claude name backed by
-	// minimax etc.). When upstream didn't report it, only a Claude-family model falls
-	// back to the family guess; a non-Claude model stays 0 (honest "unknown"). This is
-	// purely additive — with no upstream meta, behavior is unchanged.
+	// minimax etc.). When upstream didn't report it, fall back to the family guess —
+	// Claude names on an anthropic origin get the family context window, gpt-* names on
+	// an openai origin get the GPT-5-line input cap. Any other combination stays 0
+	// (honest "unknown"): a gpt-* alias on an anthropic group is backed by some other
+	// provider, so the GPT guess would be a lie there.
 	switch {
 	case meta.MaxInputTokens > 0:
 		m.MaxInputTokens = meta.MaxInputTokens
 	case claudeFamily:
 		m.MaxInputTokens = modelContextWindow(normalized)
+	case origin == OriginOpenAI && isGPTFamily(normalized):
+		m.MaxInputTokens = gptMaxInputTokens
 	}
 	// Output cap: only the real upstream value, never fabricated.
 	if meta.MaxOutputTokens > 0 {

@@ -100,8 +100,8 @@ func TestBuildModel_OpenAIOrigin_NoCapabilities(t *testing.T) {
 	if m.Capabilities != nil {
 		t.Error("openai-origin model must NOT carry a Claude capabilities tree")
 	}
-	if m.MaxInputTokens != 0 {
-		t.Errorf("openai-origin max_input_tokens=%d want 0 (unknown)", m.MaxInputTokens)
+	if m.MaxInputTokens != 272000 {
+		t.Errorf("openai-origin gpt max_input_tokens=%d want 272000 (family fallback)", m.MaxInputTokens)
 	}
 	// Protocol-neutral keys still present so Codex clients work.
 	if m.ID != "gpt-5" || m.Object != "model" || m.OwnedBy != "sub2api" {
@@ -113,6 +113,32 @@ func TestBuildModel_OpenAIOrigin_NoCapabilities(t *testing.T) {
 	_ = json.Unmarshal(b, &raw)
 	if _, ok := raw["capabilities"]; ok {
 		t.Error("capabilities should be omitted from JSON for openai-origin")
+	}
+}
+
+func TestBuildModel_GPTFallbackBoundaries(t *testing.T) {
+	// The 272k GPT family guess applies ONLY to openai-origin gpt-* names.
+	cases := []struct {
+		id     string
+		origin Origin
+		meta   ModelMeta
+		want   int
+	}{
+		{"gpt-5.5", OriginOpenAI, ModelMeta{}, 272000},
+		{"gpt-5.5-pro", OriginOpenAI, ModelMeta{}, 272000},
+		{"gpt-5.6-sol", OriginOpenAI, ModelMeta{}, 272000},
+		{"gpt-5.1-codex", OriginOpenAI, ModelMeta{}, 272000},
+		// Real upstream meta always wins over the guess.
+		{"gpt-5.5", OriginOpenAI, ModelMeta{MaxInputTokens: 131072}, 131072},
+		// gpt-* alias on an anthropic group (backed by minimax etc.): no GPT guess.
+		{"gpt-5.5", OriginAnthropic, ModelMeta{}, 0},
+		// openai-origin non-GPT name: no guess either.
+		{"minimax-m2.7", OriginOpenAI, ModelMeta{}, 0},
+	}
+	for _, tc := range cases {
+		if m := BuildModel(tc.id, tc.origin, tc.meta); m.MaxInputTokens != tc.want {
+			t.Errorf("BuildModel(%q, origin=%d) max_input_tokens=%d want %d", tc.id, tc.origin, m.MaxInputTokens, tc.want)
+		}
 	}
 }
 
