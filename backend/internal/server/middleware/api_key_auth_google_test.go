@@ -189,8 +189,8 @@ func (f fakeGoogleSubscriptionRepo) IncrementUsage(ctx context.Context, id int64
 func (f fakeGoogleSubscriptionRepo) GetCurrentUsage(ctx context.Context, id int64) (daily, weekly, monthly float64, err error) {
 	return 0, 0, 0, errors.New("not implemented")
 }
-func (f fakeGoogleSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
-	return 0, errors.New("not implemented")
+func (f fakeGoogleSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, []int64, error) {
+	return 0, nil, errors.New("not implemented")
 }
 func (f fakeGoogleSubscriptionRepo) CountActiveByPlanID(ctx context.Context, planID int64) (int64, error) {
 	return 0, nil

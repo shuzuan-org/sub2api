@@ -47,6 +47,9 @@ func billingSubKey(userID int64) string {
 	return fmt.Sprintf("%s%d", billingSubKeyPrefix, userID)
 }
 
+// 订阅缓存布局：每用户一个 hash key（billing:sub:{userID}），字段按 plan 前缀
+// 命名（p{planID}:status 等）。多订阅 FIFO 轮换时各 plan 的快照互不污染，
+// usage 增量按 plan 精确记账，而用户级失效仍是一次 DEL。
 const (
 	subFieldStatus       = "status"
 	subFieldExpiresAt    = "expires_at"
@@ -55,6 +58,15 @@ const (
 	subFieldMonthlyUsage = "monthly_usage"
 	subFieldVersion      = "version"
 )
+
+// subField 生成 plan 前缀字段名，如 subField(9, "status") → "p9:status"。
+func subField(planID int64, name string) string {
+	return fmt.Sprintf("p%d:%s", planID, name)
+}
+
+// legacySubFields 是 plan 前缀化之前的扁平字段，Set 时顺带清理，避免旧格式
+// 字段随 TTL 刷新无限存活。全量迁移完成后可删除。
+var legacySubFields = []string{"plan_id", "status", "expires_at", "daily_usage", "weekly_usage", "monthly_usage", "version"}
 
 // billingRateLimitKey generates the Redis key for API key rate limit cache.
 func billingRateLimitKey(keyID int64) string {
@@ -82,15 +94,16 @@ var (
 		return 1
 	`)
 
+	// ARGV: [1]=cost, [2]=ttl_seconds, [3]=plan 字段前缀（如 "p9:"）。
+	// 仅当该 plan 的快照存在时才累加，防止把用量记到不存在/别的 plan 头上。
 	updateSubUsageScript = redis.NewScript(`
-		local exists = redis.call('EXISTS', KEYS[1])
-		if exists == 0 then
+		if redis.call('HEXISTS', KEYS[1], ARGV[3] .. 'status') == 0 then
 			return 0
 		end
 		local cost = tonumber(ARGV[1])
-		redis.call('HINCRBYFLOAT', KEYS[1], 'daily_usage', cost)
-		redis.call('HINCRBYFLOAT', KEYS[1], 'weekly_usage', cost)
-		redis.call('HINCRBYFLOAT', KEYS[1], 'monthly_usage', cost)
+		redis.call('HINCRBYFLOAT', KEYS[1], ARGV[3] .. 'daily_usage', cost)
+		redis.call('HINCRBYFLOAT', KEYS[1], ARGV[3] .. 'weekly_usage', cost)
+		redis.call('HINCRBYFLOAT', KEYS[1], ARGV[3] .. 'monthly_usage', cost)
 		redis.call('EXPIRE', KEYS[1], ARGV[2])
 		return 1
 	`)
@@ -202,53 +215,53 @@ func (c *billingCache) InvalidateUserBalance(ctx context.Context, userID int64) 
 	return c.rdb.Del(ctx, key).Err()
 }
 
-func (c *billingCache) GetSubscriptionCache(ctx context.Context, userID int64) (*service.SubscriptionCacheData, error) {
+func (c *billingCache) GetSubscriptionCache(ctx context.Context, userID, planID int64) (*service.SubscriptionCacheData, error) {
 	key := billingSubKey(userID)
-	result, err := c.rdb.HGetAll(ctx, key).Result()
+	fields := []string{
+		subField(planID, subFieldStatus),
+		subField(planID, subFieldExpiresAt),
+		subField(planID, subFieldDailyUsage),
+		subField(planID, subFieldWeeklyUsage),
+		subField(planID, subFieldMonthlyUsage),
+		subField(planID, subFieldVersion),
+	}
+	vals, err := c.rdb.HMGet(ctx, key, fields...).Result()
 	if err != nil {
 		return nil, err
 	}
-	if len(result) == 0 {
-		return nil, redis.Nil
-	}
-	return c.parseSubscriptionCache(result)
+	return parseSubscriptionCache(vals)
 }
 
-func (c *billingCache) parseSubscriptionCache(data map[string]string) (*service.SubscriptionCacheData, error) {
-	result := &service.SubscriptionCacheData{}
-
-	result.Status = data[subFieldStatus]
-	if result.Status == "" {
-		return nil, errors.New("invalid cache: missing status")
-	}
-
-	if expiresStr, ok := data[subFieldExpiresAt]; ok {
-		expiresAt, err := strconv.ParseInt(expiresStr, 10, 64)
-		if err == nil {
-			result.ExpiresAt = time.Unix(expiresAt, 0)
+// parseSubscriptionCache 按 GetSubscriptionCache 中 fields 的顺序解析 HMGET 结果。
+// status 缺失（该 plan 无快照）视为 cache miss，返回 redis.Nil。
+func parseSubscriptionCache(vals []any) (*service.SubscriptionCacheData, error) {
+	str := func(i int) string {
+		if i < len(vals) {
+			if s, ok := vals[i].(string); ok {
+				return s
+			}
 		}
+		return ""
 	}
 
-	if dailyStr, ok := data[subFieldDailyUsage]; ok {
-		result.DailyUsage, _ = strconv.ParseFloat(dailyStr, 64)
+	result := &service.SubscriptionCacheData{}
+	result.Status = str(0)
+	if result.Status == "" {
+		return nil, redis.Nil
 	}
-
-	if weeklyStr, ok := data[subFieldWeeklyUsage]; ok {
-		result.WeeklyUsage, _ = strconv.ParseFloat(weeklyStr, 64)
+	if unix, err := strconv.ParseInt(str(1), 10, 64); err == nil {
+		result.ExpiresAt = time.Unix(unix, 0)
+	} else {
+		return nil, errors.New("invalid cache: bad expires_at")
 	}
-
-	if monthlyStr, ok := data[subFieldMonthlyUsage]; ok {
-		result.MonthlyUsage, _ = strconv.ParseFloat(monthlyStr, 64)
-	}
-
-	if versionStr, ok := data[subFieldVersion]; ok {
-		result.Version, _ = strconv.ParseInt(versionStr, 10, 64)
-	}
-
+	result.DailyUsage, _ = strconv.ParseFloat(str(2), 64)
+	result.WeeklyUsage, _ = strconv.ParseFloat(str(3), 64)
+	result.MonthlyUsage, _ = strconv.ParseFloat(str(4), 64)
+	result.Version, _ = strconv.ParseInt(str(5), 10, 64)
 	return result, nil
 }
 
-func (c *billingCache) SetSubscriptionCache(ctx context.Context, userID int64, data *service.SubscriptionCacheData) error {
+func (c *billingCache) SetSubscriptionCache(ctx context.Context, userID, planID int64, data *service.SubscriptionCacheData) error {
 	if data == nil {
 		return nil
 	}
@@ -256,26 +269,28 @@ func (c *billingCache) SetSubscriptionCache(ctx context.Context, userID int64, d
 	key := billingSubKey(userID)
 
 	fields := map[string]any{
-		subFieldStatus:       data.Status,
-		subFieldExpiresAt:    data.ExpiresAt.Unix(),
-		subFieldDailyUsage:   data.DailyUsage,
-		subFieldWeeklyUsage:  data.WeeklyUsage,
-		subFieldMonthlyUsage: data.MonthlyUsage,
-		subFieldVersion:      data.Version,
+		subField(planID, subFieldStatus):       data.Status,
+		subField(planID, subFieldExpiresAt):    data.ExpiresAt.Unix(),
+		subField(planID, subFieldDailyUsage):   data.DailyUsage,
+		subField(planID, subFieldWeeklyUsage):  data.WeeklyUsage,
+		subField(planID, subFieldMonthlyUsage): data.MonthlyUsage,
+		subField(planID, subFieldVersion):      data.Version,
 	}
 
 	pipe := c.rdb.Pipeline()
 	pipe.HSet(ctx, key, fields)
+	pipe.HDel(ctx, key, legacySubFields...)
 	pipe.Expire(ctx, key, jitteredTTL())
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
-func (c *billingCache) UpdateSubscriptionUsage(ctx context.Context, userID int64, cost float64) error {
+func (c *billingCache) UpdateSubscriptionUsage(ctx context.Context, userID, planID int64, cost float64) error {
 	key := billingSubKey(userID)
-	_, err := updateSubUsageScript.Run(ctx, c.rdb, []string{key}, cost, int(jitteredTTL().Seconds())).Result()
+	prefix := fmt.Sprintf("p%d:", planID)
+	_, err := updateSubUsageScript.Run(ctx, c.rdb, []string{key}, cost, int(jitteredTTL().Seconds()), prefix).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.Printf("Warning: update subscription usage cache failed for user %d: %v", userID, err)
+		log.Printf("Warning: update subscription usage cache failed for user %d plan %d: %v", userID, planID, err)
 		return err
 	}
 	return nil

@@ -147,8 +147,8 @@ func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpirySe
 }
 
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
-func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository) *SubscriptionExpiryService {
-	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
+func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, billingCache BillingCache, subService *SubscriptionService) *SubscriptionExpiryService {
+	svc := NewSubscriptionExpiryService(userSubRepo, billingCache, subService, time.Minute)
 	svc.Start()
 	return svc
 }

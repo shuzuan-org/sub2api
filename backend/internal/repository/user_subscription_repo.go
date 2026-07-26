@@ -413,16 +413,48 @@ func (r *userSubscriptionRepository) GetCurrentUsage(ctx context.Context, id int
 	return daily, weekly, monthly, nil
 }
 
-func (r *userSubscriptionRepository) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
+func (r *userSubscriptionRepository) BatchUpdateExpiredStatus(ctx context.Context) (int64, []int64, error) {
 	client := clientFromContext(ctx, r.client)
+	// 先查出待过期的订阅，拿到受影响用户；随后按 ID 更新保证两步一致。
+	// 两步之间新过期的订阅留给下一个 tick 处理。
+	expired, err := client.UserSubscription.Query().
+		Where(
+			usersubscription.StatusEQ(service.SubscriptionStatusActive),
+			usersubscription.ExpiresAtLTE(time.Now()),
+		).
+		Select(usersubscription.FieldID, usersubscription.FieldUserID).
+		All(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(expired) == 0 {
+		return 0, nil, nil
+	}
+
+	ids := make([]int64, 0, len(expired))
+	userIDSet := make(map[int64]struct{}, len(expired))
+	userIDs := make([]int64, 0, len(expired))
+	for _, sub := range expired {
+		ids = append(ids, sub.ID)
+		if _, ok := userIDSet[sub.UserID]; !ok {
+			userIDSet[sub.UserID] = struct{}{}
+			userIDs = append(userIDs, sub.UserID)
+		}
+	}
+
+	// 重复过滤条件防竞态：两步之间被续期（expires_at 前移）的订阅不能被误标 expired。
 	n, err := client.UserSubscription.Update().
 		Where(
+			usersubscription.IDIn(ids...),
 			usersubscription.StatusEQ(service.SubscriptionStatusActive),
 			usersubscription.ExpiresAtLTE(time.Now()),
 		).
 		SetStatus(service.SubscriptionStatusExpired).
 		Save(ctx)
-	return int64(n), err
+	if err != nil {
+		return 0, nil, err
+	}
+	return int64(n), userIDs, nil
 }
 
 // Extra repository helpers (currently used only by integration tests).

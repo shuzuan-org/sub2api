@@ -394,11 +394,10 @@ func (s *RedeemService) invalidateRedeemCaches(ctx context.Context, userID int64
 			return
 		}
 		if redeemCode.PlanID != nil {
-			planID := *redeemCode.PlanID
 			go func() {
 				cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, planID)
+				_ = s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID)
 			}()
 		}
 	}

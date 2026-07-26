@@ -536,9 +536,10 @@ func (s *UserSubscriptionRepoSuite) TestBatchUpdateExpiredStatus() {
 		c.SetExpiresAt(time.Now().Add(-24 * time.Hour))
 	})
 
-	affected, err := s.repo.BatchUpdateExpiredStatus(s.ctx)
+	affected, affectedUsers, err := s.repo.BatchUpdateExpiredStatus(s.ctx)
 	s.Require().NoError(err, "BatchUpdateExpiredStatus")
 	s.Require().Equal(int64(1), affected)
+	s.Require().Equal([]int64{user.ID}, affectedUsers)
 
 	gotActive, _ := s.repo.GetByID(s.ctx, active.ID)
 	s.Require().Equal(service.SubscriptionStatusActive, gotActive.Status)
@@ -656,7 +657,7 @@ func (s *UserSubscriptionRepoSuite) TestActiveExpiredBoundaries_UsageAndReset_Ba
 	s.Require().NotNil(afterReset.DailyWindowStart)
 	s.Require().WithinDuration(resetAt, *afterReset.DailyWindowStart, time.Microsecond)
 
-	affected, err := s.repo.BatchUpdateExpiredStatus(s.ctx)
+	affected, _, err := s.repo.BatchUpdateExpiredStatus(s.ctx)
 	s.Require().NoError(err, "BatchUpdateExpiredStatus")
 	s.Require().Equal(int64(1), affected, "expected 1 affected row")
 

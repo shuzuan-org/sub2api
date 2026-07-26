@@ -105,7 +105,7 @@ func (userSubRepoNoop) IncrementUsage(context.Context, int64, float64) error {
 func (userSubRepoNoop) GetCurrentUsage(context.Context, int64) (float64, float64, float64, error) {
 	panic("unexpected GetCurrentUsage call")
 }
-func (userSubRepoNoop) BatchUpdateExpiredStatus(context.Context) (int64, error) {
+func (userSubRepoNoop) BatchUpdateExpiredStatus(context.Context) (int64, []int64, error) {
 	panic("unexpected BatchUpdateExpiredStatus call")
 }
 func (userSubRepoNoop) CountActiveByPlanID(context.Context, int64) (int64, error) {

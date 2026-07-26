@@ -384,11 +384,11 @@ func (s *SubscriptionService) AssignOrExtendSubscription(ctx context.Context, in
 		// 失效订阅缓存
 		s.InvalidateSubCache(input.UserID, input.PlanID)
 		if s.billingCacheService != nil {
-			userID, planID := input.UserID, input.PlanID
+			userID := input.UserID
 			go func() {
 				cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, planID)
+				_ = s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID)
 			}()
 		}
 
@@ -406,11 +406,11 @@ func (s *SubscriptionService) AssignOrExtendSubscription(ctx context.Context, in
 	// 失效订阅缓存
 	s.InvalidateSubCache(input.UserID, input.PlanID)
 	if s.billingCacheService != nil {
-		userID, planID := input.UserID, input.PlanID
+		userID := input.UserID
 		go func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, planID)
+			_ = s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID)
 		}()
 	}
 
@@ -546,11 +546,11 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 	// 失效订阅缓存
 	s.InvalidateSubCache(input.UserID, input.PlanID)
 	if s.billingCacheService != nil {
-		userID, planID := input.UserID, input.PlanID
+		userID := input.UserID
 		go func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, planID)
+			_ = s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID)
 		}()
 	}
 
@@ -607,11 +607,11 @@ func (s *SubscriptionService) RevokeSubscription(ctx context.Context, subscripti
 	// 失效订阅缓存
 	s.InvalidateSubCache(sub.UserID, sub.PlanID)
 	if s.billingCacheService != nil {
-		userID, planID := sub.UserID, sub.PlanID
+		userID := sub.UserID
 		go func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, planID)
+			_ = s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID)
 		}()
 	}
 
@@ -674,11 +674,11 @@ func (s *SubscriptionService) ExtendSubscription(ctx context.Context, subscripti
 	// 失效订阅缓存
 	s.InvalidateSubCache(sub.UserID, sub.PlanID)
 	if s.billingCacheService != nil {
-		userID, planID := sub.UserID, sub.PlanID
+		userID := sub.UserID
 		go func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, planID)
+			_ = s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID)
 		}()
 	}
 
@@ -870,7 +870,7 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 		s.subCacheL1.Wait()
 	}
 	if s.billingCacheService != nil {
-		_ = s.billingCacheService.InvalidateSubscription(ctx, sub.UserID, sub.PlanID)
+		_ = s.billingCacheService.InvalidateUserSubscriptions(ctx, sub.UserID)
 	}
 	// Return the refreshed subscription from DB
 	return s.userSubRepo.GetByID(ctx, subscriptionID)
@@ -916,7 +916,7 @@ func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *Use
 	if needsInvalidateCache {
 		s.InvalidateSubCache(sub.UserID, sub.PlanID)
 		if s.billingCacheService != nil {
-			_ = s.billingCacheService.InvalidateSubscription(ctx, sub.UserID, sub.PlanID)
+			_ = s.billingCacheService.InvalidateUserSubscriptions(ctx, sub.UserID)
 		}
 	}
 

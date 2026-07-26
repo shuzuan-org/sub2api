@@ -7806,7 +7806,7 @@ func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps) {
 	// 守卫同 DB 写入：TotalCost > 0 && ActualCost > 0，rate_multiplier=0 不写。
 	if p.IsSubscriptionBill {
 		if p.Cost.TotalCost > 0 && p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.Subscription != nil {
-			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, p.Cost.ActualCost)
+			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, p.Subscription.PlanID, p.Cost.ActualCost)
 		}
 	} else if p.Cost.ActualCost > 0 && p.User != nil {
 		deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)

@@ -29,9 +29,10 @@ type BillingCache interface {
 	InvalidateUserBalance(ctx context.Context, userID int64) error
 
 	// Subscription operations
-	GetSubscriptionCache(ctx context.Context, userID int64) (*SubscriptionCacheData, error)
-	SetSubscriptionCache(ctx context.Context, userID int64, data *SubscriptionCacheData) error
-	UpdateSubscriptionUsage(ctx context.Context, userID int64, cost float64) error
+	GetSubscriptionCache(ctx context.Context, userID, planID int64) (*SubscriptionCacheData, error)
+	SetSubscriptionCache(ctx context.Context, userID, planID int64, data *SubscriptionCacheData) error
+	UpdateSubscriptionUsage(ctx context.Context, userID, planID int64, cost float64) error
+	// InvalidateSubscriptionCache 清空该用户全部 plan 的订阅缓存快照。
 	InvalidateSubscriptionCache(ctx context.Context, userID int64) error
 
 	// API Key rate limit operations

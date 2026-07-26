@@ -1294,7 +1294,7 @@ func (s *adminServiceImpl) DeleteGroup(ctx context.Context, id int64) error {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			for _, userID := range affectedUserIDs {
-				if err := s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID); err != nil {
+				if err := s.billingCacheService.InvalidateUserSubscriptions(cacheCtx, userID); err != nil {
 					logger.LegacyPrintf("service.admin", "invalidate subscription cache failed: user_id=%d group_id=%d err=%v", userID, groupID, err)
 				}
 			}

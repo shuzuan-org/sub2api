@@ -36,5 +36,7 @@ type UserSubscriptionRepository interface {
 	// 用于 FIFO 计费时计算非最后订阅的精确剩余容量，防止并发写入导致超额。
 	GetCurrentUsage(ctx context.Context, id int64) (daily, weekly, monthly float64, err error)
 
-	BatchUpdateExpiredStatus(ctx context.Context) (int64, error)
+	// BatchUpdateExpiredStatus 把已过期的 active 订阅批量置为 expired，
+	// 返回更新条数和受影响的去重 userID 列表（供调用方失效计费缓存）。
+	BatchUpdateExpiredStatus(ctx context.Context) (int64, []int64, error)
 }

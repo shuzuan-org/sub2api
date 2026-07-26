@@ -748,8 +748,8 @@ func (r *stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64,
 	return errors.New("not implemented")
 }
 
-func (r *stubUserSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
-	return 0, errors.New("not implemented")
+func (r *stubUserSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, []int64, error) {
+	return 0, nil, errors.New("not implemented")
 }
 
 func (r *stubUserSubscriptionRepo) DeleteByPlanID(ctx context.Context, planID int64) (int64, error) {

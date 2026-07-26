@@ -106,13 +106,13 @@ func (m *mockBillingCache) InvalidateUserBalance(_ context.Context, userID int64
 	m.invalidatedUserIDs = append(m.invalidatedUserIDs, userID)
 	return m.invalidateErr
 }
-func (m *mockBillingCache) GetSubscriptionCache(context.Context, int64) (*SubscriptionCacheData, error) {
+func (m *mockBillingCache) GetSubscriptionCache(context.Context, int64, int64) (*SubscriptionCacheData, error) {
 	return nil, nil
 }
-func (m *mockBillingCache) SetSubscriptionCache(context.Context, int64, *SubscriptionCacheData) error {
+func (m *mockBillingCache) SetSubscriptionCache(context.Context, int64, int64, *SubscriptionCacheData) error {
 	return nil
 }
-func (m *mockBillingCache) UpdateSubscriptionUsage(context.Context, int64, float64) error {
+func (m *mockBillingCache) UpdateSubscriptionUsage(context.Context, int64, int64, float64) error {
 	return nil
 }
 func (m *mockBillingCache) InvalidateSubscriptionCache(context.Context, int64) error {

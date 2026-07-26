@@ -140,7 +140,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
 				userID := int64(10)
 
-				_, err := cache.GetSubscriptionCache(ctx, userID)
+				_, err := cache.GetSubscriptionCache(ctx, userID, 9)
 				require.ErrorIs(s.T(), err, redis.Nil, "expected redis.Nil for missing subscription key")
 			},
 		},
@@ -150,7 +150,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 				userID := int64(11)
 				subKey := fmt.Sprintf("%s%d", billingSubKeyPrefix, userID)
 
-				require.NoError(s.T(), cache.UpdateSubscriptionUsage(ctx, userID, 1.0), "UpdateSubscriptionUsage should not error")
+				require.NoError(s.T(), cache.UpdateSubscriptionUsage(ctx, userID, 9, 1.0), "UpdateSubscriptionUsage should not error")
 
 				exists, err := rdb.Exists(ctx, subKey).Result()
 				require.NoError(s.T(), err, "Exists")
@@ -171,9 +171,9 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 					MonthlyUsage: 3.0,
 					Version:      7,
 				}
-				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, data), "SetSubscriptionCache")
+				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, 9, data), "SetSubscriptionCache")
 
-				gotSub, err := cache.GetSubscriptionCache(ctx, userID)
+				gotSub, err := cache.GetSubscriptionCache(ctx, userID, 9)
 				require.NoError(s.T(), err, "GetSubscriptionCache")
 				require.Equal(s.T(), "active", gotSub.Status)
 				require.Equal(s.T(), int64(7), gotSub.Version)
@@ -197,15 +197,23 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 					MonthlyUsage: 3.0,
 					Version:      1,
 				}
-				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, data), "SetSubscriptionCache")
+				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, 9, data), "SetSubscriptionCache")
 
-				require.NoError(s.T(), cache.UpdateSubscriptionUsage(ctx, userID, 0.5), "UpdateSubscriptionUsage")
+				require.NoError(s.T(), cache.UpdateSubscriptionUsage(ctx, userID, 9, 0.5), "UpdateSubscriptionUsage")
 
-				gotSub, err := cache.GetSubscriptionCache(ctx, userID)
+				gotSub, err := cache.GetSubscriptionCache(ctx, userID, 9)
 				require.NoError(s.T(), err, "GetSubscriptionCache after update")
 				require.Equal(s.T(), 1.5, gotSub.DailyUsage)
 				require.Equal(s.T(), 2.5, gotSub.WeeklyUsage)
 				require.Equal(s.T(), 3.5, gotSub.MonthlyUsage)
+
+				// 跨 plan 隔离：更新 plan 12 不影响 plan 9，读 plan 12 是 miss
+				require.NoError(s.T(), cache.UpdateSubscriptionUsage(ctx, userID, 12, 100.0), "UpdateSubscriptionUsage other plan")
+				gotSub, err = cache.GetSubscriptionCache(ctx, userID, 9)
+				require.NoError(s.T(), err)
+				require.Equal(s.T(), 1.5, gotSub.DailyUsage, "other plan's update must not leak into plan 9")
+				_, err = cache.GetSubscriptionCache(ctx, userID, 12)
+				require.ErrorIs(s.T(), err, redis.Nil, "plan 12 has no snapshot")
 			},
 		},
 		{
@@ -222,7 +230,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 					MonthlyUsage: 3.0,
 					Version:      1,
 				}
-				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, data), "SetSubscriptionCache")
+				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, 9, data), "SetSubscriptionCache")
 
 				exists, err := rdb.Exists(ctx, subKey).Result()
 				require.NoError(s.T(), err, "Exists")
@@ -234,29 +242,42 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 				require.NoError(s.T(), err, "Exists after invalidate")
 				require.Equal(s.T(), int64(0), exists, "expected subscription key to be removed after invalidate")
 
-				_, err = cache.GetSubscriptionCache(ctx, userID)
+				_, err = cache.GetSubscriptionCache(ctx, userID, 9)
 				require.ErrorIs(s.T(), err, redis.Nil, "expected redis.Nil after invalidate")
 			},
 		},
 		{
-			name: "missing_status_returns_parsing_error",
+			name: "legacy_flat_fields_are_miss_and_cleaned_on_set",
 			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
 				userID := int64(102)
 				subKey := fmt.Sprintf("%s%d", billingSubKeyPrefix, userID)
 
-				fields := map[string]any{
+				// 旧版扁平字段（plan 前缀化之前的格式）
+				legacy := map[string]any{
+					"status":        "active",
 					"expires_at":    time.Now().Add(1 * time.Hour).Unix(),
 					"daily_usage":   1.0,
 					"weekly_usage":  2.0,
 					"monthly_usage": 3.0,
 					"version":       1,
 				}
-				require.NoError(s.T(), rdb.HSet(ctx, subKey, fields).Err(), "HSet")
+				require.NoError(s.T(), rdb.HSet(ctx, subKey, legacy).Err(), "HSet legacy")
 
-				_, err := cache.GetSubscriptionCache(ctx, userID)
-				require.Error(s.T(), err, "expected error for missing status field")
-				require.NotErrorIs(s.T(), err, redis.Nil, "expected parsing error, not redis.Nil")
-				require.Equal(s.T(), "invalid cache: missing status", err.Error())
+				_, err := cache.GetSubscriptionCache(ctx, userID, 9)
+				require.ErrorIs(s.T(), err, redis.Nil, "legacy flat fields must read as miss")
+
+				data := &service.SubscriptionCacheData{
+					Status:    "active",
+					ExpiresAt: time.Now().Add(1 * time.Hour),
+					Version:   2,
+				}
+				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, 9, data), "SetSubscriptionCache")
+
+				remaining, err := rdb.HKeys(ctx, subKey).Result()
+				require.NoError(s.T(), err, "HKeys")
+				for _, k := range remaining {
+					require.Contains(s.T(), k, ":", "legacy flat field %q must be cleaned on Set", k)
+				}
 			},
 		},
 	}
@@ -332,7 +353,7 @@ func (s *BillingCacheSuite) TestUpdateSubscriptionUsage_ErrorPropagation() {
 		cache := NewBillingCache(rdb)
 		ctx := context.Background()
 
-		err := cache.UpdateSubscriptionUsage(ctx, 88888, 1.0)
+		err := cache.UpdateSubscriptionUsage(ctx, 88888, 9, 1.0)
 		require.NoError(s.T(), err, "UpdateSubscriptionUsage on non-existent key should return nil")
 	})
 
@@ -346,12 +367,12 @@ func (s *BillingCacheSuite) TestUpdateSubscriptionUsage_ErrorPropagation() {
 			ExpiresAt: time.Now().Add(1 * time.Hour),
 			Version:   1,
 		}
-		require.NoError(s.T(), cache.SetSubscriptionCache(ctx, 301, data))
+		require.NoError(s.T(), cache.SetSubscriptionCache(ctx, 301, 9, data))
 
 		cancelCtx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		err := cache.UpdateSubscriptionUsage(cancelCtx, 301, 1.0)
+		err := cache.UpdateSubscriptionUsage(cancelCtx, 301, 9, 1.0)
 		require.Error(s.T(), err, "cancelled context should propagate error")
 	})
 }
