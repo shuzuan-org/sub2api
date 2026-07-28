@@ -2,6 +2,7 @@
 
 > 目标：sub2api 网关上可访问 Kimi K3，且该模型具备 websearch 能力。
 > 调查日期：2026-07-28。所有结论均已在生产环境实测验证。
+> **状态：已于 2026-07-28 10:44–10:48 实施完成并验收通过**（见文末「执行记录」）。
 
 ## 结论先行
 
@@ -64,7 +65,18 @@
 ```
 
 - `model:""` = 透传客户端 model。sub2api 已经在自己这层把 `claude-opus-4-8` 改写成 `kimi-k3` 了（`usage_logs.upstream_model=kimi-k3` 可证），proxy 不要再改。
-- 改完 `sudo systemctl restart sglang-proxy` 生效（改 .env 必须 restart，reload 不重读）。
+- 改完 `sudo systemctl restart sglang-proxy` 生效。
+
+> ⚠️ **必须 restart，`reload` 不行。** `dotenvcfg.Load` 只在 `os.LookupEnv(k)` 不存在时才写入
+> （`internal/dotenvcfg/dotenv.go:50`）。tableflip 热升级是 fork+exec，子进程继承父进程环境，
+> 而父进程启动时已经 `os.Setenv("ROUTES", 旧值)` —— 于是子进程认为 ROUTES 已存在，直接跳过
+> .env 里的新值。**reload 会静默地用旧配置起新进程**，比报错更难查。
+>
+> restart 的代价：SIGTERM → 关闭监听 → `srv.Shutdown(drainTimeout=2h)`，被 unit 的
+> `TimeoutStopSec=1800` 截断。即 8188 端口在在途请求排空前一直拒连，最坏 30 分钟，
+> 期间所有指向 `127.0.0.1:8188` 的账号全部不可用。
+> **做法：先轮询 `/debug/vars` 的 `proxy_requests_active`，等它为 0 的瞬间再 restart。**
+> 本次实测这样操作耗时 1 秒。
 
 ### 改动 2：sub2api account 71
 
@@ -77,7 +89,15 @@ UPDATE accounts SET
 WHERE id = 71;
 ```
 
-`model_mapping` 保持不动。改完需让 sub2api 账号缓存失效（重启或走 admin 接口更新）。
+`model_mapping` 保持不动。
+
+**改完必须清 Redis 快照**：`redis-cli -n 0 del sched:acc:71`。
+
+账号快照存在 Redis 的 `sched:acc:<id>`，`SetAccount` 写入时 TTL 传的是 `0`（永不过期，
+`internal/repository/scheduler_cache.go:159`），裸改数据库不会同步。删掉该 key 是安全的：
+`GetSnapshot` 在 MGET 发现任一账号 key 缺失时返回 `(nil,false,nil)` 当作缓存未命中
+（`scheduler_cache.go:76-78`），整桶回退查库并重建；单账号读也有 `accountRepo.GetByID` 兜底
+（`scheduler_snapshot_service.go:152`）。
 
 ### 为什么不需要动代码
 
@@ -112,9 +132,28 @@ snapshot 当前最新的 Kimi 是 `kimi-k2.7`，**没有 `kimi-k3`**。所以改
 - 官方 Anthropic 兼容端点：`https://api.moonshot.ai/anthropic`（国际）/ `https://api.moonshot.cn/anthropic`（国内）。如果哪天想绕开中转直连官方，把改动 1 的 `url` 换成它即可，方案其余部分不变。
 - **自建不可行**：2.8T 参数即使 W4 量化也约 1.4TB，超过 H200 单机 8×143GB=1144GB 显存。所以 K3 只能走 passthrough，不存在"sglang 本地跑 K3"这条路 —— 也因此不需要写 K3 dialect（sglang-proxy 里只有 `KimiK2Dialect`，K3 的 chat template 未验证）。
 
-## 验收
+## 执行记录（2026-07-28）
+
+| 时间 | 动作 | 结果 |
+|---|---|---|
+| 10:43 | 备份 `.env` → `.env.bak-20260728-kimik3`，ROUTES 追加 `yuguan-kimi-k3` passthrough 条目 | tokens: `shuzuan2025-minimax`, `paratera`, `yuguan-kimi-k3` |
+| 10:44:39 | 轮询到 `proxy_requests_active=0`，`systemctl restart sglang-proxy` | **耗时 1 秒**；日志 `routes mode: 3 routes (2 passthrough proxies)` → `ready` |
+| 10:44:58 | 直连代理冒烟：`POST :8188/v1/messages` model=kimi-k3 | 返回 `PONG`，`→ passthrough model=kimi-k3→kimi-k3` |
+| 10:45:12 | 直连代理 websearch：带 `web_search_20250305` 工具 | `→ antiapi (web_search sub-request) model=kimi-k3→claude-sonnet-4-6`，返回真实带引用的 `web_search_tool_result` |
+| 10:46 | `UPDATE accounts ... WHERE id=71` + `redis-cli del sched:acc:71` | base_url → `http://127.0.0.1:8188`，api_key → `yuguan-kimi-k3` |
+| 10:47:43 | 端到端：临时 key → sub2api:8080 → 代理 → K3，model=`claude-opus-4-8` | 返回 `PONG`，`usage_logs.upstream_model=kimi-k3` |
+| 10:48:08 | 端到端 websearch | 收到 `server_tool_use` ×1 + `web_search_tool_result` ×1 + `text_delta` ×25 |
+| 10:48 | 删除临时验证 key（api_keys id=546） | 已清理 |
+
+**计费核对**：新产生的 4 条 `usage_logs` 全部 `pricing_snapshot.source=litellm`，
+`upstream_model=kimi-k3`，单价 $3 / $15 / $0.30 每 MTok，与官方一致。
+
+**真实流量已在新链路上**：10:47 期间 api_key_id=160（user 61）的请求已经走通新路径并正常计费，
+说明切换对在用客户无感。
+
+## 验收 / 回滚
 
 1. `journalctl -u sglang-proxy -f | grep -E 'passthrough|web_search'`，用 group 46 的 key 发一次带 WebSearch 的对话；
 2. 应看到 `→ passthrough model=kimi-k3→kimi-k3`，以及模型触发搜索时的 `→ antiapi (web_search sub-request) model=kimi-k3→claude-sonnet-4-6`；
 3. sub2api `usage_logs` 中 account_id=71 新增记录，`upstream_model=kimi-k3`，`pricing_snapshot.source=litellm`；
-4. 回滚：`.env` 删掉那条 ROUTES + account 71 的 base_url/api_key 改回中转，两边都是纯配置，秒回。
+4. 回滚：`sudo cp /home/david/sglang-proxy/.env.bak-20260728-kimik3 /home/david/sglang-proxy/.env` + 等 idle 后 restart；account 71 的 base_url/api_key 改回中转并 `del sched:acc:71`。两边都是纯配置，秒回。
