@@ -146,6 +146,11 @@ func anthropicStreamEventIsTerminal(eventName, data string) bool {
 // 做热路径廉价检查用，匹配了才做完整 JSON 解析。
 const inlineAnthropicErrorPrefix = `{"type":"error"`
 
+// maxHoldBufferLines 是 message_start 扣留窗口能攒的最大行数。
+// 正常 SSE 事件块只有 event:/data: 两三行；上游若不按空行分隔事件，
+// 用这个上限兜底，避免无限缓冲。
+const maxHoldBufferLines = 16
+
 // parseInlineAnthropicErrorJSON 识别上游非规范 SSE 响应里一行裸 Anthropic 错误 JSON
 // （形如 `{"type":"error","error":{"type":"...","message":"..."}}`，无 SSE 前缀）。
 // 返回推荐的 HTTP 状态码、原始 JSON body 和是否匹配。
@@ -162,27 +167,114 @@ func parseInlineAnthropicErrorJSON(trimmed string) (int, []byte, bool) {
 		return 0, nil, false
 	}
 	// 第一次 Valid 已经校验过 JSON 合法。type 一定是 "error"（前缀已锁定）。
-	errType := strings.ToLower(strings.TrimSpace(gjson.Get(trimmed, "error.type").String()))
-	if errType == "" {
+	errType := gjson.Get(trimmed, "error.type").String()
+	if strings.TrimSpace(errType) == "" {
 		return 0, nil, false
 	}
-	status := http.StatusBadRequest
-	switch errType {
+	return anthropicErrorTypeToHTTPStatus(errType), []byte(trimmed), true
+}
+
+// anthropicErrorTypeToHTTPStatus 把 Anthropic 错误对象的 error.type 映射到 HTTP 状态码。
+// 未知类型按 400 处理（Anthropic 自身对未识别的请求侧错误也返回 400）。
+func anthropicErrorTypeToHTTPStatus(errType string) int {
+	switch strings.ToLower(strings.TrimSpace(errType)) {
 	case "authentication_error":
-		status = http.StatusUnauthorized
+		return http.StatusUnauthorized
 	case "permission_error":
-		status = http.StatusForbidden
+		return http.StatusForbidden
 	case "not_found_error":
-		status = http.StatusNotFound
+		return http.StatusNotFound
 	case "rate_limit_error":
-		status = http.StatusTooManyRequests
+		return http.StatusTooManyRequests
 	case "overloaded_error":
-		status = 529
+		return 529
 	case "api_error":
 		// Anthropic 语义：上游内部错误。映射到 503 Service Unavailable 比 502 Bad Gateway 更贴近。
-		status = http.StatusServiceUnavailable
+		return http.StatusServiceUnavailable
+	default:
+		return http.StatusBadRequest
 	}
-	return status, []byte(trimmed), true
+}
+
+// sseEventBlockHead 从一个完整 SSE 事件块的原始行里取出 event 名和首个 data 行。
+// 与 processSSEEvent 内部的解析保持一致：event: 行给出事件名，第一条 data: 行给出负载。
+func sseEventBlockHead(lines []string) (eventName string, dataLine string) {
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "event:") {
+			eventName = strings.TrimSpace(strings.TrimPrefix(trimmed, "event:"))
+			continue
+		}
+		if dataLine == "" && sseDataRe.MatchString(trimmed) {
+			dataLine = sseDataRe.ReplaceAllString(trimmed, "")
+		}
+	}
+	return eventName, dataLine
+}
+
+// sseEventIsMessageStart 判断一个 SSE 事件块是不是 message_start。
+func sseEventIsMessageStart(eventName, dataLine string) bool {
+	if strings.EqualFold(strings.TrimSpace(eventName), "message_start") {
+		return true
+	}
+	trimmed := strings.TrimSpace(dataLine)
+	if trimmed == "" {
+		return false
+	}
+	return gjson.Get(trimmed, "type").String() == "message_start"
+}
+
+// parseAnthropicSSEErrorEvent 识别 SSE 形状的 Anthropic 错误事件
+// （`event: error` + `data: {"type":"error","error":{...}}`），
+// 返回改写用的 HTTP 状态码和原样的 JSON body。
+//
+// 上游对 prompt 超长这类用户侧错误常用 HTTP 200 + message_start + error + message_stop 返回；
+// 客户端（Claude Code）只有拿到真 4xx 才会触发 auto compact，拿到 200 只会无限重试。
+// 与 parseInlineAnthropicErrorJSON 是同一个问题的两种形状：裸 JSON vs SSE 事件。
+func parseAnthropicSSEErrorEvent(eventName, dataLine string) (int, []byte, bool) {
+	trimmed := strings.TrimSpace(dataLine)
+	if trimmed == "" {
+		return 0, nil, false
+	}
+	if !strings.EqualFold(strings.TrimSpace(eventName), "error") &&
+		!strings.HasPrefix(trimmed, inlineAnthropicErrorPrefix) {
+		return 0, nil, false
+	}
+	if !gjson.Valid(trimmed) {
+		return 0, nil, false
+	}
+	if gjson.Get(trimmed, "type").String() != "error" {
+		return 0, nil, false
+	}
+	errType := gjson.Get(trimmed, "error.type").String()
+	if strings.TrimSpace(errType) == "" {
+		return 0, nil, false
+	}
+	return anthropicErrorTypeToHTTPStatus(errType), []byte(trimmed), true
+}
+
+// handleAnthropicSSEErrorEventSideEffects 根据流内 error 事件的 error.type 触发账号错误处理。
+// invalid_request_error (400) 是用户侧错误（如 context overflow），不影响账号状态。
+// 其他类型（authentication_error/permission_error/overloaded_error/rate_limit_error）需要标记账号。
+func (s *GatewayService) handleAnthropicSSEErrorEventSideEffects(ctx context.Context, account *Account, dataLine string) {
+	if s.rateLimitService == nil || dataLine == "" {
+		return
+	}
+	var syntheticStatus int
+	switch gjson.Get(dataLine, "error.type").String() {
+	case "authentication_error":
+		syntheticStatus = 401
+	case "permission_error":
+		syntheticStatus = 403
+	case "overloaded_error":
+		syntheticStatus = 529
+	case "rate_limit_error":
+		syntheticStatus = 429
+		// invalid_request_error 和其他用户侧错误：不处理，不影响账号状态
+	}
+	if syntheticStatus != 0 {
+		s.rateLimitService.HandleUpstreamError(ctx, account, syntheticStatus, nil, []byte(dataLine))
+	}
 }
 
 // resetToJSONErrorHeaders 用于从流式响应头切换到 JSON 错误响应头。
@@ -5086,10 +5178,46 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		intervalCh = intervalTicker.C
 	}
 
+	writeLine := func(line string) {
+		if clientDisconnected {
+			return
+		}
+		if _, err := io.WriteString(w, line); err != nil {
+			clientDisconnected = true
+			logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
+		} else if _, err := io.WriteString(w, "\n"); err != nil {
+			clientDisconnected = true
+			logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
+		} else if line == "" {
+			// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
+			flusher.Flush()
+		}
+	}
+
+	// 在向客户端写出第一个字节前，先按事件边界缓冲，用来识别
+	// HTTP 200 + message_start + error 这种被包装过的用户侧错误（如 prompt 超长）：
+	// 客户端（Claude Code）只有拿到真 4xx 才会触发 auto compact，拿到 200 只会无限重试。
+	// 一旦确认不是这种形状，holdWindowOpen 关闭，之后回到逐行直写的热路径。
+	holdWindowOpen := true
+	var heldMessageStart []string
+	var pendingEventLines []string
+	releaseHoldBuffer := func() {
+		holdWindowOpen = false
+		for _, l := range heldMessageStart {
+			writeLine(l)
+		}
+		heldMessageStart = nil
+		for _, l := range pendingEventLines {
+			writeLine(l)
+		}
+		pendingEventLines = nil
+	}
+
 	for {
 		select {
 		case ev, ok := <-events:
 			if !ok {
+				releaseHoldBuffer()
 				if !clientDisconnected {
 					// 兜底补刷，确保最后一个未以空行结尾的事件也能及时送达客户端。
 					flusher.Flush()
@@ -5100,6 +5228,10 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
 			}
 			if ev.err != nil {
+				releaseHoldBuffer()
+				if !clientDisconnected {
+					flusher.Flush()
+				}
 				if sawTerminalEvent {
 					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
 				}
@@ -5146,24 +5278,45 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				}
 			}
 
-			if !clientDisconnected {
-				if _, err := io.WriteString(w, line); err != nil {
-					clientDisconnected = true
-					logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-				} else if _, err := io.WriteString(w, "\n"); err != nil {
-					clientDisconnected = true
-					logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-				} else if line == "" {
-					// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
-					flusher.Flush()
+			if holdWindowOpen {
+				pendingEventLines = append(pendingEventLines, line)
+				if len(pendingEventLines) > maxHoldBufferLines {
+					// 上游不按空行分隔事件（非规范流），别无限攒着，直接回到直写
+					releaseHoldBuffer()
+					continue
 				}
+				if trimmedLine != "" {
+					// 事件块还没收完，继续攒
+					continue
+				}
+				eventName, dataLine := sseEventBlockHead(pendingEventLines)
+				if heldMessageStart == nil && sseEventIsMessageStart(eventName, dataLine) {
+					// 扣住 message_start，等下一个事件揭晓这是正常流还是被包装的错误
+					heldMessageStart = pendingEventLines
+					pendingEventLines = nil
+					continue
+				}
+				if errStatus, errBody, matched := parseAnthropicSSEErrorEvent(eventName, dataLine); matched {
+					heldMessageStart = nil
+					pendingEventLines = nil
+					holdWindowOpen = false
+					if writeInlineUpstreamErrorResponse(c, flusher, errStatus, errBody) {
+						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("upstream inline error: status=%d", errStatus)
+					}
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
+				}
+				releaseHoldBuffer()
+				continue
 			}
+
+			writeLine(line)
 
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
 			if time.Since(lastRead) < streamInterval {
 				continue
 			}
+			releaseHoldBuffer()
 			if clientDisconnected {
 				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete after timeout")
 			}
@@ -6816,6 +6969,10 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	}
 	lastDataAt := time.Now()
 
+	// flushHeldMessageStart 在下面 processSSEEvent 就绪后赋值；
+	// 这里先声明，好让 sendErrorEvent 也能在收尾前把扣住的 message_start 补出去。
+	var flushHeldMessageStart func()
+
 	// 仅发送一次错误事件，避免多次写入导致协议混乱（写失败时尽力通知客户端）
 	errorEventSent := false
 	sendErrorEvent := func(reason string) {
@@ -6823,6 +6980,8 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			return
 		}
 		errorEventSent = true
+		// 避免客户端收到没有 message_start 的残缺流
+		flushHeldMessageStart()
 		_, _ = fmt.Fprintf(w, "event: error\ndata: {\"error\":\"%s\"}\n\n", reason)
 		flusher.Flush()
 	}
@@ -6834,24 +6993,16 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	firstNonEmptyLine := true
 
 	pendingEventLines := make([]string, 0, 4)
+	// heldMessageStart 暂存首个 message_start 事件，等看到下一个事件再决定放行还是改写。
+	// 见 flushHeldMessageStart / parseAnthropicSSEErrorEvent 的注释。
+	var heldMessageStart []string
 
 	processSSEEvent := func(lines []string) ([]string, string, *sseUsagePatch, error) {
 		if len(lines) == 0 {
 			return nil, "", nil, nil
 		}
 
-		eventName := ""
-		dataLine := ""
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "event:") {
-				eventName = strings.TrimSpace(strings.TrimPrefix(trimmed, "event:"))
-				continue
-			}
-			if dataLine == "" && sseDataRe.MatchString(trimmed) {
-				dataLine = sseDataRe.ReplaceAllString(trimmed, "")
-			}
-		}
+		eventName, dataLine := sseEventBlockHead(lines)
 
 		if eventName == "error" {
 			// 透传 error event 给客户端，并根据 error type 触发账号错误处理。
@@ -6863,24 +7014,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 			block += "\n"
 
-			if s.rateLimitService != nil && dataLine != "" {
-				errType := gjson.Get(dataLine, "error.type").String()
-				var syntheticStatus int
-				switch errType {
-				case "authentication_error":
-					syntheticStatus = 401
-				case "permission_error":
-					syntheticStatus = 403
-				case "overloaded_error":
-					syntheticStatus = 529
-				case "rate_limit_error":
-					syntheticStatus = 429
-					// invalid_request_error 和其他用户侧错误：不处理，不影响账号状态
-				}
-				if syntheticStatus != 0 {
-					s.rateLimitService.HandleUpstreamError(ctx, account, syntheticStatus, nil, []byte(dataLine))
-				}
-			}
+			s.handleAnthropicSSEErrorEventSideEffects(ctx, account, dataLine)
 			sawTerminalEvent = true
 			return []string{block}, dataLine, nil, nil
 		}
@@ -6988,10 +7122,51 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		return []string{block}, string(newData), usagePatch, nil
 	}
 
+	// writeSSEEventBlock 处理并写出一个完整 SSE 事件块（usage 累计、断连检测、首 token 计时）。
+	writeSSEEventBlock := func(lines []string) error {
+		outputBlocks, data, usagePatch, err := processSSEEvent(lines)
+		if err != nil {
+			return err
+		}
+		for _, block := range outputBlocks {
+			if !clientDisconnected {
+				if _, werr := fmt.Fprint(w, block); werr != nil {
+					clientDisconnected = true
+					logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
+					break
+				}
+				flusher.Flush()
+				lastDataAt = time.Now()
+			}
+			if data != "" {
+				if firstTokenMs == nil && data != "[DONE]" {
+					ms := int(time.Since(startTime).Milliseconds())
+					firstTokenMs = &ms
+				}
+				if usagePatch != nil {
+					mergeSSEUsagePatch(usage, usagePatch)
+				}
+			}
+		}
+		return nil
+	}
+
+	// flushHeldMessageStart 把扣住的 message_start 补写给客户端（尽力而为）。
+	flushHeldMessageStart = func() {
+		if len(heldMessageStart) == 0 {
+			return
+		}
+		lines := heldMessageStart
+		heldMessageStart = nil
+		_ = writeSSEEventBlock(lines)
+	}
+
 	for {
 		select {
 		case ev, ok := <-events:
 			if !ok {
+				// 上游只发了 message_start 就断了：补写出去，别把它吞掉。
+				flushHeldMessageStart()
 				// 上游完成，返回结果
 				if !sawTerminalEvent {
 					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("stream usage incomplete: missing terminal event")
@@ -7042,34 +7217,39 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					continue
 				}
 
-				outputBlocks, data, usagePatch, err := processSSEEvent(pendingEventLines)
+				// 上游对 prompt 超长这类用户侧错误会用 HTTP 200 +
+				// message_start / error / message_stop 的形状返回；客户端（Claude Code）
+				// 拿不到真 4xx 就不会触发 auto compact，只会无限重试。
+				// 所以在还没往客户端写出任何字节前先扣住 message_start，看下一个事件：
+				// 是 error 就整体改写成真 HTTP 状态码，否则补写 message_start 再照常转发。
+				// 一旦开始写出，这个窗口就关闭，之后不再重复解析事件头。
+				if heldMessageStart != nil || !c.Writer.Written() {
+					eventName, dataLine := sseEventBlockHead(pendingEventLines)
+					if heldMessageStart == nil && sseEventIsMessageStart(eventName, dataLine) {
+						heldMessageStart = append([]string(nil), pendingEventLines...)
+						pendingEventLines = pendingEventLines[:0]
+						continue
+					}
+					if errStatus, errBody, matched := parseAnthropicSSEErrorEvent(eventName, dataLine); matched {
+						heldMessageStart = nil
+						pendingEventLines = pendingEventLines[:0]
+						sawTerminalEvent = true
+						s.handleAnthropicSSEErrorEventSideEffects(ctx, account, dataLine)
+						if writeInlineUpstreamErrorResponse(c, flusher, errStatus, errBody) {
+							return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("upstream inline error: status=%d", errStatus)
+						}
+						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
+					}
+					flushHeldMessageStart()
+				}
+
+				err := writeSSEEventBlock(pendingEventLines)
 				pendingEventLines = pendingEventLines[:0]
 				if err != nil {
 					if clientDisconnected {
 						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, nil
 					}
 					return nil, err
-				}
-
-				for _, block := range outputBlocks {
-					if !clientDisconnected {
-						if _, werr := fmt.Fprint(w, block); werr != nil {
-							clientDisconnected = true
-							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
-							break
-						}
-						flusher.Flush()
-						lastDataAt = time.Now()
-					}
-					if data != "" {
-						if firstTokenMs == nil && data != "[DONE]" {
-							ms := int(time.Since(startTime).Milliseconds())
-							firstTokenMs = &ms
-						}
-						if usagePatch != nil {
-							mergeSSEUsagePatch(usage, usagePatch)
-						}
-					}
 				}
 				continue
 			}
@@ -7099,6 +7279,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			if time.Since(lastDataAt) < keepaliveInterval {
 				continue
 			}
+			// 扣住的 message_start 必须先于 ping 出去，否则客户端会先收到 ping 再收到流头。
+			// 上游隔了整个 keepalive 周期才出下一个事件，此时放弃扣住是合理取舍。
+			flushHeldMessageStart()
 			// SSE ping 事件：Anthropic 原生格式，客户端会正确处理，
 			// 同时保持连接活跃防止 Cloudflare Tunnel 等代理断开
 			if _, werr := fmt.Fprint(w, "event: ping\ndata: {\"type\": \"ping\"}\n\n"); werr != nil {

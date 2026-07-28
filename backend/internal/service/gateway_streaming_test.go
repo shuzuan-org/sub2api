@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -369,6 +370,207 @@ func TestHandleStreamingResponseAnthropicAPIKeyPassthrough_InlineErrorRewritesTo
 	require.Contains(t, err.Error(), "upstream inline error")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Equal(t, errJSON, rec.Body.String())
+}
+
+// 上游把用户侧错误（prompt 超长）包装成 HTTP 200 + message_start / error / message_stop。
+// 客户端（Claude Code）只有拿到真 400 才会触发 auto compact，拿到 200 只会无限重试。
+func TestHandleStreamingResponse_MessageStartThenErrorRewritesToHTTP400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	errData := `{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 300000 tokens > 200000 maximum"}}`
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"model\",\"usage\":{\"input_tokens\":10}}}\n\n"))
+		_, _ = pw.Write([]byte("event: error\ndata: " + errData + "\n\n"))
+		_, _ = pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "upstream inline error")
+	require.Equal(t, http.StatusBadRequest, rec.Code, "invalid_request_error 必须映射为 HTTP 400")
+	require.Equal(t, errData, rec.Body.String(), "body 必须是 Anthropic 官方形状的错误 JSON")
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.NotContains(t, rec.Body.String(), "message_start", "被扣住的 message_start 不能泄漏到错误响应里")
+}
+
+// 错误事件直接作为首个事件（没有 message_start 包装）同样要改写成真 HTTP 状态码。
+func TestHandleStreamingResponse_FirstEventErrorRewritesToHTTPStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	errData := `{"type":"error","error":{"type":"not_found_error","message":"model not found"}}`
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: error\ndata: " + errData + "\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+	require.Error(t, err)
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	require.Equal(t, errData, rec.Body.String())
+}
+
+// 正常流：扣住的 message_start 必须原样、按序放行，usage 与转发内容都不受影响。
+func TestHandleStreamingResponse_HeldMessageStartReleasedInOrder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11}}}\n\n"))
+		_, _ = pw.Write([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n"))
+		_, _ = pw.Write([]byte("event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n"))
+		_, _ = pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+	}()
+
+	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+	require.NoError(t, err)
+	require.Equal(t, 11, result.usage.InputTokens)
+	require.Equal(t, 7, result.usage.OutputTokens)
+
+	body := rec.Body.String()
+	require.Contains(t, body, "message_start")
+	require.Less(t, strings.Index(body, "message_start"), strings.Index(body, "content_block_delta"), "message_start 必须先于后续事件送达")
+	require.Contains(t, body, "message_stop")
+}
+
+// 上游只发了 message_start 就断开：扣住的事件必须补写出去，不能被吞掉。
+func TestHandleStreamingResponse_HeldMessageStartFlushedOnUpstreamClose(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3}}}\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+	require.Error(t, err, "缺少终止事件")
+	require.Contains(t, rec.Body.String(), "message_start", "扣住的 message_start 不能被吞掉")
+}
+
+// Passthrough 路径：同样的 message_start + error 形状也要改写成 HTTP 400。
+func TestHandleStreamingResponseAnthropicAPIKeyPassthrough_MessageStartThenErrorRewritesToHTTP400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	errData := `{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 300000 tokens > 200000 maximum"}}`
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10}}}\n\n"))
+		_, _ = pw.Write([]byte("event: error\ndata: " + errData + "\n\n"))
+		_, _ = pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model")
+	_ = pr.Close()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "upstream inline error")
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, errData, rec.Body.String())
+}
+
+// Passthrough 路径正常流：逐行透传不能被扣留窗口打乱顺序或丢行。
+func TestHandleStreamingResponseAnthropicAPIKeyPassthrough_HeldMessageStartReleasedInOrder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	stream := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11}}}\n\n" +
+		"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n" +
+		"event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n" +
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte(stream))
+	}()
+
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model")
+	_ = pr.Close()
+	require.NoError(t, err)
+	require.Equal(t, 11, result.usage.InputTokens)
+	require.Equal(t, 7, result.usage.OutputTokens)
+	require.Equal(t, stream, rec.Body.String(), "passthrough 必须逐字节原样透传")
+}
+
+func TestParseAnthropicSSEErrorEvent(t *testing.T) {
+	cases := []struct {
+		name      string
+		eventName string
+		dataLine  string
+		wantMatch bool
+		wantCode  int
+	}{
+		{"error_event", "error", `{"type":"error","error":{"type":"invalid_request_error","message":"x"}}`, true, 400},
+		{"error_event_overloaded", "error", `{"type":"error","error":{"type":"overloaded_error"}}`, true, 529},
+		{"no_event_name", "", `{"type":"error","error":{"type":"authentication_error"}}`, true, 401},
+		{"message_start", "message_start", `{"type":"message_start","message":{}}`, false, 0},
+		{"error_name_but_not_error_payload", "error", `{"type":"message_stop"}`, false, 0},
+		{"error_without_subtype", "error", `{"type":"error","error":{}}`, false, 0},
+		{"malformed_json", "error", `{"type":"error"`, false, 0},
+		{"empty_data", "error", ``, false, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			status, body, matched := parseAnthropicSSEErrorEvent(tc.eventName, tc.dataLine)
+			require.Equal(t, tc.wantMatch, matched)
+			if tc.wantMatch {
+				require.Equal(t, tc.wantCode, status)
+				require.Equal(t, tc.dataLine, string(body))
+			}
+		})
+	}
 }
 
 // resetToJSONErrorHeaders 保留 X-Request-Id，删除所有其他 header。
