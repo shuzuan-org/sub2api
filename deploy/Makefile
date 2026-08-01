@@ -5,10 +5,12 @@ wire:
 	@cd cmd/server && go generate
 	@echo "Wire 代码生成完成"
 
+# 不嵌前端的产物换个名字，避免和可部署的 bin/server 撞名后被误上传
+# （不含前端的二进制跑起来 API 全正常，只有首页 404，很难第一时间发现）。
 build:
-	@echo "构建后端（不嵌入前端）..."
-	@go build -o bin/server ./cmd/server
-	@echo "构建完成: bin/server"
+	@echo "构建后端（不嵌入前端，仅供本地调试）..."
+	@go build -o bin/server-noembed ./cmd/server
+	@echo "构建完成: bin/server-noembed（不含前端，请勿部署）"
 
 build-embed:
 	@echo "构建后端（嵌入前端）..."

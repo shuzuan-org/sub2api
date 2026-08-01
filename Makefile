@@ -1,9 +1,10 @@
 .PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-datamanagementd secret-scan
 
-# 一键编译前后端
-build: build-backend build-frontend
+# 一键编译前后端。顺序不能反：前端产物落在 backend/internal/web/dist/，
+# 后端要靠 go:embed 把它打进二进制，先编后端等于嵌了个旧的（或根本没有）。
+build: build-frontend build-backend
 
-# 编译后端（复用 backend/Makefile）
+# 编译后端（复用 backend/Makefile，产物含嵌入的前端）
 build-backend:
 	@$(MAKE) -C backend build
 

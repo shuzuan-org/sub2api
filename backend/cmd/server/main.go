@@ -112,6 +112,8 @@ func runSetupServer() {
 	// Serve embedded frontend if available
 	if web.HasEmbeddedFrontend() {
 		r.Use(web.ServeEmbeddedFrontend())
+	} else {
+		log.Println("WARNING: frontend not embedded in this binary; setup wizard UI will return 404. Rebuild with -tags embed.")
 	}
 
 	// Get server address from config.yaml or environment variables (SERVER_HOST, SERVER_PORT)

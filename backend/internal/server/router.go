@@ -81,6 +81,10 @@ func SetupRouter(
 			r.Use(frontendServer.Middleware())
 		}
 	} else {
+		// 没带 -tags embed 编出来的二进制会走到这里：SPA 路由不注册，"/" 落到 gin 默认
+		// NoRoute 返回 404，表现为首页白屏，而 API 与 /health 全部正常。这条日志是排查时
+		// 唯一的线索，别删。
+		log.Printf("WARNING: frontend not embedded in this binary; UI routes will return 404. Rebuild with -tags embed.")
 		settingService.SetOnUpdateCallback(refreshFrameOrigins)
 	}
 
