@@ -426,11 +426,11 @@ git add -A && git commit -m "release: vX.X.XXX - 描述"
 ### 部署命令
 
 ```bash
-# 完整部署（构建 + 上传 + 重启 + 健康检查）
-bash .claude/skills/sub2api-deploy/scripts/deploy.sh
+# 完整部署（构建 + 前端嵌入校验 + 上传 + 热升级 + 健康检查 + 首页冒烟）
+bash deploy/deploy.sh
 
-# 仅重新部署（跳过编译，用已有 bin/server）
-bash .claude/skills/sub2api-deploy/scripts/deploy.sh --skip-build
+# 仅重新部署（跳过编译，用已有 bin/server；仍会校验该二进制是否嵌入前端）
+bash deploy/deploy.sh --skip-build
 ```
 
 ### 部署后验证
