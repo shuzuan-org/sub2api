@@ -979,6 +979,51 @@ const (
 	BudgetRectifyMinMaxTokens = 32001
 )
 
+// MinThinkingBudgetTokens 是 Anthropic 对 thinking.budget_tokens 的下限。
+// 夹紧 max_tokens 时若不得不连带压低 budget_tokens，压不到此值以上就整体放弃夹紧。
+const MinThinkingBudgetTokens = 1024
+
+// ClampMaxTokens 把请求体里的 max_tokens 压到 limit（limit <= 0 视为未配置，直接返回）。
+// 返回 (新 body, 是否发生了改写)。
+//
+// 只在 max_tokens 确实超过 limit 时改写；不存在该字段时不会凭空写入，避免改变
+// 上游对「未声明 max_tokens」的默认行为。
+//
+// 注意 thinking：Anthropic 要求 max_tokens > thinking.budget_tokens，直接把 max_tokens
+// 压到 budget_tokens 之下会把一个合法请求改成非法请求（上游 400）。这里的处理是连带把
+// budget_tokens 压到 limit-1；若这样会低于 MinThinkingBudgetTokens 则**整体放弃夹紧**——
+// 宁可放一个超限请求过去（顶多被上游限流），也不能自己造出一个必然 400 的请求。
+func ClampMaxTokens(body []byte, limit int) ([]byte, bool) {
+	if limit <= 0 {
+		return body, false
+	}
+
+	current := gjson.GetBytes(body, "max_tokens")
+	if !current.Exists() || current.Type != gjson.Number || current.Int() <= int64(limit) {
+		return body, false
+	}
+
+	modified := body
+	if budget := gjson.GetBytes(modified, "thinking.budget_tokens"); budget.Exists() &&
+		budget.Type == gjson.Number && budget.Int() >= int64(limit) {
+		newBudget := int64(limit) - 1
+		if newBudget < MinThinkingBudgetTokens {
+			return body, false
+		}
+		result, err := sjson.SetBytes(modified, "thinking.budget_tokens", newBudget)
+		if err != nil {
+			return body, false
+		}
+		modified = result
+	}
+
+	result, err := sjson.SetBytes(modified, "max_tokens", limit)
+	if err != nil {
+		return body, false
+	}
+	return result, true
+}
+
 // isThinkingBudgetConstraintError detects whether an upstream error message indicates
 // a budget_tokens constraint violation (e.g. "budget_tokens >= 1024").
 // Matches three conditions (all must be true):

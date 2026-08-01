@@ -294,9 +294,9 @@ func (a *Account) GetTempUnschedulableRules() []TempUnschedulableRule {
 		}
 
 		rule := TempUnschedulableRule{
-			ErrorCode:       parseTempUnschedInt(entry["error_code"]),
+			ErrorCode:       parseCredentialInt(entry["error_code"]),
 			Keywords:        parseTempUnschedStrings(entry["keywords"]),
-			DurationMinutes: parseTempUnschedInt(entry["duration_minutes"]),
+			DurationMinutes: parseCredentialInt(entry["duration_minutes"]),
 			Description:     parseTempUnschedString(entry["description"]),
 		}
 
@@ -359,7 +359,8 @@ func normalizeAccountNotes(value *string) *string {
 	return &trimmed
 }
 
-func parseTempUnschedInt(value any) int {
+// parseCredentialInt 把 JSON 里可能出现的各种数值表示统一成 int，无法解析时返回 0。
+func parseCredentialInt(value any) int {
 	switch v := value.(type) {
 	case int:
 		return v
@@ -696,6 +697,28 @@ func (a *Account) GetPoolModeRetryCount() int {
 		return maxPoolModeRetryCount
 	}
 	return count
+}
+
+// GetMaxOutputTokens 返回账号级的 max_tokens 上限（credentials.max_output_tokens）。
+// 返回 0 表示未配置或配置非法，此时不做任何夹紧，行为与配置前完全一致。
+//
+// 存在的理由：部分上游按请求里声明的 max_tokens **预扣**限流额度，而不是按实际生成量结算。
+// 客户端报一个远超模型真实输出上限的 max_tokens（例如 1000000），单次请求就能占掉团队
+// 窗口配额的一大块，几个请求就把所有人一起打成 429。把本字段设成该上游模型真实的最大
+// 输出长度，转发前就会把超限值压下去——对客户端无损（模型本来也生成不了那么长）。
+func (a *Account) GetMaxOutputTokens() int {
+	if a == nil || a.Credentials == nil {
+		return 0
+	}
+	raw, ok := a.Credentials["max_output_tokens"]
+	if !ok || raw == nil {
+		return 0
+	}
+	limit := parseCredentialInt(raw)
+	if limit <= 0 {
+		return 0
+	}
+	return limit
 }
 
 func parsePoolModeRetryCount(value any) int {

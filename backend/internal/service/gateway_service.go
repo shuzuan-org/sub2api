@@ -4212,6 +4212,12 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 				passthroughModel = mappedModel
 			}
 		}
+		if limit := account.GetMaxOutputTokens(); limit > 0 {
+			if clamped, ok := ClampMaxTokens(passthroughBody, limit); ok {
+				logger.LegacyPrintf("service.gateway", "max_tokens clamped to %d (account: %s, passthrough)", limit, account.Name)
+				passthroughBody = clamped
+			}
+		}
 		return s.forwardAnthropicAPIKeyPassthroughWithInput(ctx, c, account, anthropicPassthroughForwardInput{
 			Body:          passthroughBody,
 			RequestModel:  passthroughModel,
@@ -4309,6 +4315,15 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		body = s.replaceModelInBody(body, mappedModel)
 		reqModel = mappedModel
 		logger.LegacyPrintf("service.gateway", "Model mapping applied: %s -> %s (account: %s, source=%s)", originalModel, mappedModel, account.Name, mappingSource)
+	}
+
+	// 账号配了输出上限就把超限的 max_tokens 压下去。放在模型映射之后：上限是按上游
+	// 真实模型的能力配的，映射决定了最终打到哪个模型。
+	if limit := account.GetMaxOutputTokens(); limit > 0 {
+		if clamped, ok := ClampMaxTokens(body, limit); ok {
+			logger.LegacyPrintf("service.gateway", "max_tokens clamped to %d (account: %s, model: %s)", limit, account.Name, reqModel)
+			body = clamped
+		}
 	}
 
 	// 获取凭证
