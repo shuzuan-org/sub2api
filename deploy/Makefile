@@ -1,5 +1,11 @@
 .PHONY: wire build build-embed test-unit test-integration test-e2e test-cover-integration
 
+# 构建标识，与 backend/Makefile 保持一致：进程启动时打进日志，便于反查构建来源。
+COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+DIRTY  := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo -dirty)
+DATE   ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS ?= -X main.Commit=$(COMMIT)$(DIRTY) -X main.Date=$(DATE)
+
 wire:
 	@echo "生成 Wire 代码..."
 	@cd cmd/server && go generate
@@ -9,13 +15,13 @@ wire:
 # （不含前端的二进制跑起来 API 全正常，只有首页 404，很难第一时间发现）。
 build:
 	@echo "构建后端（不嵌入前端，仅供本地调试）..."
-	@go build -o bin/server-noembed ./cmd/server
+	@go build -ldflags="$(LDFLAGS)" -o bin/server-noembed ./cmd/server
 	@echo "构建完成: bin/server-noembed（不含前端，请勿部署）"
 
 build-embed:
 	@echo "构建后端（嵌入前端）..."
-	@go build -tags embed -o bin/server ./cmd/server
-	@echo "构建完成: bin/server (with embedded frontend)"
+	@go build -tags embed -ldflags="$(LDFLAGS)" -o bin/server ./cmd/server
+	@echo "构建完成: bin/server (with embedded frontend, commit: $(COMMIT)$(DIRTY))"
 
 test-unit:
 	@go test -tags unit ./... -count=1

@@ -157,10 +157,18 @@ else
 
   info "编译 linux/amd64 二进制（嵌入前端）..."
   cd "$BACKEND_DIR"
+  # 打构建标识：进程启动时会把这几个值写进日志，事后能直接反查跑的是哪次构建。
+  # 工作区脏就加 -dirty 后缀，避免 commit 号指向一个和实际产物不一致的快照。
+  BUILD_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+  if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    BUILD_COMMIT="${BUILD_COMMIT}-dirty"
+  fi
+  BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-    go build -tags embed -ldflags="-s -w -X main.Version=$(cat cmd/server/VERSION)" \
+    go build -tags embed \
+    -ldflags="-s -w -X main.Version=$(cat cmd/server/VERSION) -X main.Commit=${BUILD_COMMIT} -X main.Date=${BUILD_DATE}" \
     -trimpath -o bin/server ./cmd/server
-  info "编译完成：$(ls -lh bin/server | awk '{print $5}')"
+  info "编译完成：$(ls -lh bin/server | awk '{print $5}')（commit: ${BUILD_COMMIT}）"
 fi
 
 if [ ! -f "$LOCAL_BIN" ]; then

@@ -72,6 +72,11 @@ func main() {
 		return
 	}
 
+	// 每次启动都把构建标识打进日志。热升级（tableflip reload）后进程会换 PID，
+	// 这条是事后唯一能确认「当时跑的到底是哪次构建」的依据——否则只能靠二进制的
+	// mtime 猜。Commit 为 unknown 说明这个二进制是没打戳的构建路径产出的。
+	log.Printf("Sub2API %s (commit: %s, built: %s, build_type: %s)", Version, Commit, Date, BuildType)
+
 	// CLI setup mode
 	if *setupMode {
 		if err := setup.RunCLI(); err != nil {

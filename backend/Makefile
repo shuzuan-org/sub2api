@@ -1,7 +1,12 @@
 .PHONY: build build-backend-only generate test test-unit test-integration test-e2e
 
 VERSION ?= $(shell tr -d '\r\n' < ./cmd/server/VERSION)
-LDFLAGS ?= -s -w -X main.Version=$(VERSION)
+# 构建标识：让跑着的进程能反查是哪次构建，别再靠二进制 mtime 猜。
+# 工作区有未提交改动时打 -dirty 后缀——否则 commit 号会指向一个与实际产物不符的快照。
+COMMIT ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+DIRTY  := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo -dirty)
+DATE   ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS ?= -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT)$(DIRTY) -X main.Date=$(DATE)
 DIST_DIR := internal/web/dist
 
 # 可部署产物：必须带 -tags embed，否则前端不会被嵌进去，
