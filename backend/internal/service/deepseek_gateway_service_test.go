@@ -1,8 +1,15 @@
 package service
 
 import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -73,5 +80,72 @@ func TestEnsureDeepSeekStreamIncludeUsage(t *testing.T) {
 		out := ensureDeepSeekStreamIncludeUsage(in)
 		require.True(t, gjson.GetBytes(out, "stream_options.include_usage").Bool())
 		require.Equal(t, "bar", gjson.GetBytes(out, "stream_options.foo").String())
+	})
+}
+
+// forwardDeepSeekWithStatus drives ForwardDeepSeekChatCompletions against a stub
+// upstream that answers with the given status/body, and reports the error plus
+// how much the handler-visible response writer was touched.
+func forwardDeepSeekWithStatus(t *testing.T, status int, body string) (error, *httptest.ResponseRecorder, int) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}}
+	svc := &GatewayService{httpUpstream: upstream}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader("{}"))
+
+	account := &Account{
+		ID:          7,
+		Name:        "ds",
+		Platform:    PlatformDeepSeek,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "sk-deep"},
+	}
+
+	_, err := svc.ForwardDeepSeekChatCompletions(context.Background(), c, account, []byte(`{"model":"deepseek-v4-flash"}`))
+	return err, rec, c.Writer.Size()
+}
+
+func TestForwardDeepSeekChatCompletions_ErrorResponses(t *testing.T) {
+	// Regression: a 429 used to be written straight to the client before the
+	// failover error was returned. The chat-completions handler compares
+	// c.Writer.Size() before/after the forward and treats any change as
+	// "response already committed", so the account was never failed over and
+	// the raw upstream 429 reached the client.
+	t.Run("429 returns failover error without touching the response writer", func(t *testing.T) {
+		err, rec, size := forwardDeepSeekWithStatus(t, http.StatusTooManyRequests, `{"error":{"message":"rate limit"}}`)
+
+		var failoverErr *UpstreamFailoverError
+		require.ErrorAs(t, err, &failoverErr)
+		require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
+		require.Contains(t, string(failoverErr.ResponseBody), "rate limit")
+
+		require.Equal(t, -1, size, "writer must be untouched so the handler can fail over")
+		require.Empty(t, rec.Body.String())
+	})
+
+	t.Run("5xx also fails over without writing", func(t *testing.T) {
+		err, _, size := forwardDeepSeekWithStatus(t, http.StatusBadGateway, `{"error":{"message":"upstream down"}}`)
+
+		var failoverErr *UpstreamFailoverError
+		require.ErrorAs(t, err, &failoverErr)
+		require.Equal(t, -1, size)
+	})
+
+	t.Run("400 is terminal and passes the upstream body through", func(t *testing.T) {
+		err, rec, _ := forwardDeepSeekWithStatus(t, http.StatusBadRequest, `{"error":{"message":"bad model"}}`)
+
+		var failoverErr *UpstreamFailoverError
+		require.False(t, errors.As(err, &failoverErr), "400 must not trigger account failover")
+		require.Error(t, err)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Contains(t, rec.Body.String(), "bad model")
 	})
 }

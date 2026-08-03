@@ -123,14 +123,37 @@ func (s *GatewayService) ForwardDeepSeekChatCompletions(
 			zap.String("model", originalModel),
 			zap.ByteString("body", errBody),
 		)
+
+		// Failover-able errors (429/5xx/auth) must not touch the response writer:
+		// the handler treats any bytes written as "stream started" and gives up on
+		// switching accounts. Mark the account and hand the error back untouched.
+		if s.shouldFailoverUpstreamError(resp.StatusCode) {
+			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(errBody)))
+			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				Platform:           account.Platform,
+				AccountID:          account.ID,
+				AccountName:        account.Name,
+				UpstreamStatusCode: resp.StatusCode,
+				UpstreamRequestID:  resp.Header.Get("x-request-id"),
+				Kind:               "failover",
+				Message:            upstreamMsg,
+			})
+			if s.rateLimitService != nil {
+				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, errBody)
+			}
+			return nil, &UpstreamFailoverError{
+				StatusCode:      resp.StatusCode,
+				ResponseBody:    errBody,
+				ResponseHeaders: resp.Header,
+			}
+		}
+
+		// Terminal errors (e.g. 400 bad request): pass the upstream body straight
+		// through — switching accounts would not help.
 		c.Status(resp.StatusCode)
 		copyDeepSeekResponseHeaders(c.Writer.Header(), resp.Header)
 		_, _ = c.Writer.Write(errBody)
-		return nil, &UpstreamFailoverError{
-			StatusCode:      resp.StatusCode,
-			ResponseBody:    errBody,
-			ResponseHeaders: resp.Header,
-		}
+		return nil, fmt.Errorf("deepseek forward: upstream error: %d", resp.StatusCode)
 	}
 
 	usage := ClaudeUsage{}

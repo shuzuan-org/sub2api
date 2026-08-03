@@ -766,6 +766,17 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 				slog.Info("account_rate_limited", "account_id", account.ID, "platform", account.Platform, "reset_at", resetTime, "reset_in", time.Until(resetTime).Truncate(time.Second))
 				return
 			}
+		case PlatformDeepSeek:
+			// DeepSeek 用标准 Retry-After 头表达退避时长，其限流窗口可能只有秒级，
+			// 用默认的 5 分钟冷却会把账号闲置太久。
+			if resetAt := parseRetryAfterHeader(headers, time.Now()); resetAt != nil {
+				if err := s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt); err != nil {
+					slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
+					return
+				}
+				slog.Info("account_rate_limited", "account_id", account.ID, "platform", account.Platform, "reset_at", *resetAt, "reset_in", time.Until(*resetAt).Truncate(time.Second), "source", "retry-after")
+				return
+			}
 		}
 
 		// Anthropic 平台：没有限流重置时间的 429 可能是非真实限流（如 Extra usage required），
@@ -814,6 +825,50 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 	}
 
 	slog.Info("account_rate_limited", "account_id", account.ID, "reset_at", resetAt)
+}
+
+// Retry-After 冷却时长的上下界。
+//
+// 下界：Retry-After: 0（或已过期的 HTTP-date）意味着"立刻可重试"，但我们刚吃了一个
+// 429，直接放行等于继续硬撞上游，所以至少冷却 retryAfterMinCooldown。
+// 上界：防止上游一个畸形或恶意的超大值把账号长时间踢出调度。
+const (
+	retryAfterMinCooldown = 1 * time.Second
+	retryAfterMaxCooldown = 1 * time.Hour
+)
+
+// parseRetryAfterHeader 解析 RFC 7231 的 Retry-After 头，返回限流解除时间。
+// 两种合法形式都支持：delta-seconds（整数秒）与 HTTP-date。
+// 头缺失或无法解析时返回 nil，由调用方决定回退策略。
+func parseRetryAfterHeader(headers http.Header, now time.Time) *time.Time {
+	if headers == nil {
+		return nil
+	}
+	raw := strings.TrimSpace(headers.Get("Retry-After"))
+	if raw == "" {
+		return nil
+	}
+
+	var delay time.Duration
+	if secs, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		delay = time.Duration(secs) * time.Second
+	} else if date, err := http.ParseTime(raw); err == nil {
+		delay = date.Sub(now)
+	} else {
+		slog.Warn("retry_after_parse_failed", "retry_after", raw)
+		return nil
+	}
+
+	if delay < retryAfterMinCooldown {
+		delay = retryAfterMinCooldown
+	}
+	if delay > retryAfterMaxCooldown {
+		slog.Warn("retry_after_clamped", "retry_after", raw, "capped_at", retryAfterMaxCooldown.String())
+		delay = retryAfterMaxCooldown
+	}
+
+	resetAt := now.Add(delay)
+	return &resetAt
 }
 
 // calculateOpenAI429ResetTime 从 OpenAI 429 响应头计算正确的重置时间
