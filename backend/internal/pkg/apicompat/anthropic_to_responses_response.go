@@ -391,6 +391,12 @@ func anthToResHandleContentBlockStop(evt *AnthropicStreamEvent, state *Anthropic
 func anthToResHandleMessageDelta(evt *AnthropicStreamEvent, state *AnthropicEventToResponsesState) []ResponsesStreamEvent {
 	// Update usage
 	if evt.Usage != nil {
+		// Native Anthropic streams normally report input_tokens in message_start,
+		// while Responses-to-Anthropic adapters may only know the final input
+		// count when they emit message_delta. Preserve either representation.
+		if evt.Usage.InputTokens > 0 {
+			state.InputTokens = evt.Usage.InputTokens
+		}
 		state.OutputTokens = evt.Usage.OutputTokens
 		if evt.Usage.CacheReadInputTokens > 0 {
 			state.CacheReadInputTokens = evt.Usage.CacheReadInputTokens
