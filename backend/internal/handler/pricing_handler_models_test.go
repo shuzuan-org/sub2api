@@ -85,3 +85,29 @@ func TestCollectBillingModelNames(t *testing.T) {
 		t.Fatalf("got %v, want 2 names", got)
 	}
 }
+
+// Aliases that differ only by pricing-table namespace are the same model: one row.
+func TestStripPricingNamespaces_CollapsesVendorAliases(t *testing.T) {
+	got := dedupePreservingOrder(stripPricingNamespaces([]string{
+		"z-ai/glm-5.2", "zai/glm-5.2", "glm-5.2",
+	}))
+	if len(got) != 1 || got[0] != "glm-5.2" {
+		t.Fatalf("got %v, want [glm-5.2]", got)
+	}
+}
+
+// A declared billing model wins over the upstream catalog: these upstreams are
+// passthrough proxies advertising every model they can relay, which is not what the
+// account is provisioned to serve.
+func TestServedModelNames_PrefersDeclaredBillingModels(t *testing.T) {
+	h := &PricingHandler{} // nil gatewayService: the declared path must not need it
+	accounts := []service.Account{
+		accountWithBilling("z-ai/glm-5.2", 0, 0),
+		accountWithBilling("glm-5.2", 0, 0),
+	}
+
+	got := h.servedModelNames(t.Context(), service.Group{ID: 1}, accounts)
+	if len(got) != 1 || got[0] != "glm-5.2" {
+		t.Fatalf("got %v, want [glm-5.2]", got)
+	}
+}

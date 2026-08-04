@@ -183,18 +183,15 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 
 // collectGroupModels builds the public price rows for one group.
 //
-// The model NAMES come from the same place GET /v1/models serves them: the group's
-// real upstream catalog fused with each account's model_mapping. That is what a client
-// can actually call, so the pricing page and the gateway can no longer disagree — and
-// it collapses the "same model listed once per internal billing key" duplication that
-// reading billing_model names directly produced.
+// The model NAMES are what the group actually serves (see servedModelNames), collapsed
+// so one model is one row — not one row per internal pricing-table namespace.
 //
 // The PRICE comes from the same resolver the billing path uses (account override →
 // litellm → hardcoded fallback), so a displayed price is a charged price. When accounts
 // in one group disagree on price, the highest is shown: a public page may never quote
 // less than what a request can actually cost.
 func (h *PricingHandler) collectGroupModels(ctx context.Context, g service.Group, accounts []service.Account) []service.ModelPricingSummary {
-	names := h.exposedModelNames(ctx, g, accounts)
+	names := h.servedModelNames(ctx, g, accounts)
 	if len(names) == 0 {
 		return nil
 	}
@@ -214,18 +211,41 @@ func (h *PricingHandler) collectGroupModels(ctx context.Context, g service.Group
 	return models
 }
 
-// exposedModelNames returns the model ids clients can call against this group, deduped.
-// Primary source is the /v1/models superset (anthropic+openai). Platforms that superset
-// does not cover (deepseek, gemini, …) fall back to the accounts' configured billing
-// model names so those groups keep a price listing instead of silently vanishing.
-func (h *PricingHandler) exposedModelNames(ctx context.Context, g service.Group, accounts []service.Account) []string {
-	groupID := g.ID
+// servedModelNames returns the models this group actually serves, deduped.
+//
+// An account that declares a billing model (single value, or a "*" wildcard mapping)
+// is telling us it serves exactly that model regardless of what its upstream catalog
+// advertises — these upstreams are passthrough proxies that list every model they can
+// proxy, not what this account is provisioned for. So the declared billing models win.
+// Only when NO account declares one do we fall back to the /v1/models superset, which
+// is then the honest answer to "what can a client call here".
+func (h *PricingHandler) servedModelNames(ctx context.Context, g service.Group, accounts []service.Account) []string {
+	if declared := collectBillingModelNames(accounts); len(declared) > 0 {
+		return dedupePreservingOrder(stripPricingNamespaces(declared))
+	}
 	if h.gatewayService != nil {
+		groupID := g.ID
 		if ids, _, _, _ := h.gatewayService.GetSupersetModels(ctx, &groupID); len(ids) > 0 {
 			return dedupePreservingOrder(ids)
 		}
 	}
-	return dedupePreservingOrder(collectBillingModelNames(accounts))
+	return nil
+}
+
+// stripPricingNamespaces drops the "provider/" namespace that pricing tables prepend
+// to model keys. "z-ai/glm-5.2" and "zai/glm-5.2" are the same model priced under two
+// vendor namespaces; a public page must show that model once, not once per namespace.
+// Per-account price resolution still runs on each account's own untouched billing key,
+// because a "*" mapping re-derives it from whatever name we pass in.
+func stripPricingNamespaces(names []string) []string {
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		if idx := strings.LastIndex(name, "/"); idx >= 0 && idx < len(name)-1 {
+			name = name[idx+1:]
+		}
+		result = append(result, name)
+	}
+	return result
 }
 
 // maxPriceAcrossAccounts resolves what `model` costs on each account that can serve it
