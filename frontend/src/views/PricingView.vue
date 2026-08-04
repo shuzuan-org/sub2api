@@ -116,8 +116,9 @@
               <thead>
                 <tr>
                   <th class="min-w-[200px]">{{ t('pricing.modelName') }}</th>
-                  <th class="text-right">{{ t('pricing.inputPrice') }}</th>
-                  <th class="text-right">{{ t('pricing.outputPrice') }}</th>
+                  <th v-for="col in priceColumns" :key="col.key" class="whitespace-nowrap text-right">
+                    {{ t(`pricing.${col.key}`) }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -125,27 +126,24 @@
                   <td>
                     <span class="font-mono text-sm text-gray-900 dark:text-white">{{ model.model }}</span>
                   </td>
-                  <td class="text-right">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white">
-                      {{ formatU(model.input_per_mtok_u) }} U
-                    </div>
-                    <div class="text-xs text-gray-500 dark:text-dark-400">
-                      {{ formatUsdFromU(model.input_per_mtok_u) }}/MTok
-                    </div>
-                    <div v-if="model.discount_percent > 0" class="text-xs text-gray-400 line-through dark:text-dark-500">
-                      {{ formatU(model.original_input_per_mtok_u) }} U
-                    </div>
-                  </td>
-                  <td class="text-right">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white">
-                      {{ formatU(model.output_per_mtok_u) }} U
-                    </div>
-                    <div class="text-xs text-gray-500 dark:text-dark-400">
-                      {{ formatUsdFromU(model.output_per_mtok_u) }}/MTok
-                    </div>
-                    <div v-if="model.discount_percent > 0" class="text-xs text-gray-400 line-through dark:text-dark-500">
-                      {{ formatU(model.original_output_per_mtok_u) }} U
-                    </div>
+                  <td v-for="col in priceColumns" :key="col.key" class="text-right">
+                    <template v-if="!col.optional || col.value(model) > 0">
+                      <div class="text-sm font-medium text-gray-900 dark:text-white">
+                        {{ formatU(col.value(model)) }} U
+                      </div>
+                      <div class="text-xs text-gray-500 dark:text-dark-400">
+                        {{ formatUsdFromU(col.value(model)) }}/MTok
+                      </div>
+                      <div v-if="model.discount_percent > 0" class="text-xs text-gray-400 line-through dark:text-dark-500">
+                        {{ formatU(col.original(model)) }} U
+                      </div>
+                      <div v-if="col.note && col.note(model) > 0" class="text-xs text-gray-500 dark:text-dark-400">
+                        {{ t('pricing.cacheCreate1h') }} {{ formatU(col.note(model)) }} U
+                      </div>
+                    </template>
+                    <span v-else class="text-xs text-gray-400 dark:text-dark-500">
+                      {{ t('pricing.noCachePrice') }}
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -171,7 +169,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
-import { getPublicModelPricing, type PublicGroupPricing, type PublicPricingResponse } from '@/api/pricing'
+import {
+  getPublicModelPricing,
+  type PublicGroupPricing,
+  type PublicModelPricing,
+  type PublicPricingResponse,
+} from '@/api/pricing'
 import { formatUsdFromU } from '@/utils/format'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
@@ -200,6 +203,43 @@ const updatedAt = ref('')
 interface FilteredGroup extends PublicGroupPricing {
   filteredModels: PublicGroupPricing['models']
 }
+
+interface PriceColumn {
+  /** i18n key under `pricing.` used as the column header. */
+  key: string
+  value: (m: PublicModelPricing) => number
+  original: (m: PublicModelPricing) => number
+  /** Columns whose price may legitimately be absent — rendered as "not supported", not 0 U. */
+  optional?: boolean
+  /** A qualified rate shown under the main price, e.g. the surcharged 1h cache write. */
+  note?: (m: PublicModelPricing) => number
+}
+
+const priceColumns: PriceColumn[] = [
+  {
+    key: 'inputPrice',
+    value: (m) => m.input_per_mtok_u,
+    original: (m) => m.original_input_per_mtok_u,
+  },
+  {
+    key: 'outputPrice',
+    value: (m) => m.output_per_mtok_u,
+    original: (m) => m.original_output_per_mtok_u,
+  },
+  {
+    key: 'cacheCreatePrice',
+    value: (m) => m.cache_create_per_mtok_u,
+    original: (m) => m.original_cache_create_per_mtok_u,
+    optional: true,
+    note: (m) => m.cache_create_1h_per_mtok_u,
+  },
+  {
+    key: 'cacheReadPrice',
+    value: (m) => m.cache_read_per_mtok_u,
+    original: (m) => m.original_cache_read_per_mtok_u,
+    optional: true,
+  },
+]
 
 const filteredGroups = computed<FilteredGroup[]>(() => {
   if (!pricingData.value?.groups) return []
