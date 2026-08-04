@@ -248,7 +248,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	handlerSettingHandler := handler.ProvideSettingHandler(settingService, buildInfo)
 	totpHandler := handler.NewTotpHandler(totpService)
 	alipayHandler := handler.NewAlipayHandler(alipayService)
-	pricingHandler := handler.NewPricingHandler(pricingService, groupRepository, accountRepository)
+	pricingHandler := handler.NewPricingHandler(pricingService, gatewayService, billingService, groupRepository, accountRepository)
 	idempotencyCoordinator := service.ProvideIdempotencyCoordinator(idempotencyRepository, configConfig)
 	idempotencyCleanupService := service.ProvideIdempotencyCleanupService(idempotencyRepository, configConfig)
 	inviteHandler := handler.NewInviteHandler(inviteService, settingService)

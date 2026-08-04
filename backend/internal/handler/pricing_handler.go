@@ -40,6 +40,8 @@ type PublicModelPricing struct {
 // PricingHandler serves the public model pricing endpoint.
 type PricingHandler struct {
 	pricingService *service.PricingService
+	gatewayService *service.GatewayService
+	billingService *service.BillingService
 	groupRepo      service.GroupRepository
 	accountRepo    service.AccountRepository
 
@@ -53,11 +55,15 @@ type PricingHandler struct {
 // NewPricingHandler creates a new PricingHandler.
 func NewPricingHandler(
 	pricingService *service.PricingService,
+	gatewayService *service.GatewayService,
+	billingService *service.BillingService,
 	groupRepo service.GroupRepository,
 	accountRepo service.AccountRepository,
 ) *PricingHandler {
 	return &PricingHandler{
 		pricingService: pricingService,
+		gatewayService: gatewayService,
+		billingService: billingService,
 		groupRepo:      groupRepo,
 		accountRepo:    accountRepo,
 		cacheTTL:       24 * time.Hour,
@@ -120,25 +126,14 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 			continue
 		}
 
-		billingModels := h.collectBillingModels(ctx, g.ID)
-
-		var models []service.ModelPricingSummary
-		if len(billingModels) > 0 {
-			for model := range billingModels {
-				pricing := h.pricingService.GetModelPricing(model)
-				if pricing == nil {
-					continue
-				}
-				models = append(models, service.ModelPricingSummary{
-					Model:         model,
-					InputPerMTok:  pricing.InputCostPerToken * 1e6,
-					OutputPerMTok: pricing.OutputCostPerToken * 1e6,
-				})
-			}
-		} else {
-			models = h.pricingService.ListModelsByProvider(g.Platform)
+		// 只展示这个分组真正能服务的模型：没有可调度账号就没有可展示的价格。
+		// 绝不回退到"整个 provider 目录"——那会把分组根本路由不到的模型标上价格。
+		accounts, err := h.accountRepo.ListByGroup(ctx, g.ID)
+		if err != nil || len(accounts) == 0 {
+			continue
 		}
 
+		models := h.collectGroupModels(ctx, g, accounts)
 		if len(models) == 0 {
 			continue
 		}
@@ -186,29 +181,115 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 	return resp, nil
 }
 
-// collectBillingModels collects billing models from all accounts in a group.
-// This is the same logic as APIKeyHandler.collectBillingModels.
-func (h *PricingHandler) collectBillingModels(ctx context.Context, groupID int64) map[string]bool {
-	accounts, err := h.accountRepo.ListByGroup(ctx, groupID)
-	if err != nil || len(accounts) == 0 {
+// collectGroupModels builds the public price rows for one group.
+//
+// The model NAMES come from the same place GET /v1/models serves them: the group's
+// real upstream catalog fused with each account's model_mapping. That is what a client
+// can actually call, so the pricing page and the gateway can no longer disagree — and
+// it collapses the "same model listed once per internal billing key" duplication that
+// reading billing_model names directly produced.
+//
+// The PRICE comes from the same resolver the billing path uses (account override →
+// litellm → hardcoded fallback), so a displayed price is a charged price. When accounts
+// in one group disagree on price, the highest is shown: a public page may never quote
+// less than what a request can actually cost.
+func (h *PricingHandler) collectGroupModels(ctx context.Context, g service.Group, accounts []service.Account) []service.ModelPricingSummary {
+	names := h.exposedModelNames(ctx, g, accounts)
+	if len(names) == 0 {
 		return nil
 	}
 
-	result := make(map[string]bool)
+	models := make([]service.ModelPricingSummary, 0, len(names))
+	for _, name := range names {
+		in, out, ok := h.maxPriceAcrossAccounts(accounts, name)
+		if !ok {
+			continue
+		}
+		models = append(models, service.ModelPricingSummary{
+			Model:         name,
+			InputPerMTok:  in * 1e6,
+			OutputPerMTok: out * 1e6,
+		})
+	}
+	return models
+}
+
+// exposedModelNames returns the model ids clients can call against this group, deduped.
+// Primary source is the /v1/models superset (anthropic+openai). Platforms that superset
+// does not cover (deepseek, gemini, …) fall back to the accounts' configured billing
+// model names so those groups keep a price listing instead of silently vanishing.
+func (h *PricingHandler) exposedModelNames(ctx context.Context, g service.Group, accounts []service.Account) []string {
+	groupID := g.ID
+	if h.gatewayService != nil {
+		if ids, _, _, _ := h.gatewayService.GetSupersetModels(ctx, &groupID); len(ids) > 0 {
+			return dedupePreservingOrder(ids)
+		}
+	}
+	return dedupePreservingOrder(collectBillingModelNames(accounts))
+}
+
+// maxPriceAcrossAccounts resolves what `model` costs on each account that can serve it
+// and returns the highest input/output pair. ok=false when no account prices the model.
+func (h *PricingHandler) maxPriceAcrossAccounts(accounts []service.Account, model string) (inputPerToken, outputPerToken float64, ok bool) {
+	for i := range accounts {
+		acc := &accounts[i]
+
+		billingModel := acc.GetMappedModel(model)
+		if override := acc.GetBillingModelOverride(billingModel); override != "" {
+			billingModel = override
+		}
+
+		pricing := service.ResolveModelPricing(acc, billingModel, h.billingService)
+		if pricing == nil {
+			continue
+		}
+		if !ok || pricing.InputPricePerToken > inputPerToken {
+			inputPerToken = pricing.InputPricePerToken
+		}
+		if !ok || pricing.OutputPricePerToken > outputPerToken {
+			outputPerToken = pricing.OutputPricePerToken
+		}
+		ok = true
+	}
+	return inputPerToken, outputPerToken, ok
+}
+
+func dedupePreservingOrder(names []string) []string {
+	seen := make(map[string]bool, len(names))
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+// collectBillingModelNames collects billing model names configured on the accounts.
+// This is the same logic as APIKeyHandler.collectBillingModels.
+func collectBillingModelNames(accounts []service.Account) []string {
+	var result []string
 	for _, acc := range accounts {
 		if acc.Extra == nil {
 			continue
 		}
 		if v, ok := acc.Extra["billing_model"]; ok {
 			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-				result[strings.ToLower(strings.TrimSpace(s))] = true
+				result = append(result, strings.TrimSpace(s))
 			}
 		}
 		if raw, ok := acc.Extra["billing_model_mapping"]; ok {
 			if mapping, ok := raw.(map[string]any); ok {
 				for _, v := range mapping {
 					if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-						result[strings.ToLower(strings.TrimSpace(s))] = true
+						result = append(result, strings.TrimSpace(s))
 					}
 				}
 			}
