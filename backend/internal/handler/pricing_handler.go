@@ -31,14 +31,13 @@ type PublicGroupPricing struct {
 //
 // Cache prices are 0 when no account prices the model's cache tokens — the model
 // either has no prompt caching or the pricing source doesn't carry a cache price.
-// CacheCreate1hPerMTokU is only non-zero for models billed with a separate 1-hour
-// cache-write rate; the base CacheCreatePerMTokU is the 5-minute/default rate.
+// CacheCreatePerMTokU is the highest rate a cache write can bill at, so a model with
+// per-TTL cache-write rates is quoted at its dearest one.
 type PublicModelPricing struct {
 	Model                       string  `json:"model"`
 	InputPerMTokU               float64 `json:"input_per_mtok_u"`
 	OutputPerMTokU              float64 `json:"output_per_mtok_u"`
 	CacheCreatePerMTokU         float64 `json:"cache_create_per_mtok_u"`
-	CacheCreate1hPerMTokU       float64 `json:"cache_create_1h_per_mtok_u"`
 	CacheReadPerMTokU           float64 `json:"cache_read_per_mtok_u"`
 	OriginalInputPerMTokU       float64 `json:"original_input_per_mtok_u"`
 	OriginalOutputPerMTokU      float64 `json:"original_output_per_mtok_u"`
@@ -164,7 +163,6 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 				InputPerMTokU:               m.InputPerMTok * g.RateMultiplier,
 				OutputPerMTokU:              m.OutputPerMTok * g.RateMultiplier,
 				CacheCreatePerMTokU:         m.CacheCreatePerMTok * g.RateMultiplier,
-				CacheCreate1hPerMTokU:       m.CacheCreate1hPerMTok * g.RateMultiplier,
 				CacheReadPerMTokU:           m.CacheReadPerMTok * g.RateMultiplier,
 				OriginalInputPerMTokU:       m.InputPerMTok,
 				OriginalOutputPerMTokU:      m.OutputPerMTok,
@@ -226,12 +224,11 @@ func (h *PricingHandler) collectGroupModels(ctx context.Context, g service.Group
 // groupModelPrice is one public price row in U per MTok, before the group rate
 // multiplier is applied. A zero cache price means the model has none, not that it's free.
 type groupModelPrice struct {
-	Model                string
-	InputPerMTok         float64
-	OutputPerMTok        float64
-	CacheCreatePerMTok   float64
-	CacheCreate1hPerMTok float64
-	CacheReadPerMTok     float64
+	Model              string
+	InputPerMTok       float64
+	OutputPerMTok      float64
+	CacheCreatePerMTok float64
+	CacheReadPerMTok   float64
 }
 
 // servedModelNames returns the models this group actually serves, deduped.
@@ -291,35 +288,29 @@ func (h *PricingHandler) maxPriceAcrossAccounts(accounts []service.Account, mode
 		}
 		price.InputPerMTok = max(price.InputPerMTok, perMTok(pricing.InputPricePerToken))
 		price.OutputPerMTok = max(price.OutputPerMTok, perMTok(pricing.OutputPricePerToken))
-		price.CacheCreatePerMTok = max(price.CacheCreatePerMTok, perMTok(cacheCreatePricePerToken(pricing)))
-		price.CacheCreate1hPerMTok = max(price.CacheCreate1hPerMTok, perMTok(cacheCreate1hPricePerToken(pricing)))
+		price.CacheCreatePerMTok = max(price.CacheCreatePerMTok, perMTok(maxCacheCreatePricePerToken(pricing)))
 		price.CacheReadPerMTok = max(price.CacheReadPerMTok, perMTok(pricing.CacheReadPricePerToken))
 		ok = true
 	}
 	return price, ok
 }
 
-// cacheCreatePricePerToken is the rate a cache write is actually billed at by default.
-// For models with a 5m/1h breakdown, an unqualified cache write bills at the 5m rate
-// (see BillingService.CalculateCost); models without one bill at the flat rate.
-func cacheCreatePricePerToken(pricing *service.ModelPricing) float64 {
-	if pricing.SupportsCacheBreakdown && pricing.CacheCreation5mPrice > 0 {
-		return pricing.CacheCreation5mPrice
+// maxCacheCreatePricePerToken is the highest rate a cache write on this model can bill
+// at. The branches mirror BillingService.CalculateCost exactly: a model with a 5m/1h
+// breakdown charges one of those two depending on the ephemeral TTL the client asks for,
+// everything else charges the flat rate.
+//
+// The page reports that maximum as a single number rather than breaking the TTLs out
+// into their own column. Splitting them means carrying two prices that only make sense
+// as a pair, while the surrounding code maxes every price component across accounts
+// independently — the base could then come from one account and the 1h rate from
+// another, and the page would happily claim an hour of cache costs less than five
+// minutes. One number can't contradict itself.
+func maxCacheCreatePricePerToken(pricing *service.ModelPricing) float64 {
+	if pricing.SupportsCacheBreakdown {
+		return max(pricing.CacheCreation5mPrice, pricing.CacheCreation1hPrice)
 	}
 	return pricing.CacheCreationPricePerToken
-}
-
-// cacheCreate1hPricePerToken is the surcharged 1-hour cache-write rate, or 0 when the
-// model has no separate one. It is shown alongside the base rate so the page never
-// quotes less than a request can actually cost.
-func cacheCreate1hPricePerToken(pricing *service.ModelPricing) float64 {
-	if !pricing.SupportsCacheBreakdown {
-		return 0
-	}
-	if pricing.CacheCreation1hPrice <= cacheCreatePricePerToken(pricing) {
-		return 0
-	}
-	return pricing.CacheCreation1hPrice
 }
 
 func dedupePreservingOrder(names []string) []string {

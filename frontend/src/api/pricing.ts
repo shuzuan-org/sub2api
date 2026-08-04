@@ -4,10 +4,11 @@ export interface PublicModelPricing {
   model: string
   input_per_mtok_u: number
   output_per_mtok_u: number
-  /** 0 when the model has no cache pricing (no prompt caching, or no price for it). */
+  /**
+   * Highest rate a cache write can bill at — models with per-TTL cache-write rates are
+   * quoted at their dearest. 0 when the model has no cache pricing at all.
+   */
   cache_create_per_mtok_u: number
-  /** 0 unless the model bills 1-hour cache writes at a separate, higher rate. */
-  cache_create_1h_per_mtok_u: number
   cache_read_per_mtok_u: number
   original_input_per_mtok_u: number
   original_output_per_mtok_u: number

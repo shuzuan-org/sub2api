@@ -139,9 +139,6 @@
                       <div v-if="model.discount_percent > 0" class="text-xs text-gray-400 line-through dark:text-dark-500">
                         {{ formatU(col.original(model)) }} U
                       </div>
-                      <div v-if="col.note && col.note(model) > 0" class="text-xs text-gray-500 dark:text-dark-400">
-                        {{ t('pricing.cacheCreate1h') }} {{ formatU(col.note(model)) }} U
-                      </div>
                     </template>
                     <span v-else class="text-xs text-gray-400 dark:text-dark-500">
                       {{ t(hasCachePricing(model) ? 'pricing.cacheNotCharged' : 'pricing.noCachePrice') }}
@@ -213,8 +210,6 @@ interface PriceColumn {
   original: (m: PublicModelPricing) => number
   /** Columns whose price may legitimately be absent — rendered as "not supported", not 0 U. */
   optional?: boolean
-  /** A qualified rate shown under the main price, e.g. the surcharged 1h cache write. */
-  note?: (m: PublicModelPricing) => number
 }
 
 const priceColumns: PriceColumn[] = [
@@ -233,7 +228,6 @@ const priceColumns: PriceColumn[] = [
     value: (m) => m.cache_create_per_mtok_u,
     original: (m) => m.original_cache_create_per_mtok_u,
     optional: true,
-    note: (m) => m.cache_create_1h_per_mtok_u,
   },
   {
     key: 'cacheReadPrice',
@@ -267,6 +261,10 @@ function hasCachePricing(m: PublicModelPricing): boolean {
 function formatU(value: number): string {
   if (value >= 100) return value.toFixed(1)
   if (value >= 1) return value.toFixed(2)
+  // Cache reads run one or two orders of magnitude below the input price, far enough
+  // down that 4 decimals can round a real charge to "0.0000" — a price that is billed
+  // must never render as free.
+  if (value > 0 && value < 0.0001) return '<0.0001'
   return value.toFixed(4)
 }
 

@@ -228,7 +228,6 @@ export default {
     outputPrice: '输出价格 / MTok',
     cacheCreatePrice: '缓存创建 / MTok',
     cacheReadPrice: '缓存读取 / MTok',
-    cacheCreate1h: '1 小时缓存',
     cacheNotCharged: '不计费',
     noCachePrice: '不支持',
     models: '个模型',

@@ -10,17 +10,34 @@ import (
 // accountWithBilling builds an account whose every request bills as billingModel,
 // optionally with a manually confirmed price override (U per MTok).
 func accountWithBilling(billingModel string, inPerMTok, outPerMTok float64) service.Account {
+	return accountWithCachePricing(billingModel, inPerMTok, outPerMTok, 0, 0)
+}
+
+// accountWithCachePricing is accountWithBilling plus cache-token prices (U per MTok).
+// A zero price is left out of the override entirely, which is how an account that
+// simply has no price for that component looks in the database.
+func accountWithCachePricing(billingModel string, inPerMTok, outPerMTok, cacheCreatePerMTok, cacheReadPerMTok float64) service.Account {
 	extra := map[string]any{
 		"billing_model_mapping": map[string]any{"*": billingModel},
 	}
-	if inPerMTok > 0 || outPerMTok > 0 {
-		extra["model_pricing"] = map[string]any{
-			billingModel: map[string]any{
-				"input_cost_per_token":  inPerMTok / 1e6,
-				"output_cost_per_token": outPerMTok / 1e6,
-			},
+
+	prices := map[string]any{}
+	for key, perMTok := range map[string]float64{
+		"input_cost_per_token":            inPerMTok,
+		"output_cost_per_token":           outPerMTok,
+		"cache_creation_input_token_cost": cacheCreatePerMTok,
+		"cache_read_input_token_cost":     cacheReadPerMTok,
+	} {
+		if perMTok > 0 {
+			prices[key] = perMTok / 1e6
 		}
 	}
+	// GetModelPricingOverride only keeps an override with a non-zero input or output
+	// price, so an entry carrying cache prices alone would be silently dropped.
+	if inPerMTok > 0 || outPerMTok > 0 {
+		extra["model_pricing"] = map[string]any{billingModel: prices}
+	}
+
 	return service.Account{Extra: extra}
 }
 
@@ -53,13 +70,8 @@ func TestMaxPriceAcrossAccounts_PicksHighestChargedPrice(t *testing.T) {
 func TestMaxPriceAcrossAccounts_CachePrices(t *testing.T) {
 	h := &PricingHandler{billingService: service.NewBillingService(&config.Config{}, nil)}
 
-	cheap := accountWithBilling("cache-test-model", 3, 15)
-	cheap.Extra["model_pricing"].(map[string]any)["cache-test-model"].(map[string]any)["cache_creation_input_token_cost"] = 3.75 / 1e6
-	cheap.Extra["model_pricing"].(map[string]any)["cache-test-model"].(map[string]any)["cache_read_input_token_cost"] = 0.3 / 1e6
-
-	pricey := accountWithBilling("cache-test-model-2", 3, 15)
-	pricey.Extra["model_pricing"].(map[string]any)["cache-test-model-2"].(map[string]any)["cache_creation_input_token_cost"] = 7.5 / 1e6
-	pricey.Extra["model_pricing"].(map[string]any)["cache-test-model-2"].(map[string]any)["cache_read_input_token_cost"] = 0.1 / 1e6
+	cheap := accountWithCachePricing("cache-test-model", 3, 15, 3.75, 0.3)
+	pricey := accountWithCachePricing("cache-test-model-2", 3, 15, 7.5, 0.1)
 
 	price, ok := h.maxPriceAcrossAccounts([]service.Account{cheap, pricey}, "cache-test-model")
 	if !ok {
@@ -88,38 +100,48 @@ func TestMaxPriceAcrossAccounts_NoCachePriceIsZero(t *testing.T) {
 	}
 }
 
-// The 1h cache-write rate is only surfaced when it really is a separate, higher rate;
-// otherwise the base column already tells the whole story.
-func TestCacheCreate1hPricePerToken(t *testing.T) {
+// A model whose cache write is billed per TTL is quoted at its dearest TTL. Quoting the
+// 5m rate would under-report a 1h write, and the two rates cannot be shown as a pair:
+// every component here is maxed across accounts independently, so a base from one
+// account and a 1h rate from another could claim an hour costs less than five minutes.
+func TestMaxCacheCreatePricePerToken(t *testing.T) {
 	tests := []struct {
 		name    string
 		pricing service.ModelPricing
 		want    float64
 	}{
-		{"no breakdown", service.ModelPricing{CacheCreationPricePerToken: 3.75, CacheCreation1hPrice: 6}, 0},
-		{"breakdown, 1h higher", service.ModelPricing{SupportsCacheBreakdown: true, CacheCreation5mPrice: 3.75, CacheCreation1hPrice: 6}, 6},
-		{"breakdown, 1h not higher", service.ModelPricing{SupportsCacheBreakdown: true, CacheCreation5mPrice: 3.75, CacheCreation1hPrice: 3.75}, 0},
+		{
+			"flat rate",
+			service.ModelPricing{CacheCreationPricePerToken: 3.75},
+			3.75,
+		},
+		{
+			"breakdown ignored when unsupported",
+			service.ModelPricing{CacheCreationPricePerToken: 3.75, CacheCreation1hPrice: 6},
+			3.75,
+		},
+		{
+			"breakdown quotes the 1h rate",
+			service.ModelPricing{SupportsCacheBreakdown: true, CacheCreation5mPrice: 3.75, CacheCreation1hPrice: 6},
+			6,
+		},
+		{
+			"breakdown with no 5m rate still quotes 1h",
+			service.ModelPricing{SupportsCacheBreakdown: true, CacheCreation1hPrice: 6},
+			6,
+		},
+		{
+			"no cache pricing at all",
+			service.ModelPricing{InputPricePerToken: 3},
+			0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := cacheCreate1hPricePerToken(&tt.pricing); got != tt.want {
+			if got := maxCacheCreatePricePerToken(&tt.pricing); got != tt.want {
 				t.Errorf("got %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-// With a 5m/1h breakdown, an unqualified cache write bills at the 5m rate — that is
-// what the base column must show.
-func TestCacheCreatePricePerToken_UsesFiveMinuteRate(t *testing.T) {
-	p := service.ModelPricing{
-		SupportsCacheBreakdown:     true,
-		CacheCreationPricePerToken: 3.75,
-		CacheCreation5mPrice:       3.75,
-		CacheCreation1hPrice:       6,
-	}
-	if got := cacheCreatePricePerToken(&p); got != 3.75 {
-		t.Errorf("got %v, want 3.75 (5m rate)", got)
 	}
 }
 
