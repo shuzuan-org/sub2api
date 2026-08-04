@@ -116,7 +116,9 @@
               <thead>
                 <tr>
                   <th class="min-w-[200px]">{{ t('pricing.modelName') }}</th>
-                  <th v-for="col in priceColumns" :key="col.key" class="whitespace-nowrap text-right">
+                  <!-- `.table th` forces text-left with higher specificity than a bare
+                       utility class, so the price headers need `!` to sit over their numbers. -->
+                  <th v-for="col in priceColumns" :key="col.key" class="whitespace-nowrap !text-right">
                     {{ t(`pricing.${col.key}`) }}
                   </th>
                 </tr>
@@ -126,7 +128,7 @@
                   <td>
                     <span class="font-mono text-sm text-gray-900 dark:text-white">{{ model.model }}</span>
                   </td>
-                  <td v-for="col in priceColumns" :key="col.key" class="text-right">
+                  <td v-for="col in priceColumns" :key="col.key" class="whitespace-nowrap text-right tabular-nums">
                     <template v-if="!col.optional || col.value(model) > 0">
                       <div class="text-sm font-medium text-gray-900 dark:text-white">
                         {{ formatU(col.value(model)) }} U
