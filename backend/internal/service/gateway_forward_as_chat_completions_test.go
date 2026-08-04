@@ -110,6 +110,34 @@ func TestHandleCCStreamingFromAnthropic_PreservesMessageStartCacheUsageAndReason
 	require.Contains(t, rec.Body.String(), `[DONE]`)
 }
 
+func TestHandleCCStreamingFromAnthropic_UsesFinalMessageDeltaInputTokens(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`event: message_start`,
+			`data: {"type":"message_start","message":{"id":"msg_delta_usage","type":"message","role":"assistant","content":[],"model":"gpt-5","usage":{"input_tokens":0}}}`,
+			``,
+			`event: message_delta`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":37,"output_tokens":8}}`,
+			``,
+			`event: message_stop`,
+			`data: {"type":"message_stop"}`,
+			``,
+		}, "\n"))),
+	}
+
+	svc := &GatewayService{}
+	result, err := svc.handleCCStreamingFromAnthropic(resp, c, "gpt-5", "gpt-5", nil, time.Now(), true)
+	require.NoError(t, err)
+	require.Equal(t, 37, result.Usage.InputTokens)
+	require.Contains(t, rec.Body.String(), `"prompt_tokens":37`)
+	require.Contains(t, rec.Body.String(), `"completion_tokens":8`)
+}
+
 // 非流式请求下上游仍被强制成 SSE，透传上游响应头会把 text/event-stream 带给客户端，
 // 而 body 是网关重新序列化的 JSON —— 头体不符。
 func TestHandleCCBufferedFromAnthropic_WritesJSONContentType(t *testing.T) {

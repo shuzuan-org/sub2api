@@ -28,13 +28,23 @@ type PublicGroupPricing struct {
 }
 
 // PublicModelPricing holds pricing data for a single model within a group.
+//
+// Cache prices are 0 when no account prices the model's cache tokens — the model
+// either has no prompt caching or the pricing source doesn't carry a cache price.
+// CacheCreate1hPerMTokU is only non-zero for models billed with a separate 1-hour
+// cache-write rate; the base CacheCreatePerMTokU is the 5-minute/default rate.
 type PublicModelPricing struct {
-	Model                  string  `json:"model"`
-	InputPerMTokU          float64 `json:"input_per_mtok_u"`
-	OutputPerMTokU         float64 `json:"output_per_mtok_u"`
-	OriginalInputPerMTokU  float64 `json:"original_input_per_mtok_u"`
-	OriginalOutputPerMTokU float64 `json:"original_output_per_mtok_u"`
-	DiscountPercent        float64 `json:"discount_percent"`
+	Model                       string  `json:"model"`
+	InputPerMTokU               float64 `json:"input_per_mtok_u"`
+	OutputPerMTokU              float64 `json:"output_per_mtok_u"`
+	CacheCreatePerMTokU         float64 `json:"cache_create_per_mtok_u"`
+	CacheCreate1hPerMTokU       float64 `json:"cache_create_1h_per_mtok_u"`
+	CacheReadPerMTokU           float64 `json:"cache_read_per_mtok_u"`
+	OriginalInputPerMTokU       float64 `json:"original_input_per_mtok_u"`
+	OriginalOutputPerMTokU      float64 `json:"original_output_per_mtok_u"`
+	OriginalCacheCreatePerMTokU float64 `json:"original_cache_create_per_mtok_u"`
+	OriginalCacheReadPerMTokU   float64 `json:"original_cache_read_per_mtok_u"`
+	DiscountPercent             float64 `json:"discount_percent"`
 }
 
 // PricingHandler serves the public model pricing endpoint.
@@ -150,12 +160,17 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 		publicModels := make([]PublicModelPricing, 0, len(models))
 		for _, m := range models {
 			publicModels = append(publicModels, PublicModelPricing{
-				Model:                  m.Model,
-				InputPerMTokU:          m.InputPerMTok * g.RateMultiplier,
-				OutputPerMTokU:         m.OutputPerMTok * g.RateMultiplier,
-				OriginalInputPerMTokU:  m.InputPerMTok,
-				OriginalOutputPerMTokU: m.OutputPerMTok,
-				DiscountPercent:        discountPercent,
+				Model:                       m.Model,
+				InputPerMTokU:               m.InputPerMTok * g.RateMultiplier,
+				OutputPerMTokU:              m.OutputPerMTok * g.RateMultiplier,
+				CacheCreatePerMTokU:         m.CacheCreatePerMTok * g.RateMultiplier,
+				CacheCreate1hPerMTokU:       m.CacheCreate1hPerMTok * g.RateMultiplier,
+				CacheReadPerMTokU:           m.CacheReadPerMTok * g.RateMultiplier,
+				OriginalInputPerMTokU:       m.InputPerMTok,
+				OriginalOutputPerMTokU:      m.OutputPerMTok,
+				OriginalCacheCreatePerMTokU: m.CacheCreatePerMTok,
+				OriginalCacheReadPerMTokU:   m.CacheReadPerMTok,
+				DiscountPercent:             discountPercent,
 			})
 		}
 
@@ -190,25 +205,33 @@ func (h *PricingHandler) buildPricingData(ctx context.Context) (*PublicPricingRe
 // litellm → hardcoded fallback), so a displayed price is a charged price. When accounts
 // in one group disagree on price, the highest is shown: a public page may never quote
 // less than what a request can actually cost.
-func (h *PricingHandler) collectGroupModels(ctx context.Context, g service.Group, accounts []service.Account) []service.ModelPricingSummary {
+func (h *PricingHandler) collectGroupModels(ctx context.Context, g service.Group, accounts []service.Account) []groupModelPrice {
 	names := h.servedModelNames(ctx, g, accounts)
 	if len(names) == 0 {
 		return nil
 	}
 
-	models := make([]service.ModelPricingSummary, 0, len(names))
+	models := make([]groupModelPrice, 0, len(names))
 	for _, name := range names {
-		in, out, ok := h.maxPriceAcrossAccounts(accounts, name)
+		p, ok := h.maxPriceAcrossAccounts(accounts, name)
 		if !ok {
 			continue
 		}
-		models = append(models, service.ModelPricingSummary{
-			Model:         name,
-			InputPerMTok:  in * 1e6,
-			OutputPerMTok: out * 1e6,
-		})
+		p.Model = name
+		models = append(models, p)
 	}
 	return models
+}
+
+// groupModelPrice is one public price row in U per MTok, before the group rate
+// multiplier is applied. A zero cache price means the model has none, not that it's free.
+type groupModelPrice struct {
+	Model                string
+	InputPerMTok         float64
+	OutputPerMTok        float64
+	CacheCreatePerMTok   float64
+	CacheCreate1hPerMTok float64
+	CacheReadPerMTok     float64
 }
 
 // servedModelNames returns the models this group actually serves, deduped.
@@ -249,8 +272,11 @@ func stripPricingNamespaces(names []string) []string {
 }
 
 // maxPriceAcrossAccounts resolves what `model` costs on each account that can serve it
-// and returns the highest input/output pair. ok=false when no account prices the model.
-func (h *PricingHandler) maxPriceAcrossAccounts(accounts []service.Account, model string) (inputPerToken, outputPerToken float64, ok bool) {
+// and returns the highest price for each component, in U per MTok. ok=false when no
+// account prices the model.
+func (h *PricingHandler) maxPriceAcrossAccounts(accounts []service.Account, model string) (price groupModelPrice, ok bool) {
+	perMTok := func(perToken float64) float64 { return perToken * 1e6 }
+
 	for i := range accounts {
 		acc := &accounts[i]
 
@@ -263,15 +289,37 @@ func (h *PricingHandler) maxPriceAcrossAccounts(accounts []service.Account, mode
 		if pricing == nil {
 			continue
 		}
-		if !ok || pricing.InputPricePerToken > inputPerToken {
-			inputPerToken = pricing.InputPricePerToken
-		}
-		if !ok || pricing.OutputPricePerToken > outputPerToken {
-			outputPerToken = pricing.OutputPricePerToken
-		}
+		price.InputPerMTok = max(price.InputPerMTok, perMTok(pricing.InputPricePerToken))
+		price.OutputPerMTok = max(price.OutputPerMTok, perMTok(pricing.OutputPricePerToken))
+		price.CacheCreatePerMTok = max(price.CacheCreatePerMTok, perMTok(cacheCreatePricePerToken(pricing)))
+		price.CacheCreate1hPerMTok = max(price.CacheCreate1hPerMTok, perMTok(cacheCreate1hPricePerToken(pricing)))
+		price.CacheReadPerMTok = max(price.CacheReadPerMTok, perMTok(pricing.CacheReadPricePerToken))
 		ok = true
 	}
-	return inputPerToken, outputPerToken, ok
+	return price, ok
+}
+
+// cacheCreatePricePerToken is the rate a cache write is actually billed at by default.
+// For models with a 5m/1h breakdown, an unqualified cache write bills at the 5m rate
+// (see BillingService.CalculateCost); models without one bill at the flat rate.
+func cacheCreatePricePerToken(pricing *service.ModelPricing) float64 {
+	if pricing.SupportsCacheBreakdown && pricing.CacheCreation5mPrice > 0 {
+		return pricing.CacheCreation5mPrice
+	}
+	return pricing.CacheCreationPricePerToken
+}
+
+// cacheCreate1hPricePerToken is the surcharged 1-hour cache-write rate, or 0 when the
+// model has no separate one. It is shown alongside the base rate so the page never
+// quotes less than a request can actually cost.
+func cacheCreate1hPricePerToken(pricing *service.ModelPricing) float64 {
+	if !pricing.SupportsCacheBreakdown {
+		return 0
+	}
+	if pricing.CacheCreation1hPrice <= cacheCreatePricePerToken(pricing) {
+		return 0
+	}
+	return pricing.CacheCreation1hPrice
 }
 
 func dedupePreservingOrder(names []string) []string {

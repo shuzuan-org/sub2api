@@ -36,15 +36,90 @@ func TestMaxPriceAcrossAccounts_PicksHighestChargedPrice(t *testing.T) {
 		accountWithBilling("glm-5.2", 98, 308),
 	}
 
-	in, out, ok := h.maxPriceAcrossAccounts(accounts, "GLM-5.2")
+	price, ok := h.maxPriceAcrossAccounts(accounts, "GLM-5.2")
 	if !ok {
 		t.Fatal("expected a price for GLM-5.2")
 	}
-	if got := in * 1e6; got != 98 {
+	if got := price.InputPerMTok; got != 98 {
 		t.Errorf("input price = %v U/MTok, want 98 (highest charged)", got)
 	}
-	if got := out * 1e6; got != 308 {
+	if got := price.OutputPerMTok; got != 308 {
 		t.Errorf("output price = %v U/MTok, want 308 (highest charged)", got)
+	}
+}
+
+// Cache prices follow the same rule as input/output: highest charged wins, and they
+// are reported per component so a model priced only for cache reads still shows one.
+func TestMaxPriceAcrossAccounts_CachePrices(t *testing.T) {
+	h := &PricingHandler{billingService: service.NewBillingService(&config.Config{}, nil)}
+
+	cheap := accountWithBilling("cache-test-model", 3, 15)
+	cheap.Extra["model_pricing"].(map[string]any)["cache-test-model"].(map[string]any)["cache_creation_input_token_cost"] = 3.75 / 1e6
+	cheap.Extra["model_pricing"].(map[string]any)["cache-test-model"].(map[string]any)["cache_read_input_token_cost"] = 0.3 / 1e6
+
+	pricey := accountWithBilling("cache-test-model-2", 3, 15)
+	pricey.Extra["model_pricing"].(map[string]any)["cache-test-model-2"].(map[string]any)["cache_creation_input_token_cost"] = 7.5 / 1e6
+	pricey.Extra["model_pricing"].(map[string]any)["cache-test-model-2"].(map[string]any)["cache_read_input_token_cost"] = 0.1 / 1e6
+
+	price, ok := h.maxPriceAcrossAccounts([]service.Account{cheap, pricey}, "cache-test-model")
+	if !ok {
+		t.Fatal("expected a price")
+	}
+	if got := price.CacheCreatePerMTok; got != 7.5 {
+		t.Errorf("cache create = %v U/MTok, want 7.5 (highest charged)", got)
+	}
+	if got := price.CacheReadPerMTok; got != 0.3 {
+		t.Errorf("cache read = %v U/MTok, want 0.3 (highest charged)", got)
+	}
+}
+
+// A model with no cache pricing must report zero, not inherit the input price —
+// the page renders that as "no cache price", not as a charge.
+func TestMaxPriceAcrossAccounts_NoCachePriceIsZero(t *testing.T) {
+	h := &PricingHandler{billingService: service.NewBillingService(&config.Config{}, nil)}
+
+	accounts := []service.Account{accountWithBilling("no-cache-model-xyz", 24.5, 77)}
+	price, ok := h.maxPriceAcrossAccounts(accounts, "no-cache-model-xyz")
+	if !ok {
+		t.Fatal("expected a price")
+	}
+	if price.CacheCreatePerMTok != 0 || price.CacheReadPerMTok != 0 {
+		t.Errorf("cache prices = %v/%v, want 0/0", price.CacheCreatePerMTok, price.CacheReadPerMTok)
+	}
+}
+
+// The 1h cache-write rate is only surfaced when it really is a separate, higher rate;
+// otherwise the base column already tells the whole story.
+func TestCacheCreate1hPricePerToken(t *testing.T) {
+	tests := []struct {
+		name    string
+		pricing service.ModelPricing
+		want    float64
+	}{
+		{"no breakdown", service.ModelPricing{CacheCreationPricePerToken: 3.75, CacheCreation1hPrice: 6}, 0},
+		{"breakdown, 1h higher", service.ModelPricing{SupportsCacheBreakdown: true, CacheCreation5mPrice: 3.75, CacheCreation1hPrice: 6}, 6},
+		{"breakdown, 1h not higher", service.ModelPricing{SupportsCacheBreakdown: true, CacheCreation5mPrice: 3.75, CacheCreation1hPrice: 3.75}, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cacheCreate1hPricePerToken(&tt.pricing); got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// With a 5m/1h breakdown, an unqualified cache write bills at the 5m rate — that is
+// what the base column must show.
+func TestCacheCreatePricePerToken_UsesFiveMinuteRate(t *testing.T) {
+	p := service.ModelPricing{
+		SupportsCacheBreakdown:     true,
+		CacheCreationPricePerToken: 3.75,
+		CacheCreation5mPrice:       3.75,
+		CacheCreation1hPrice:       6,
+	}
+	if got := cacheCreatePricePerToken(&p); got != 3.75 {
+		t.Errorf("got %v, want 3.75 (5m rate)", got)
 	}
 }
 
@@ -53,7 +128,7 @@ func TestMaxPriceAcrossAccounts_NoPricingIsNotOK(t *testing.T) {
 	h := &PricingHandler{billingService: service.NewBillingService(&config.Config{}, nil)}
 
 	accounts := []service.Account{accountWithBilling("model-nobody-prices-xyz", 0, 0)}
-	if _, _, ok := h.maxPriceAcrossAccounts(accounts, "model-nobody-prices-xyz"); ok {
+	if _, ok := h.maxPriceAcrossAccounts(accounts, "model-nobody-prices-xyz"); ok {
 		t.Error("expected ok=false for a model with no resolvable pricing")
 	}
 }
