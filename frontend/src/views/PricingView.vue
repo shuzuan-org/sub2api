@@ -142,7 +142,7 @@
                       </div>
                     </template>
                     <span v-else class="text-xs text-gray-400 dark:text-dark-500">
-                      {{ t('pricing.noCachePrice') }}
+                      {{ t(hasCachePricing(model) ? 'pricing.cacheNotCharged' : 'pricing.noCachePrice') }}
                     </span>
                   </td>
                 </tr>
@@ -253,6 +253,14 @@ const filteredGroups = computed<FilteredGroup[]>(() => {
     })
     .filter((g) => g.filteredModels.length > 0)
 })
+
+// A zero in one cache column means two different things. If the model is priced for the
+// other kind of cache token, caching works and this half simply isn't billed; if neither
+// is priced, the model has no prompt caching at all. Saying "not supported" for the
+// former would contradict the price sitting in the next column.
+function hasCachePricing(m: PublicModelPricing): boolean {
+  return m.cache_create_per_mtok_u > 0 || m.cache_read_per_mtok_u > 0
+}
 
 function formatU(value: number): string {
   if (value >= 100) return value.toFixed(1)

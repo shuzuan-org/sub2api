@@ -229,6 +229,7 @@ export default {
     cacheCreatePrice: 'Cache Create / MTok',
     cacheReadPrice: 'Cache Read / MTok',
     cacheCreate1h: '1h cache',
+    cacheNotCharged: 'Not charged',
     noCachePrice: 'Not supported',
     models: 'models',
     lastUpdated: 'Last updated',
