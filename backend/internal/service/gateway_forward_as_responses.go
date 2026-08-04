@@ -331,6 +331,9 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
+	// Upstream was forced to stream, but the client asked for stream=false and gets a
+	// single JSON body — drop the upstream SSE content type/encoding.
+	responseheaders.ForceBufferedJSONContentType(c.Writer.Header())
 	c.JSON(http.StatusOK, responsesResp)
 
 	return &ForwardResult{

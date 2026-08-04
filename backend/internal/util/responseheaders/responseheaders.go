@@ -115,3 +115,15 @@ func WriteFilteredHeaders(dst http.Header, src http.Header, filter *CompiledHead
 		}
 	}
 }
+
+// ForceBufferedJSONContentType 在透传上游响应头之后，把响应头修正为「一次性 JSON body」。
+//
+// 用于 stream=false 但上游被强制成 SSE 的聚合路径：上游头里的
+// Content-Type: text/event-stream / Content-Encoding 描述的是上游那条流，
+// 而网关实际写出的是自己重新序列化的 JSON。gin 的 c.JSON 只在 Content-Type
+// 缺失时才设置，不会覆盖已透传的值，于是客户端拿到「头说 SSE、体是 JSON」的响应。
+func ForceBufferedJSONContentType(dst http.Header) {
+	// body 由网关重新序列化，上游的编码声明一定不成立
+	dst.Del("Content-Encoding")
+	dst.Set("Content-Type", "application/json; charset=utf-8")
+}
