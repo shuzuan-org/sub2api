@@ -12,6 +12,21 @@ import (
 // Non-streaming: AnthropicResponse → ResponsesResponse
 // ---------------------------------------------------------------------------
 
+// responsesInputTokens converts an Anthropic input-token count into the
+// OpenAI Responses/Chat Completions meaning of the field.
+//
+// The two protocols partition the prompt differently: Anthropic's input_tokens
+// counts only the tokens that were neither read from nor written to the cache,
+// reporting cache_read_input_tokens and cache_creation_input_tokens alongside
+// it. OpenAI's input_tokens (prompt_tokens) is the whole prompt, with
+// input_tokens_details.cached_tokens (prompt_tokens_details.cached_tokens) as a
+// breakdown *within* that total. Copying the Anthropic value across therefore
+// under-reports the prompt whenever the cache is hit, and leaves cached_tokens
+// larger than the total it is supposed to be a subset of.
+func responsesInputTokens(inputTokens, cacheReadTokens, cacheCreationTokens int) int {
+	return inputTokens + cacheReadTokens + cacheCreationTokens
+}
+
 // AnthropicToResponsesResponse converts an Anthropic Messages response into a
 // Responses API response. This is the reverse of ResponsesToAnthropic and
 // enables Anthropic upstream responses to be returned in OpenAI Responses format.
@@ -95,10 +110,11 @@ func AnthropicToResponsesResponse(resp *AnthropicResponse) *ResponsesResponse {
 	}
 
 	// Usage
+	inputTokens := responsesInputTokens(resp.Usage.InputTokens, resp.Usage.CacheReadInputTokens, resp.Usage.CacheCreationInputTokens)
 	out.Usage = &ResponsesUsage{
-		InputTokens:  resp.Usage.InputTokens,
+		InputTokens:  inputTokens,
 		OutputTokens: resp.Usage.OutputTokens,
-		TotalTokens:  resp.Usage.InputTokens + resp.Usage.OutputTokens,
+		TotalTokens:  inputTokens + resp.Usage.OutputTokens,
 	}
 	if resp.Usage.CacheReadInputTokens > 0 {
 		out.Usage.InputTokensDetails = &ResponsesInputTokensDetails{
@@ -151,9 +167,10 @@ type AnthropicEventToResponsesState struct {
 	CurrentName   string
 
 	// Usage from message_delta
-	InputTokens          int
-	OutputTokens         int
-	CacheReadInputTokens int
+	InputTokens              int
+	OutputTokens             int
+	CacheReadInputTokens     int
+	CacheCreationInputTokens int
 }
 
 // NewAnthropicEventToResponsesState returns an initialised stream state.
@@ -224,6 +241,15 @@ func anthToResHandleMessageStart(evt *AnthropicStreamEvent, state *AnthropicEven
 		}
 		if evt.Message.Usage.InputTokens > 0 {
 			state.InputTokens = evt.Message.Usage.InputTokens
+		}
+		// Native Anthropic streams report the cache breakdown in message_start,
+		// not message_delta; without this the cached tokens never reach the
+		// Responses usage block.
+		if evt.Message.Usage.CacheReadInputTokens > 0 {
+			state.CacheReadInputTokens = evt.Message.Usage.CacheReadInputTokens
+		}
+		if evt.Message.Usage.CacheCreationInputTokens > 0 {
+			state.CacheCreationInputTokens = evt.Message.Usage.CacheCreationInputTokens
 		}
 	}
 
@@ -401,6 +427,9 @@ func anthToResHandleMessageDelta(evt *AnthropicStreamEvent, state *AnthropicEven
 		if evt.Usage.CacheReadInputTokens > 0 {
 			state.CacheReadInputTokens = evt.Usage.CacheReadInputTokens
 		}
+		if evt.Usage.CacheCreationInputTokens > 0 {
+			state.CacheCreationInputTokens = evt.Usage.CacheCreationInputTokens
+		}
 	}
 
 	return nil
@@ -478,10 +507,11 @@ func makeResponsesCompletedEvent(
 	seq := state.SequenceNumber
 	state.SequenceNumber++
 
+	inputTokens := responsesInputTokens(state.InputTokens, state.CacheReadInputTokens, state.CacheCreationInputTokens)
 	usage := &ResponsesUsage{
-		InputTokens:  state.InputTokens,
+		InputTokens:  inputTokens,
 		OutputTokens: state.OutputTokens,
-		TotalTokens:  state.InputTokens + state.OutputTokens,
+		TotalTokens:  inputTokens + state.OutputTokens,
 	}
 	if state.CacheReadInputTokens > 0 {
 		usage.InputTokensDetails = &ResponsesInputTokensDetails{
