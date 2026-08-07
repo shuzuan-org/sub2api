@@ -604,13 +604,19 @@ func (a *Account) GetClaudeUserID() string {
 }
 
 // matchAntigravityWildcard 通配符匹配（仅支持末尾 *）
-// 用于 model_mapping 的通配符匹配
+// 用于 model_mapping 的通配符匹配。
+// 模型名大小写不敏感：客户端传 "GLM-5.2" 应命中配置的 "glm-5.2"。
 func matchAntigravityWildcard(pattern, str string) bool {
 	if strings.HasSuffix(pattern, "*") {
 		prefix := pattern[:len(pattern)-1]
-		return strings.HasPrefix(str, prefix)
+		return hasPrefixFold(str, prefix)
 	}
-	return pattern == str
+	return strings.EqualFold(pattern, str)
+}
+
+// hasPrefixFold 大小写不敏感的前缀匹配。
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
 }
 
 // matchWildcard 通用通配符匹配（仅支持末尾 *）

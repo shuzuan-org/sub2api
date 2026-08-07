@@ -1,6 +1,8 @@
 // Package claude provides constants and helpers for Claude API integration.
 package claude
 
+import "strings"
+
 // Claude Code 客户端相关常量
 
 // Beta header 常量
@@ -149,7 +151,27 @@ func NormalizeModelID(id string) string {
 	if mapped, ok := ModelIDOverrides[id]; ok {
 		return mapped
 	}
+	// 客户端可能传大写模型名（如 CLAUDE-SONNET-4-5），做一次大小写不敏感兜底
+	if mapped, ok := lookupFold(ModelIDOverrides, id); ok {
+		return mapped
+	}
 	return id
+}
+
+// lookupFold 大小写不敏感查表；命中多个仅大小写不同的键时按字典序取最小，保证结果确定。
+func lookupFold(table map[string]string, id string) (string, bool) {
+	bestKey := ""
+	bestVal := ""
+	found := false
+	for k, v := range table {
+		if !strings.EqualFold(k, id) {
+			continue
+		}
+		if !found || k < bestKey {
+			bestKey, bestVal, found = k, v, true
+		}
+	}
+	return bestVal, found
 }
 
 // DenormalizeModelID 将上游模型 ID 转换为短名

@@ -37,12 +37,19 @@ func NormalizeModel(raw string) string {
 	if allowedModels[raw] {
 		return raw
 	}
+	// 大小写不敏感兜底：客户端传 "GLM-5.2" 时归一到白名单里的 "glm-5.2"，
+	// 避免同一模型因大小写差异被拆成两条时间序列（或落进 __other__）。
+	if canonical, ok := allowedModelsFold[strings.ToLower(raw)]; ok {
+		return canonical
+	}
 	return "__other__"
 }
 
 var (
-	allowedModels   = make(map[string]bool)
-	allowedModelsMu sync.RWMutex
+	allowedModels = make(map[string]bool)
+	// allowedModelsFold: 小写模型名 → 白名单中的规范写法
+	allowedModelsFold = make(map[string]string)
+	allowedModelsMu   sync.RWMutex
 )
 
 // SetAllowedModels 设置模型归一化白名单（线程安全）。
@@ -51,14 +58,22 @@ var (
 // 传入 nil 或空切片将清空白名单（后续 NormalizeModel 进入降级模式）。
 func SetAllowedModels(models []string) {
 	m := make(map[string]bool, len(models))
+	fold := make(map[string]string, len(models))
 	for _, name := range models {
 		name = strings.TrimSpace(name)
-		if name != "" {
-			m[name] = true
+		if name == "" {
+			continue
+		}
+		m[name] = true
+		// 白名单内出现仅大小写不同的重名时按字典序取最小，保证映射稳定
+		lower := strings.ToLower(name)
+		if existing, ok := fold[lower]; !ok || name < existing {
+			fold[lower] = name
 		}
 	}
 	allowedModelsMu.Lock()
 	allowedModels = m
+	allowedModelsFold = fold
 	allowedModelsMu.Unlock()
 }
 

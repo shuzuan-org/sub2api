@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sort"
 	"strings"
 	"time"
 )
@@ -144,28 +145,36 @@ func (g *Group) GetRoutingAccountIDs(requestedModel string) []int64 {
 		return accountIDs
 	}
 
-	// 2. 通配符匹配（前缀匹配）
+	// 2. 大小写不敏感 + 通配符匹配（最长 pattern 优先）
+	// map 迭代顺序随机，必须显式排序，否则多规则命中时结果不稳定
+	matched := make([]string, 0, len(g.ModelRouting))
 	for pattern, accountIDs := range g.ModelRouting {
-		if matchModelPattern(pattern, requestedModel) && len(accountIDs) > 0 {
-			return accountIDs
+		if len(accountIDs) > 0 && matchModelPattern(pattern, requestedModel) {
+			matched = append(matched, pattern)
 		}
 	}
+	if len(matched) == 0 {
+		return nil
+	}
+	sort.Slice(matched, func(i, j int) bool {
+		if len(matched[i]) != len(matched[j]) {
+			return len(matched[i]) > len(matched[j])
+		}
+		return matched[i] < matched[j]
+	})
 
-	return nil
+	return g.ModelRouting[matched[0]]
 }
 
 // matchModelPattern 检查模型是否匹配模式
 // 支持 * 通配符，如 "claude-opus-*" 匹配 "claude-opus-4-20250514"
+// 模型名大小写不敏感，与 account model_mapping 的匹配规则保持一致
 func matchModelPattern(pattern, model string) bool {
-	if pattern == model {
-		return true
-	}
-
 	// 处理 * 通配符（仅支持末尾通配符）
 	if strings.HasSuffix(pattern, "*") {
 		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(model, prefix)
+		return hasPrefixFold(model, prefix)
 	}
 
-	return false
+	return strings.EqualFold(pattern, model)
 }
