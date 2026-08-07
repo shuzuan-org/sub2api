@@ -57,6 +57,51 @@ type operationsInvitation struct {
 	InviteesTruncated bool                  `json:"invitees_truncated"`
 }
 
+type operationsChannelBatch struct {
+	ID          int64      `json:"id"`
+	Name        string     `json:"name"`
+	Status      string     `json:"status"`
+	BonusAmount float64    `json:"bonus_amount"`
+	Codes       []string   `json:"codes"`
+	CodeCount   int        `json:"code_count"`
+	UsedCount   int        `json:"used_count"`
+	StartTime   *time.Time `json:"start_time"`
+	EndTime     *time.Time `json:"end_time"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type operationsChannelClaim struct {
+	BatchID      int64                `json:"batch_id"`
+	BatchName    string               `json:"batch_name"`
+	Code         string               `json:"code"`
+	OwnerID      int64                `json:"owner_id"` // 批次 created_by，码主已删除时仍保留
+	Owner        *operationsUserBrief `json:"owner"`    // null = 码主已删除
+	BonusAmount  float64              `json:"bonus_amount"`
+	BonusGranted bool                 `json:"bonus_granted"`
+	ClaimedAt    time.Time            `json:"claimed_at"`
+}
+
+type operationsChannelInvitee struct {
+	User         operationsUserBrief `json:"user"` // 兑换人已删除时只保留 id
+	BatchID      int64               `json:"batch_id"`
+	BatchName    string              `json:"batch_name"`
+	Code         string              `json:"code"`
+	BonusGranted bool                `json:"bonus_granted"`
+	ClaimedAt    time.Time           `json:"claimed_at"`
+}
+
+// operationsChannelInvitation 渠道邀请码关系，与 invitation（邀请好友）同级且互不相干：
+// invitation 认 users.referred_by，本节点认 channel_invite_batches.created_by + 兑换记录。
+type operationsChannelInvitation struct {
+	Claims            []operationsChannelClaim   `json:"claims"`  // 该用户兑换过的渠道码
+	Batches           []operationsChannelBatch   `json:"batches"` // 名下批次；空 = 不是码主
+	BatchCount        int                        `json:"batch_count"`
+	CodeCount         int                        `json:"code_count"`
+	InvitedCount      int64                      `json:"invited_count"` // 名下批次被兑换总次数
+	Invitees          []operationsChannelInvitee `json:"invitees"`
+	InviteesTruncated bool                       `json:"invitees_truncated"`
+}
+
 type operationsAlipayRecharge struct {
 	PaidOrderCount int64   `json:"paid_order_count"`
 	CnyFeeTotal    int64   `json:"cny_fee_total"`    // 实付人民币合计，单位：分
@@ -81,10 +126,11 @@ type operationsUsage struct {
 }
 
 type operationsReport struct {
-	User       operationsUserDetail `json:"user"`
-	Invitation operationsInvitation `json:"invitation"`
-	Recharge   operationsRecharge   `json:"recharge"`
-	Usage      operationsUsage      `json:"usage"`
+	User              operationsUserDetail        `json:"user"`
+	Invitation        operationsInvitation        `json:"invitation"`
+	ChannelInvitation operationsChannelInvitation `json:"channel_invitation"`
+	Recharge          operationsRecharge          `json:"recharge"`
+	Usage             operationsUsage             `json:"usage"`
 }
 
 type operationsReportResponse struct {
@@ -153,6 +199,74 @@ func operationsBriefsFromService(in []service.UserOperationsBrief) []operationsU
 	return out
 }
 
+func operationsChannelBatchesFromService(in []service.UserOperationsChannelBatch) []operationsChannelBatch {
+	out := make([]operationsChannelBatch, 0, len(in))
+	for _, b := range in {
+		codes := b.Codes
+		if codes == nil {
+			codes = []string{}
+		}
+		out = append(out, operationsChannelBatch{
+			ID:          b.ID,
+			Name:        b.Name,
+			Status:      b.Status,
+			BonusAmount: b.BonusAmount,
+			Codes:       codes,
+			CodeCount:   b.CodeCount,
+			UsedCount:   b.UsedCount,
+			StartTime:   b.StartTime,
+			EndTime:     b.EndTime,
+			CreatedAt:   b.CreatedAt,
+		})
+	}
+	return out
+}
+
+func operationsChannelClaimsFromService(in []service.UserOperationsChannelClaim) []operationsChannelClaim {
+	out := make([]operationsChannelClaim, 0, len(in))
+	for _, c := range in {
+		claim := operationsChannelClaim{
+			BatchID:      c.BatchID,
+			BatchName:    c.BatchName,
+			Code:         c.Code,
+			OwnerID:      c.OwnerID,
+			BonusAmount:  c.BonusAmount,
+			BonusGranted: c.BonusGranted,
+			ClaimedAt:    c.ClaimedAt,
+		}
+		if c.Owner != nil {
+			claim.Owner = &operationsUserBrief{
+				ID:        c.Owner.ID,
+				Email:     c.Owner.Email,
+				Username:  c.Owner.Username,
+				CreatedAt: c.Owner.CreatedAt,
+			}
+		}
+		out = append(out, claim)
+	}
+	return out
+}
+
+func operationsChannelInviteesFromService(in []service.UserOperationsChannelInvitee) []operationsChannelInvitee {
+	out := make([]operationsChannelInvitee, 0, len(in))
+	for _, i := range in {
+		out = append(out, operationsChannelInvitee{
+			User: operationsUserBrief{
+				ID:        i.User.ID,
+				Email:     i.User.Email,
+				Username:  i.User.Username,
+				CreatedAt: i.User.CreatedAt,
+			},
+			BatchID:      i.BatchID,
+			BatchName:    i.BatchName,
+			Code:         i.Code,
+			BonusGranted: i.BonusGranted,
+			ClaimedAt:    i.ClaimedAt,
+		})
+	}
+	return out
+}
+
 func operationsReportFromService(r *service.UserOperationsReport) *operationsReport {
 	report := &operationsReport{
 		User: operationsUserDetail{
@@ -170,6 +284,15 @@ func operationsReportFromService(r *service.UserOperationsReport) *operationsRep
 			InvitedCount:      r.InvitedCount,
 			Invitees:          operationsBriefsFromService(r.Invitees),
 			InviteesTruncated: r.InviteesTruncated,
+		},
+		ChannelInvitation: operationsChannelInvitation{
+			Claims:            operationsChannelClaimsFromService(r.ChannelClaims),
+			Batches:           operationsChannelBatchesFromService(r.ChannelBatches),
+			BatchCount:        len(r.ChannelBatches),
+			CodeCount:         r.ChannelCodeCount,
+			InvitedCount:      r.ChannelInvitedCount,
+			Invitees:          operationsChannelInviteesFromService(r.ChannelInvitees),
+			InviteesTruncated: r.ChannelInviteesTruncated,
 		},
 		Recharge: operationsRecharge{
 			Alipay: operationsAlipayRecharge{

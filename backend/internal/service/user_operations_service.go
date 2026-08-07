@@ -7,6 +7,8 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	dbalipay "github.com/Wei-Shaw/sub2api/ent/alipayorder"
+	dbchannelbatch "github.com/Wei-Shaw/sub2api/ent/channelinvitebatch"
+	dbchannelusage "github.com/Wei-Shaw/sub2api/ent/channelinvitecodeusage"
 	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
@@ -18,6 +20,9 @@ const operationsInviteesCap = 100
 // operationsUsernameMatchLimit username 非唯一，按用户名查询候选用户的上限。
 const operationsUsernameMatchLimit = 50
 
+// operationsChannelInviteesCap 渠道邀请码兑换明细的最大条数（ChannelInvitedCount 仍为真实总数）。
+const operationsChannelInviteesCap = 100
+
 // ErrOperationsAccountRequired 未提供 account 且未提供 user_id。
 var ErrOperationsAccountRequired = infraerrors.BadRequest("OPERATIONS_ACCOUNT_REQUIRED", "account or user_id is required")
 
@@ -27,6 +32,43 @@ type UserOperationsBrief struct {
 	Email     string
 	Username  string
 	CreatedAt time.Time
+}
+
+// UserOperationsChannelBatch 用户作为渠道合作方（码主）名下的活动批次。
+type UserOperationsChannelBatch struct {
+	ID          int64
+	Name        string
+	Status      string
+	BonusAmount float64
+	Codes       []string // 批次下的码明细（默认一活动一码）
+	CodeCount   int
+	UsedCount   int // 该批次全部码的已使用次数合计
+	StartTime   *time.Time
+	EndTime     *time.Time
+	CreatedAt   time.Time
+}
+
+// UserOperationsChannelClaim 该用户自己兑换过的渠道邀请码（被渠道拉新的一侧，
+// 对应 referral 体系里的 Inviter）。
+type UserOperationsChannelClaim struct {
+	BatchID      int64
+	BatchName    string
+	Code         string
+	OwnerID      int64                // 批次 created_by，码主已删除时仍保留
+	Owner        *UserOperationsBrief // 码主信息；码主已删除时为 nil
+	BonusAmount  float64
+	BonusGranted bool
+	ClaimedAt    time.Time
+}
+
+// UserOperationsChannelInvitee 通过该用户名下渠道码进站的用户（对应 referral 体系里的 Invitee）。
+type UserOperationsChannelInvitee struct {
+	User         UserOperationsBrief
+	BatchID      int64
+	BatchName    string
+	Code         string
+	BonusGranted bool
+	ClaimedAt    time.Time
 }
 
 // UserOperationsReport 单个用户的运营画像报告。
@@ -40,6 +82,15 @@ type UserOperationsReport struct {
 	InvitedCount      int64                 // 邀请用户总数（真实 DB count）
 	Invitees          []UserOperationsBrief // 被邀请人明细（最新在前，最多 operationsInviteesCap 条）
 	InviteesTruncated bool
+
+	// 渠道邀请码关系（与 referral 相互独立的另一套拉新体系：referral 认 users.referred_by，
+	// 渠道认 channel_invite_batches.created_by + 兑换记录，两边数据不互通）
+	ChannelClaims            []UserOperationsChannelClaim   // 该用户兑换过的渠道码（无则空切片）
+	ChannelBatches           []UserOperationsChannelBatch   // 名下批次（最新在前）；空 = 不是任何渠道活动的码主
+	ChannelCodeCount         int                            // 名下批次的码总数
+	ChannelInvitedCount      int64                          // 名下批次被兑换总次数（真实 DB count）
+	ChannelInvitees          []UserOperationsChannelInvitee // 兑换明细（最新在前，最多 operationsChannelInviteesCap 条）
+	ChannelInviteesTruncated bool
 
 	// 充值（支付宝已支付订单 + 余额型兑换码）
 	AlipayPaidCount    int64   // 已支付订单笔数
@@ -210,6 +261,11 @@ func (s *UserOperationsService) buildReport(ctx context.Context, u *User) (*User
 	}
 	report.InviteesTruncated = total > len(report.Invitees)
 
+	// 渠道邀请码：码主视角（名下批次 + 兑换明细）与被邀请视角（自己兑换过的码）。
+	if err := s.fillChannelInvite(ctx, report, u.ID); err != nil {
+		return nil, err
+	}
+
 	// 支付宝充值：status='paid' 订单的笔数、实付分、到账 U 聚合。
 	paidCount, cnyFeeTotal, usdTotal, err := s.sumPaidAlipayOrders(ctx, u.ID)
 	if err != nil {
@@ -239,6 +295,146 @@ func (s *UserOperationsService) buildReport(ctx context.Context, u *User) (*User
 	report.Usage = usage
 
 	return report, nil
+}
+
+// fillChannelInvite 填充渠道邀请码相关数据（直接走 entClient，与本服务其余聚合一致）。
+// 渠道体系与 referral 完全独立：用户可能只在其中一边有数据，两块都为空是正常结果。
+func (s *UserOperationsService) fillChannelInvite(ctx context.Context, report *UserOperationsReport, userID int64) error {
+	if err := s.fillChannelClaims(ctx, report, userID); err != nil {
+		return err
+	}
+	return s.fillChannelOwnership(ctx, report, userID)
+}
+
+// fillChannelClaims 被邀请侧：该用户兑换过的渠道码。
+// 业务上限制"每人只能参加一次渠道活动"，但历史数据可能多条，故按切片返回。
+func (s *UserOperationsService) fillChannelClaims(ctx context.Context, report *UserOperationsReport, userID int64) error {
+	rows, err := s.entClient.ChannelInviteCodeUsage.Query().
+		Where(dbchannelusage.UserIDEQ(userID)).
+		WithCode().
+		WithBatch(func(q *dbent.ChannelInviteBatchQuery) { q.WithCreator() }).
+		Order(dbent.Desc(dbchannelusage.FieldClaimedAt)).
+		All(ctx)
+	if err != nil {
+		return err
+	}
+
+	report.ChannelClaims = make([]UserOperationsChannelClaim, 0, len(rows))
+	for _, r := range rows {
+		claim := UserOperationsChannelClaim{
+			BatchID:      r.BatchID,
+			BonusGranted: r.BonusGranted,
+			ClaimedAt:    r.ClaimedAt,
+		}
+		if code := r.Edges.Code; code != nil {
+			claim.Code = code.Code
+		}
+		// 批次/码主可能已被删除：能取到什么填什么，OwnerID 始终保留原始值。
+		if batch := r.Edges.Batch; batch != nil {
+			claim.BatchName = batch.Name
+			claim.BonusAmount = batch.BonusAmount
+			claim.OwnerID = batch.CreatedBy
+			if owner := batch.Edges.Creator; owner != nil {
+				claim.Owner = &UserOperationsBrief{
+					ID:        owner.ID,
+					Email:     owner.Email,
+					Username:  owner.Username,
+					CreatedAt: owner.CreatedAt,
+				}
+			}
+		}
+		report.ChannelClaims = append(report.ChannelClaims, claim)
+	}
+	return nil
+}
+
+// fillChannelOwnership 码主侧：名下批次（含码明细与使用计数）+ 跨批次的兑换明细。
+func (s *UserOperationsService) fillChannelOwnership(ctx context.Context, report *UserOperationsReport, userID int64) error {
+	batchRows, err := s.entClient.ChannelInviteBatch.Query().
+		Where(dbchannelbatch.CreatedByEQ(userID)).
+		WithCodes().
+		Order(dbent.Desc(dbchannelbatch.FieldCreatedAt)).
+		All(ctx)
+	if err != nil {
+		return err
+	}
+
+	report.ChannelBatches = make([]UserOperationsChannelBatch, 0, len(batchRows))
+	report.ChannelInvitees = make([]UserOperationsChannelInvitee, 0)
+	batchIDs := make([]int64, 0, len(batchRows))
+	batchNames := make(map[int64]string, len(batchRows))
+
+	for _, b := range batchRows {
+		codes := make([]string, 0, len(b.Edges.Codes))
+		used := 0
+		for _, c := range b.Edges.Codes {
+			codes = append(codes, c.Code)
+			used += c.UsedCount
+		}
+		report.ChannelBatches = append(report.ChannelBatches, UserOperationsChannelBatch{
+			ID:          b.ID,
+			Name:        b.Name,
+			Status:      b.Status,
+			BonusAmount: b.BonusAmount,
+			Codes:       codes,
+			CodeCount:   len(codes),
+			UsedCount:   used,
+			StartTime:   b.StartTime,
+			EndTime:     b.EndTime,
+			CreatedAt:   b.CreatedAt,
+		})
+		report.ChannelCodeCount += len(codes)
+		batchIDs = append(batchIDs, b.ID)
+		batchNames[b.ID] = b.Name
+	}
+
+	// 不是码主：跳过兑换查询（BatchIDIn 空集会退化成全表扫）。
+	if len(batchIDs) == 0 {
+		return nil
+	}
+
+	usageQuery := s.entClient.ChannelInviteCodeUsage.Query().Where(dbchannelusage.BatchIDIn(batchIDs...))
+	total, err := usageQuery.Clone().Count(ctx)
+	if err != nil {
+		return err
+	}
+	report.ChannelInvitedCount = int64(total)
+
+	usageRows, err := usageQuery.
+		WithCode().
+		WithUser().
+		Order(dbent.Desc(dbchannelusage.FieldClaimedAt)).
+		Limit(operationsChannelInviteesCap).
+		All(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range usageRows {
+		invitee := UserOperationsChannelInvitee{
+			User:         UserOperationsBrief{ID: r.UserID},
+			BatchID:      r.BatchID,
+			BatchName:    batchNames[r.BatchID],
+			BonusGranted: r.BonusGranted,
+			ClaimedAt:    r.ClaimedAt,
+		}
+		if code := r.Edges.Code; code != nil {
+			invitee.Code = code.Code
+		}
+		// 兑换人可能已（软）删除：保留 user_id，其余字段留空。
+		if u := r.Edges.User; u != nil {
+			invitee.User = UserOperationsBrief{
+				ID:        u.ID,
+				Email:     u.Email,
+				Username:  u.Username,
+				CreatedAt: u.CreatedAt,
+			}
+		}
+		report.ChannelInvitees = append(report.ChannelInvitees, invitee)
+	}
+	report.ChannelInviteesTruncated = total > len(report.ChannelInvitees)
+
+	return nil
 }
 
 // sumPaidAlipayOrders 聚合用户所有已支付订单：笔数、cny_fee 合计（分）、usd_amount 合计（到账 U）。

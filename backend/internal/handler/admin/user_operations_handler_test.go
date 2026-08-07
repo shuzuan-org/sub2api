@@ -100,11 +100,29 @@ func TestOperationsReport_Matched(t *testing.T) {
 			Invitees: []service.UserOperationsBrief{
 				{ID: 88, Email: "c@z.com", Username: "carol", CreatedAt: created},
 			},
-			InviteesTruncated:  true,
-			AlipayPaidCount:    4,
-			AlipayCnyFeeTotal:  39800,
-			AlipayUsdTotal:     400,
-			RedeemBalanceTotal: 250,
+			InviteesTruncated: true,
+			ChannelClaims: []service.UserOperationsChannelClaim{{
+				BatchID: 9, BatchName: "别家活动", Code: "ZZZ999", OwnerID: 77,
+				Owner:        &service.UserOperationsBrief{ID: 77, Email: "owner@x.com", Username: "owner", CreatedAt: created},
+				BonusAmount:  10,
+				BonusGranted: true,
+				ClaimedAt:    created,
+			}},
+			ChannelBatches: []service.UserOperationsChannelBatch{{
+				ID: 7, Name: "小红书拉新", Status: "active", BonusAmount: 50,
+				Codes: []string{"AAA111"}, CodeCount: 1, UsedCount: 2, CreatedAt: created,
+			}},
+			ChannelCodeCount:    1,
+			ChannelInvitedCount: 2,
+			ChannelInvitees: []service.UserOperationsChannelInvitee{{
+				User:    service.UserOperationsBrief{ID: 88, Email: "c@z.com", Username: "carol", CreatedAt: created},
+				BatchID: 7, BatchName: "小红书拉新", Code: "AAA111", BonusGranted: true, ClaimedAt: created,
+			}},
+			ChannelInviteesTruncated: true,
+			AlipayPaidCount:          4,
+			AlipayCnyFeeTotal:        39800,
+			AlipayUsdTotal:           400,
+			RedeemBalanceTotal:       250,
 			Usage: &usagestats.UsageStats{
 				TotalRequests: 10234, TotalInputTokens: 1000000, TotalOutputTokens: 500000,
 				TotalCacheTokens: 250000, TotalTokens: 1750000, TotalCost: 812.34, TotalActualCost: 640.11,
@@ -132,6 +150,31 @@ func TestOperationsReport_Matched(t *testing.T) {
 	require.EqualValues(t, 152, invitation["invited_count"])
 	require.Len(t, invitation["invitees"].([]any), 1)
 	require.Equal(t, true, invitation["invitees_truncated"])
+
+	// 渠道邀请码：与 invitation 同级的独立节点
+	channel := report["channel_invitation"].(map[string]any)
+	require.EqualValues(t, 1, channel["batch_count"])
+	require.EqualValues(t, 1, channel["code_count"])
+	require.EqualValues(t, 2, channel["invited_count"])
+	require.Equal(t, true, channel["invitees_truncated"])
+
+	batches := channel["batches"].([]any)
+	require.Len(t, batches, 1)
+	batch := batches[0].(map[string]any)
+	require.EqualValues(t, 7, batch["id"])
+	require.Equal(t, "小红书拉新", batch["name"])
+	require.EqualValues(t, 2, batch["used_count"])
+	require.Equal(t, []any{"AAA111"}, batch["codes"])
+
+	channelInvitees := channel["invitees"].([]any)
+	require.Len(t, channelInvitees, 1)
+	require.Equal(t, "c@z.com", channelInvitees[0].(map[string]any)["user"].(map[string]any)["email"])
+	require.Equal(t, "AAA111", channelInvitees[0].(map[string]any)["code"])
+
+	claims := channel["claims"].([]any)
+	require.Len(t, claims, 1)
+	require.EqualValues(t, 77, claims[0].(map[string]any)["owner_id"])
+	require.Equal(t, "owner@x.com", claims[0].(map[string]any)["owner"].(map[string]any)["email"])
 
 	recharge := report["recharge"].(map[string]any)
 	alipay := recharge["alipay"].(map[string]any)

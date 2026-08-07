@@ -91,6 +91,56 @@ func mustCreateOpsUser(t *testing.T, ctx context.Context, client *dbent.Client, 
 	return u
 }
 
+// opsChannelBaseTime 渠道测试数据的基准时间，配合显式 created_at/claimed_at 让排序断言确定。
+var opsChannelBaseTime = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+func mustCreateOpsChannelBatch(
+	t *testing.T, ctx context.Context, client *dbent.Client,
+	name string, ownerID int64, bonus float64, createdAt time.Time,
+) *dbent.ChannelInviteBatch {
+	t.Helper()
+	b, err := client.ChannelInviteBatch.Create().
+		SetName(name).
+		SetBonusAmount(bonus).
+		SetStatus(ChannelInviteBatchStatusActive).
+		SetCreatedBy(ownerID).
+		SetCreatedAt(createdAt).
+		Save(ctx)
+	require.NoError(t, err)
+	return b
+}
+
+func mustCreateOpsChannelCode(
+	t *testing.T, ctx context.Context, client *dbent.Client,
+	batchID int64, code string, usedCount int,
+) *dbent.ChannelInviteCode {
+	t.Helper()
+	c, err := client.ChannelInviteCode.Create().
+		SetBatchID(batchID).
+		SetCode(code).
+		SetMaxUses(usedCount + 1).
+		SetUsedCount(usedCount).
+		Save(ctx)
+	require.NoError(t, err)
+	return c
+}
+
+func mustCreateOpsChannelUsage(
+	t *testing.T, ctx context.Context, client *dbent.Client,
+	codeID, batchID, userID int64, granted bool, claimedAt time.Time,
+) *dbent.ChannelInviteCodeUsage {
+	t.Helper()
+	u, err := client.ChannelInviteCodeUsage.Create().
+		SetCodeID(codeID).
+		SetBatchID(batchID).
+		SetUserID(userID).
+		SetBonusGranted(granted).
+		SetClaimedAt(claimedAt).
+		Save(ctx)
+	require.NoError(t, err)
+	return u
+}
+
 func opsServiceUserFromEnt(u *dbent.User) *User {
 	return &User{
 		ID:           u.ID,
@@ -295,6 +345,140 @@ func TestUserOperations_ReportAssembly(t *testing.T) {
 	require.EqualValues(t, 42, r.Usage.TotalRequests)
 	require.True(t, usage.gotStart.Equal(time.Unix(0, 0).UTC()))
 	require.True(t, usage.gotEnd.After(time.Now()))
+}
+
+func TestUserOperations_ChannelInviteOwnerAndClaim(t *testing.T) {
+	ctx := context.Background()
+	client := newUserOperationsSQLite(t)
+
+	ownerRow := mustCreateOpsUser(t, ctx, client, "owner@test.com", "码主")
+	otherOwnerRow := mustCreateOpsUser(t, ctx, client, "other-owner@test.com", "别家码主")
+
+	// 目标用户名下两个批次；另一码主的批次不得混入。
+	batchA := mustCreateOpsChannelBatch(t, ctx, client, "小红书拉新", ownerRow.ID, 50, opsChannelBaseTime)
+	batchB := mustCreateOpsChannelBatch(t, ctx, client, "抖音拉新", ownerRow.ID, 30, opsChannelBaseTime.Add(time.Hour))
+	foreignBatch := mustCreateOpsChannelBatch(t, ctx, client, "别家活动", otherOwnerRow.ID, 10, opsChannelBaseTime)
+
+	codeA := mustCreateOpsChannelCode(t, ctx, client, batchA.ID, "AAA111", 2)
+	codeB := mustCreateOpsChannelCode(t, ctx, client, batchB.ID, "BBB222", 1)
+	foreignCode := mustCreateOpsChannelCode(t, ctx, client, foreignBatch.ID, "ZZZ999", 1)
+
+	// 两人通过码主的码进站，另有一人走别家的码（不计入）。
+	inviteeA := mustCreateOpsUser(t, ctx, client, "ia@test.com", "ia")
+	inviteeB := mustCreateOpsUser(t, ctx, client, "ib@test.com", "ib")
+	stranger := mustCreateOpsUser(t, ctx, client, "stranger@test.com", "stranger")
+	mustCreateOpsChannelUsage(t, ctx, client, codeA.ID, batchA.ID, inviteeA.ID, true, opsChannelBaseTime.Add(time.Hour))
+	mustCreateOpsChannelUsage(t, ctx, client, codeB.ID, batchB.ID, inviteeB.ID, false, opsChannelBaseTime.Add(2*time.Hour))
+	mustCreateOpsChannelUsage(t, ctx, client, foreignCode.ID, foreignBatch.ID, stranger.ID, true, opsChannelBaseTime.Add(3*time.Hour))
+
+	// 码主自己也兑换过别家的码 → claims 一条。
+	mustCreateOpsChannelUsage(t, ctx, client, foreignCode.ID, foreignBatch.ID, ownerRow.ID, true, opsChannelBaseTime.Add(4*time.Hour))
+
+	target := opsServiceUserFromEnt(ownerRow)
+	repo := &opsUserRepoStub{
+		byID:    map[int64]*User{ownerRow.ID: target},
+		byEmail: map[string]*User{"owner@test.com": target},
+	}
+	svc := newOpsService(client, repo, nil, nil)
+
+	res, err := svc.GetReport(ctx, "owner@test.com", 0)
+	require.NoError(t, err)
+	r := res.Report
+
+	// referral 侧为空，渠道侧有数据：两套体系互不影响
+	require.EqualValues(t, 0, r.InvitedCount)
+
+	// 码主侧：只含自己的批次，最新在前
+	require.Len(t, r.ChannelBatches, 2)
+	require.Equal(t, batchB.ID, r.ChannelBatches[0].ID)
+	require.Equal(t, "抖音拉新", r.ChannelBatches[0].Name)
+	require.Equal(t, []string{"BBB222"}, r.ChannelBatches[0].Codes)
+	require.Equal(t, 1, r.ChannelBatches[0].UsedCount)
+	require.Equal(t, batchA.ID, r.ChannelBatches[1].ID)
+	require.Equal(t, 2, r.ChannelBatches[1].UsedCount)
+	require.InDelta(t, 50.0, r.ChannelBatches[1].BonusAmount, 1e-9)
+	require.Equal(t, 2, r.ChannelCodeCount)
+
+	// 兑换明细：只含自己批次下的 2 条
+	require.EqualValues(t, 2, r.ChannelInvitedCount)
+	require.Len(t, r.ChannelInvitees, 2)
+	require.False(t, r.ChannelInviteesTruncated)
+	gotInvitees := map[int64]UserOperationsChannelInvitee{}
+	for _, iv := range r.ChannelInvitees {
+		gotInvitees[iv.User.ID] = iv
+	}
+	require.Contains(t, gotInvitees, inviteeA.ID)
+	require.Equal(t, "AAA111", gotInvitees[inviteeA.ID].Code)
+	require.Equal(t, "小红书拉新", gotInvitees[inviteeA.ID].BatchName)
+	require.True(t, gotInvitees[inviteeA.ID].BonusGranted)
+	require.Contains(t, gotInvitees, inviteeB.ID)
+	require.False(t, gotInvitees[inviteeB.ID].BonusGranted)
+	require.NotContains(t, gotInvitees, stranger.ID)
+
+	// 被邀请侧：自己兑换过别家的码
+	require.Len(t, r.ChannelClaims, 1)
+	claim := r.ChannelClaims[0]
+	require.Equal(t, foreignBatch.ID, claim.BatchID)
+	require.Equal(t, "别家活动", claim.BatchName)
+	require.Equal(t, "ZZZ999", claim.Code)
+	require.Equal(t, otherOwnerRow.ID, claim.OwnerID)
+	require.NotNil(t, claim.Owner)
+	require.Equal(t, "other-owner@test.com", claim.Owner.Email)
+	require.InDelta(t, 10.0, claim.BonusAmount, 1e-9)
+	require.True(t, claim.BonusGranted)
+}
+
+func TestUserOperations_ChannelInviteEmptyForPlainUser(t *testing.T) {
+	ctx := context.Background()
+	client := newUserOperationsSQLite(t)
+	row := mustCreateOpsUser(t, ctx, client, "plain@test.com", "plain")
+
+	target := opsServiceUserFromEnt(row)
+	repo := &opsUserRepoStub{
+		byID:    map[int64]*User{row.ID: target},
+		byEmail: map[string]*User{"plain@test.com": target},
+	}
+	svc := newOpsService(client, repo, nil, nil)
+
+	res, err := svc.GetReport(ctx, "plain@test.com", 0)
+	require.NoError(t, err)
+	r := res.Report
+	// 非码主也非被邀请：全部为空切片而非 nil（JSON 输出 [] 而不是 null）
+	require.NotNil(t, r.ChannelClaims)
+	require.Empty(t, r.ChannelClaims)
+	require.NotNil(t, r.ChannelBatches)
+	require.Empty(t, r.ChannelBatches)
+	require.NotNil(t, r.ChannelInvitees)
+	require.Empty(t, r.ChannelInvitees)
+	require.EqualValues(t, 0, r.ChannelInvitedCount)
+	require.Equal(t, 0, r.ChannelCodeCount)
+	require.False(t, r.ChannelInviteesTruncated)
+}
+
+func TestUserOperations_ChannelInviteesTruncated(t *testing.T) {
+	ctx := context.Background()
+	client := newUserOperationsSQLite(t)
+	ownerRow := mustCreateOpsUser(t, ctx, client, "bigowner@test.com", "bigowner")
+	batch := mustCreateOpsChannelBatch(t, ctx, client, "大批次", ownerRow.ID, 5, opsChannelBaseTime)
+	code := mustCreateOpsChannelCode(t, ctx, client, batch.ID, "CAP001", operationsChannelInviteesCap+1)
+
+	for i := 0; i < operationsChannelInviteesCap+1; i++ {
+		u := mustCreateOpsUser(t, ctx, client, fmt.Sprintf("cap%d@test.com", i), fmt.Sprintf("cap%d", i))
+		mustCreateOpsChannelUsage(t, ctx, client, code.ID, batch.ID, u.ID, true, opsChannelBaseTime.Add(time.Duration(i)*time.Minute))
+	}
+
+	target := opsServiceUserFromEnt(ownerRow)
+	repo := &opsUserRepoStub{
+		byID:    map[int64]*User{ownerRow.ID: target},
+		byEmail: map[string]*User{"bigowner@test.com": target},
+	}
+	svc := newOpsService(client, repo, nil, nil)
+
+	res, err := svc.GetReport(ctx, "bigowner@test.com", 0)
+	require.NoError(t, err)
+	require.EqualValues(t, operationsChannelInviteesCap+1, res.Report.ChannelInvitedCount)
+	require.Len(t, res.Report.ChannelInvitees, operationsChannelInviteesCap)
+	require.True(t, res.Report.ChannelInviteesTruncated)
 }
 
 func TestUserOperations_DeletedInviterTolerated(t *testing.T) {
