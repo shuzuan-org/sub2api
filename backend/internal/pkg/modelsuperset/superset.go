@@ -213,6 +213,29 @@ func modelContextWindow(normalized string) int {
 // pricing/billing.
 const gptMaxInputTokens = 272000
 
+// knownRemoteModelLimits covers remote-only models whose upstream catalog lists only an
+// id. Some clients reject such entries unless both token limits are positive. Keep this
+// deliberately narrow: these are provider limits we know, not a generic guess for every
+// unknown model. Keys are lower-case normalized model-name prefixes so dated releases
+// (for example DeepSeek-V4-Flash-0731) inherit the same limits.
+var knownRemoteModelLimits = []struct {
+	prefix         string
+	maxInputTokens int
+	maxTokens      int
+}{
+	{prefix: "deepseek-v4-flash", maxInputTokens: 196608, maxTokens: 128000},
+}
+
+func remoteModelLimits(normalized string) (maxInputTokens, maxTokens int) {
+	name := strings.ToLower(normalized)
+	for _, limits := range knownRemoteModelLimits {
+		if name == limits.prefix || strings.HasPrefix(name, limits.prefix+"-") {
+			return limits.maxInputTokens, limits.maxTokens
+		}
+	}
+	return 0, 0
+}
+
 // anthropicFamilyTier returns the Claude tier a model stands in for, for clients that gate
 // discovery on it. A claude-family name maps to its real tier; any other anthropic-origin
 // model (glm, minimax, deepseek, …) defaults to "sonnet" so it stays discoverable while
@@ -293,6 +316,7 @@ func BuildModelWithWitness(id string, origin Origin, meta ModelMeta, witness GPT
 	}
 
 	normalized := NormalizeModelName(id)
+	knownMaxInputTokens, knownMaxTokens := remoteModelLimits(normalized)
 	claudeFamily := origin == OriginAnthropic && isClaudeFamily(normalized)
 	anthropicOrigin := origin == OriginAnthropic
 
@@ -329,6 +353,8 @@ func BuildModelWithWitness(id string, origin Origin, meta ModelMeta, witness GPT
 		m.MaxInputTokens = witness.MaxInputTokens
 	case origin == OriginOpenAI && gptFamily:
 		m.MaxInputTokens = gptMaxInputTokens
+	case knownMaxInputTokens > 0:
+		m.MaxInputTokens = knownMaxInputTokens
 	}
 	// Output cap: the real upstream value, else a same-listing GPT witness. Never a
 	// constant — an invented output cap gets echoed back as a max_tokens request and the
@@ -339,6 +365,8 @@ func BuildModelWithWitness(id string, origin Origin, meta ModelMeta, witness GPT
 		m.MaxTokens = meta.MaxOutputTokens
 	case gptFamily && witness.MaxOutputTokens > 0:
 		m.MaxTokens = witness.MaxOutputTokens
+	case knownMaxTokens > 0:
+		m.MaxTokens = knownMaxTokens
 	}
 
 	// Capabilities: emit the Claude capability tree for ALL anthropic-origin models, not

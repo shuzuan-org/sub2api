@@ -284,6 +284,28 @@ func TestBuildModel_NonClaudeWithUpstreamMeta(t *testing.T) {
 	}
 }
 
+func TestBuildModel_DeepSeekV4FlashRemoteOnlyLimits(t *testing.T) {
+	for _, id := range []string{"DeepSeek-V4-Flash", "DeepSeek-V4-Flash-0731"} {
+		m := BuildModel(id, OriginAnthropic, ModelMeta{})
+		if m.MaxInputTokens != 196608 {
+			t.Errorf("%s max_input_tokens = %d, want 196608", id, m.MaxInputTokens)
+		}
+		if m.MaxTokens != 128000 {
+			t.Errorf("%s max_tokens = %d, want 128000", id, m.MaxTokens)
+		}
+	}
+}
+
+func TestBuildModel_DeepSeekV4FlashRealMetaWins(t *testing.T) {
+	m := BuildModel("DeepSeek-V4-Flash-0731", OriginAnthropic, ModelMeta{
+		MaxInputTokens:  131072,
+		MaxOutputTokens: 65536,
+	})
+	if m.MaxInputTokens != 131072 || m.MaxTokens != 65536 {
+		t.Fatalf("real upstream limits must win, got input=%d output=%d", m.MaxInputTokens, m.MaxTokens)
+	}
+}
+
 func TestBuildModel_ClaudeNoMetaFallback(t *testing.T) {
 	// No upstream meta → Claude family falls back to the family guess (no regression).
 	if m := BuildModel("claude-opus-4-8", OriginAnthropic, ModelMeta{}); m.MaxInputTokens != 1000000 {
