@@ -262,13 +262,13 @@ func resolveBearerCredential(c *gin.Context, apiKeyService *service.APIKeyServic
 		if err != nil {
 			return nil, nil, err
 		}
-		if !containsScope(claims.Scope, service.MetacodeOAuthScope) {
+		if !service.IsGatewayOAuthScope(claims.Scope) {
 			return nil, nil, service.ErrOAuthInvalidToken
 		}
 		if c.Request.URL.Path == "/v1/profiles" {
 			return nil, claims, nil
 		}
-		profileID := strings.TrimSpace(c.GetHeader("X-Metacode-Profile-ID"))
+		profileID := oauthProfileIDHeader(c)
 		if profileID == "" {
 			return nil, nil, service.ErrOAuthProfileRequired
 		}
@@ -295,13 +295,16 @@ func resolveBearerCredential(c *gin.Context, apiKeyService *service.APIKeyServic
 	return apiKey, nil, err
 }
 
-func containsScope(scopes []string, target string) bool {
-	for _, scope := range scopes {
-		if scope == target {
-			return true
-		}
+// oauthProfileIDHeader 读取 OAuth 请求要使用的 profile（API Key）ID。
+//
+// X-Profile-ID 是中性头名，新接入的 app（metawork-app 等）统一用它。
+// X-Metacode-Profile-ID 是 Metacode CLI 的历史头名，保留兜底，
+// 等线上确认无老版本 CLI 在跑之后再摘。
+func oauthProfileIDHeader(c *gin.Context) string {
+	if profileID := strings.TrimSpace(c.GetHeader("X-Profile-ID")); profileID != "" {
+		return profileID
 	}
-	return false
+	return strings.TrimSpace(c.GetHeader("X-Metacode-Profile-ID"))
 }
 
 func GetOAuthAccessTokenClaimsFromContext(c *gin.Context) (*service.OAuthAccessTokenClaims, bool) {

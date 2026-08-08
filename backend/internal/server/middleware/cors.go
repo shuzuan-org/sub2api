@@ -53,6 +53,9 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 	allowHeaders := []string{
 		"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization",
 		"accept", "origin", "Cache-Control", "X-Requested-With", "X-API-Key",
+		// OAuth 客户端选择 profile（API Key）用。CLI 走原生 HTTP 无预检，
+		// 但桌面应用从 webview 发 fetch 时会预检，不放行会直接被浏览器拦掉。
+		"X-Profile-ID", "X-Metacode-Profile-ID",
 	}
 	// OpenAI Node SDK 会发送 x-stainless-* 请求头，需在 CORS 中显式放行。
 	openAIProperties := []string{

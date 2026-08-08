@@ -41,8 +41,30 @@ const (
 	OAuthRefreshTokenStatusRevoked = "revoked"
 	MetacodeOAuthClientID          = "metacode-cli"
 	MetacodeOAuthScope             = "metacode:use"
+	MetaworkOAuthClientID          = "metawork-app"
+	MetaworkOAuthScope             = "metawork:use"
 	OAuthDeviceCodeGrantType       = "urn:ietf:params:oauth:grant-type:device_code"
 )
+
+// gatewayOAuthScopes 是允许用 OAuth access token 访问 /v1/* 网关的 scope 集合。
+//
+// 每接入一个新 app 就在这里登记它的 scope。scope 与 client 一一对应（见 migrations
+// 099/105），所以这份集合同时也是「哪些 app 能打网关」的权威清单——某个 app 要下线，
+// 从这里摘掉即可，无需动 oauth_clients。
+var gatewayOAuthScopes = []string{
+	MetacodeOAuthScope,
+	MetaworkOAuthScope,
+}
+
+// IsGatewayOAuthScope 判断 token 携带的 scope 列表中是否含有任一网关 scope。
+func IsGatewayOAuthScope(scopes []string) bool {
+	for _, scope := range scopes {
+		if containsExact(gatewayOAuthScopes, scope) {
+			return true
+		}
+	}
+	return false
+}
 
 var (
 	ErrOAuthInvalidRequest       = infraerrors.BadRequest("OAUTH_INVALID_REQUEST", "invalid oauth request")
