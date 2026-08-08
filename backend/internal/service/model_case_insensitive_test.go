@@ -3,7 +3,10 @@
 package service
 
 import (
+	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 线上场景：账号 ks-anthropic-glm-5.2 的 model_mapping 配的是小写 glm-5.2，
@@ -31,6 +34,85 @@ func TestAccountModelMatchingIsCaseInsensitive(t *testing.T) {
 
 	if account.IsModelSupported("glm-4.6") {
 		t.Error("IsModelSupported(\"glm-4.6\") = true, want false")
+	}
+}
+
+// 金山和并行暴露给 metacode 的模型名相同，但上游要求的大小写不同。
+// 匹配 key 时应忽略大小写，映射 value 则必须原样保留，不能做统一大小写转换。
+func TestGLMProviderMappingsPreserveUpstreamCase(t *testing.T) {
+	tests := []struct {
+		name          string
+		mappingKey    string
+		upstreamModel string
+	}{
+		{name: "kingsoft requires uppercase", mappingKey: "glm-5.2", upstreamModel: "GLM-5.2"},
+		{name: "parallel requires lowercase", mappingKey: "GLM-5.2", upstreamModel: "glm-5.2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{tt.mappingKey: tt.upstreamModel},
+				},
+			}
+
+			for _, requested := range []string{"glm-5.2", "GLM-5.2", "GlM-5.2"} {
+				t.Run(requested, func(t *testing.T) {
+					require.True(t, account.IsModelSupported(requested))
+					mapped, matched := account.ResolveMappedModel(requested)
+					require.True(t, matched)
+					require.Equal(t, tt.upstreamModel, mapped)
+				})
+			}
+		})
+	}
+}
+
+// 覆盖 metacode 请求进入实际账号调度器的路径。该用例防止只修复映射函数，
+// 但调度阶段仍因大小写不同把金山/并行账号过滤掉并返回 503。
+func TestGatewaySelectsBothGLMProvidersCaseInsensitively(t *testing.T) {
+	tests := []struct {
+		name          string
+		mappingKey    string
+		upstreamModel string
+	}{
+		{name: "kingsoft", mappingKey: "glm-5.2", upstreamModel: "GLM-5.2"},
+		{name: "parallel", mappingKey: "GLM-5.2", upstreamModel: "glm-5.2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := Account{
+				ID:          1,
+				Platform:    PlatformAnthropic,
+				Type:        AccountTypeAPIKey,
+				Status:      StatusActive,
+				Schedulable: true,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{tt.mappingKey: tt.upstreamModel},
+				},
+			}
+			repo := &mockAccountRepoForPlatform{
+				accounts:     []Account{account},
+				accountsByID: map[int64]*Account{account.ID: &account},
+			}
+			svc := &GatewayService{
+				accountRepo: repo,
+				cache:       &mockGatewayCacheForPlatform{},
+				cfg:         testConfig(),
+			}
+
+			selected, err := svc.selectAccountForModelWithPlatform(
+				context.Background(), nil, "", "GLM-5.2", nil, PlatformAnthropic,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, selected)
+			require.Equal(t, account.ID, selected.ID)
+			require.Equal(t, tt.upstreamModel, selected.GetMappedModel("GLM-5.2"))
+		})
 	}
 }
 
@@ -115,4 +197,19 @@ func TestGroupRoutingPrefersLongestPattern(t *testing.T) {
 			t.Fatalf("GetRoutingAccountIDs(\"GLM-5.2-AIR\") = %v, want [3]", got)
 		}
 	}
+}
+
+func TestGroupRoutingExactCaseWinsThenFallsBackDeterministically(t *testing.T) {
+	group := &Group{
+		ModelRoutingEnabled: true,
+		ModelRouting: map[string][]int64{
+			"glm-5.2": {1},
+			"GLM-5.2": {2},
+		},
+	}
+
+	require.Equal(t, []int64{1}, group.GetRoutingAccountIDs("glm-5.2"))
+	require.Equal(t, []int64{2}, group.GetRoutingAccountIDs("GLM-5.2"))
+	// 没有大小写完全一致的 key 时，按字典序选择，避免 Go map 迭代导致渠道漂移。
+	require.Equal(t, []int64{2}, group.GetRoutingAccountIDs("GlM-5.2"))
 }

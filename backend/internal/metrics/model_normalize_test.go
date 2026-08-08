@@ -20,3 +20,26 @@ func TestNormalizeModelIsCaseInsensitive(t *testing.T) {
 		t.Errorf("NormalizeModel(%q) = %q, want __other__", "glm-4.6", got)
 	}
 }
+
+func TestNormalizeModelCaseCollisionIsDeterministic(t *testing.T) {
+	// 配置同时包含大小写别名时，精确拼写保持原样；混合大小写则稳定选择字典序最小项。
+	SetAllowedModels([]string{"glm-5.2", "GLM-5.2"})
+	t.Cleanup(func() { SetAllowedModels(nil) })
+
+	if got := NormalizeModel("glm-5.2"); got != "glm-5.2" {
+		t.Fatalf("exact lowercase = %q, want glm-5.2", got)
+	}
+	if got := NormalizeModel("GLM-5.2"); got != "GLM-5.2" {
+		t.Fatalf("exact uppercase = %q, want GLM-5.2", got)
+	}
+	if got := NormalizeModel("GlM-5.2"); got != "GLM-5.2" {
+		t.Fatalf("folded collision = %q, want GLM-5.2", got)
+	}
+}
+
+func TestNormalizeModelEmptyAllowlistPreservesTrimmedInput(t *testing.T) {
+	SetAllowedModels(nil)
+	if got := NormalizeModel(" GLM-5.2 "); got != "GLM-5.2" {
+		t.Fatalf("NormalizeModel with empty allowlist = %q, want GLM-5.2", got)
+	}
+}
