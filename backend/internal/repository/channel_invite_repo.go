@@ -122,6 +122,20 @@ func (r *channelInviteRepository) UpdateBatch(ctx context.Context, id int64, inp
 		return err
 	}
 
+	// max_uses_per_code is also persisted on each generated code so that a
+	// code keeps the limit that applies to it during claim validation. When an
+	// administrator changes the batch limit, keep existing codes in sync as
+	// well; otherwise the batch would display one limit while old codes still
+	// enforce a stale one.
+	if input.MaxUsesPerCode != nil {
+		if _, err := client.ChannelInviteCode.Update().
+			Where(channelinvitecode.BatchIDEQ(id)).
+			SetMaxUses(*input.MaxUsesPerCode).
+			Save(ctx); err != nil {
+			return err
+		}
+	}
+
 	// 如果提供了 groupIDs，替换分组关联
 	if input.GroupIDs != nil {
 		if err := r.ReplaceBatchGroups(ctx, id, input.GroupIDs); err != nil {
