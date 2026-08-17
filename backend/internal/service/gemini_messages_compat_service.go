@@ -1902,6 +1902,19 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 							"index": openBlockIndex,
 						})
 					}
+					// text 块与 tool 块用两套变量跟踪，开 text 块前必须对称地关掉 tool 块。
+					// 否则 text → functionCall → text 交错时 tool 块悬空未 stop 就 start 新块，
+					// 严格校验的客户端会判 ContentBlockStartWhileBlockOpen 并中断整条流。
+					if openToolIndex >= 0 {
+						writeSSE(c.Writer, "content_block_stop", map[string]any{
+							"type":  "content_block_stop",
+							"index": openToolIndex,
+						})
+						openToolIndex = -1
+						openToolID = ""
+						openToolName = ""
+						seenToolJSON = ""
+					}
 					openBlockType = "text"
 					openBlockIndex = nextBlockIndex
 					nextBlockIndex++
@@ -1938,6 +1951,20 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					name = "tool"
 				}
 
+				argsJSONText := "{}"
+				switch v := args.(type) {
+				case nil:
+					// keep default "{}"
+				case string:
+					if strings.TrimSpace(v) != "" {
+						argsJSONText = v
+					}
+				default:
+					if b, err := json.Marshal(args); err == nil && len(b) > 0 {
+						argsJSONText = string(b)
+					}
+				}
+
 				// Close any open text block before tool_use.
 				if openBlockIndex >= 0 {
 					writeSSE(c.Writer, "content_block_stop", map[string]any{
@@ -1949,12 +1976,15 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 				}
 
 				// If we receive streamed tool args in pieces, keep a single tool block open and emit deltas.
-				if openToolIndex >= 0 && openToolName != name {
+				// 但只有"同名 + 参数是累积续传"才算同一次调用：并行调用同一个工具时两段参数
+				// 互不为前缀，继续复用同一个块会把两份 JSON 拼成非法串。
+				if openToolIndex >= 0 && (openToolName != name || !geminiToolArgsContinue(seenToolJSON, argsJSONText)) {
 					writeSSE(c.Writer, "content_block_stop", map[string]any{
 						"type":  "content_block_stop",
 						"index": openToolIndex,
 					})
 					openToolIndex = -1
+					openToolID = ""
 					openToolName = ""
 					seenToolJSON = ""
 				}
@@ -1976,20 +2006,6 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 							"input": map[string]any{},
 						},
 					})
-				}
-
-				argsJSONText := "{}"
-				switch v := args.(type) {
-				case nil:
-					// keep default "{}"
-				case string:
-					if strings.TrimSpace(v) != "" {
-						argsJSONText = v
-					}
-				default:
-					if b, err := json.Marshal(args); err == nil && len(b) > 0 {
-						argsJSONText = string(b)
-					}
 				}
 
 				delta, newSeen := computeGeminiTextDelta(seenToolJSON, argsJSONText)
@@ -2853,6 +2869,18 @@ func computeGeminiTextDelta(seen, incoming string) (delta, newSeen string) {
 	}
 	// Delta mode: treat incoming as incremental chunk.
 	return incoming, seen + incoming
+}
+
+// geminiToolArgsContinue 判断新的 functionCall 参数是不是当前 tool 块的续传。
+//
+// Gemini 会把同一次调用的参数按累积形式重发（后一段以前一段为前缀），这种要合进同一个
+// tool_use 块；而并行调用同一个工具时两次参数互不为前缀，必须拆成两个块，否则
+// computeGeminiTextDelta 走增量分支，把两份 JSON 拼成 {"a":1}{"a":2} 这样的非法 input。
+func geminiToolArgsContinue(seen, incoming string) bool {
+	if seen == "" {
+		return true
+	}
+	return strings.HasPrefix(incoming, seen) || strings.HasPrefix(seen, incoming)
 }
 
 func mapGeminiFinishReasonToClaudeStopReason(finishReason string) string {

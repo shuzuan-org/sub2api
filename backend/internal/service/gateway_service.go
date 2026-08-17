@@ -5193,7 +5193,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		intervalCh = intervalTicker.C
 	}
 
-	writeLine := func(line string) {
+	writeRawLine := func(line string) {
 		if clientDisconnected {
 			return
 		}
@@ -5207,6 +5207,22 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
 			flusher.Flush()
 		}
+	}
+
+	// 出口块配平守卫：上游（实测 GLM-5.2）漏发 content_block_stop 就 start 下一个块时，
+	// 严格校验的客户端会判流非法并中断输出。这里补齐/丢弃越界事件，
+	// 上游合规时不触发任何分支，事件逐行原样透传。
+	repairCount := 0
+	guardWriter := newAnthropicBlockGuardWriter(func(reason string, index int) {
+		repairCount++
+		metrics.RecordStreamBlockRepair(model, reason)
+		// 同一条畸形流可能反复触发，只记前几次，避免刷屏。
+		if repairCount <= 3 {
+			logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Repaired upstream SSE block protocol violation: account=%d model=%s reason=%s index=%d", account.ID, model, reason, index)
+		}
+	})
+	writeLine := func(line string) {
+		guardWriter.write(line, writeRawLine)
 	}
 
 	// 在向客户端写出第一个字节前，先按事件边界缓冲，用来识别
@@ -5233,6 +5249,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		case ev, ok := <-events:
 			if !ok {
 				releaseHoldBuffer()
+				guardWriter.finish(writeRawLine)
 				if !clientDisconnected {
 					// 兜底补刷，确保最后一个未以空行结尾的事件也能及时送达客户端。
 					flusher.Flush()
@@ -5244,6 +5261,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			}
 			if ev.err != nil {
 				releaseHoldBuffer()
+				guardWriter.finish(writeRawLine)
 				if !clientDisconnected {
 					flusher.Flush()
 				}
@@ -5332,6 +5350,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				continue
 			}
 			releaseHoldBuffer()
+			guardWriter.finish(writeRawLine)
 			if clientDisconnected {
 				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete after timeout")
 			}
@@ -6984,6 +7003,19 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	}
 	lastDataAt := time.Now()
 
+	// 出口块配平守卫：上游（anthropic 兼容的第三方上游）漏发 content_block_stop
+	// 就 start 下一个块时，严格校验的客户端会判流非法并中断输出。
+	// 上游合规时不触发任何分支，事件原样写出。见 anthropic_stream_block_guard.go。
+	blockRepairCount := 0
+	blockGuard := newAnthropicBlockGuard(func(reason string, index int) {
+		blockRepairCount++
+		metrics.RecordStreamBlockRepair(originalModel, reason)
+		// 同一条畸形流可能反复触发，只记前几次，避免刷屏。
+		if blockRepairCount <= 3 {
+			logger.LegacyPrintf("service.gateway", "Repaired upstream SSE block protocol violation: account=%d model=%s reason=%s index=%d", account.ID, originalModel, reason, index)
+		}
+	})
+
 	// flushHeldMessageStart 在下面 processSSEEvent 就绪后赋值；
 	// 这里先声明，好让 sendErrorEvent 也能在收尾前把扣住的 message_start 补出去。
 	var flushHeldMessageStart func()
@@ -6997,6 +7029,10 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		errorEventSent = true
 		// 避免客户端收到没有 message_start 的残缺流
 		flushHeldMessageStart()
+		// 出错收尾前先关掉还开着的块，别给客户端留一个悬空的 content block。
+		if idx, open := blockGuard.finish(); open {
+			_, _ = fmt.Fprint(w, anthropicBlockStopEventBlock(idx))
+		}
 		_, _ = fmt.Fprintf(w, "event: error\ndata: {\"error\":\"%s\"}\n\n", reason)
 		flusher.Flush()
 	}
@@ -7143,6 +7179,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		if err != nil {
 			return err
 		}
+		outputBlocks = applyAnthropicBlockGuardToBlocks(blockGuard, outputBlocks, data)
 		for _, block := range outputBlocks {
 			if !clientDisconnected {
 				if _, werr := fmt.Fprint(w, block); werr != nil {
@@ -7182,6 +7219,12 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			if !ok {
 				// 上游只发了 message_start 就断了：补写出去，别把它吞掉。
 				flushHeldMessageStart()
+				// 上游流结束时若还有没关的块，补一个 stop，别让客户端拿到悬空的块。
+				if idx, open := blockGuard.finish(); open && !clientDisconnected {
+					if _, werr := fmt.Fprint(w, anthropicBlockStopEventBlock(idx)); werr == nil {
+						flusher.Flush()
+					}
+				}
 				// 上游完成，返回结果
 				if !sawTerminalEvent {
 					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("stream usage incomplete: missing terminal event")

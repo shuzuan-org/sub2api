@@ -70,6 +70,17 @@ var (
 		Help: "Mid-stream truncations by cause (upstream|client).",
 	}, []string{"cause"})
 
+	// StreamBlockRepairTotal 网关出口修正上游 Anthropic 流协议违规的次数。
+	// 上游（实测 GLM-5.2）漏发 content_block_stop / 往已关闭块补发 delta 时，
+	// 网关补齐或丢弃对应事件，这里记一次，让"上游协议不合规"这件事可观测。
+	//   - model:  NormalizeModel 归一化后的模型名（白名单外归入 "__other__"）
+	//   - reason: missing_stop|orphan_delta|orphan_stop|index_remap|unterminated_block
+	// 不预置零值序列（model 维度是叉乘，会造出大量恒零序列）：没有序列即代表上游一直合规。
+	StreamBlockRepairTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "sub2api_stream_block_repair_total",
+		Help: "Anthropic SSE content-block protocol violations repaired at the gateway, by model and reason.",
+	}, []string{"model", "reason"})
+
 	// RequestInterruptedTotal 长任务在各阶段被中断的次数（项5）。
 	// phase: "slotwait"|"stream"；cause: "client"|"shutdown"|"deadline"。
 	RequestInterruptedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -301,6 +312,16 @@ func RecordUpstreamStatus(platform, model string, statusCode int) {
 		model = "__other__"
 	}
 	UpstreamStatusTotal.WithLabelValues(platform, model, upstreamStatusBucket(statusCode)).Inc()
+}
+
+// RecordStreamBlockRepair 记录一次流协议违规修正。
+// reason 取 metrics 内部有界词表（见 StreamBlockRepairTotal 注释），model 经 NormalizeModel 归一化。
+func RecordStreamBlockRepair(model, reason string) {
+	model = NormalizeModel(model)
+	if model == "" {
+		model = "__other__"
+	}
+	StreamBlockRepairTotal.WithLabelValues(model, reason).Inc()
 }
 
 // RecordUpstreamLatency 记录一次上游请求的延迟。

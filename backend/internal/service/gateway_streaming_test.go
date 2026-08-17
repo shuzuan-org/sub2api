@@ -526,8 +526,12 @@ func TestHandleStreamingResponseAnthropicAPIKeyPassthrough_HeldMessageStartRelea
 	pr, pw := io.Pipe()
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
 
+	// 块序列必须完整（start/delta/stop）：出口的块配平守卫只对合规流做零改写透传，
+	// 缺 content_block_start 的裸 delta 会被判为越界事件丢弃。
 	stream := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11}}}\n\n" +
+		"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +
 		"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n" +
+		"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
 		"event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n" +
 		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 
