@@ -1732,6 +1732,10 @@ export default {
       accountsRateLimited: 'Limited:',
       accountsTotal: 'Total:',
       accountsUnit: '',
+      accountNamesLoading: 'Loading account names…',
+      accountNamesEmpty: 'No accounts in this group',
+      accountNamesFailed: 'Failed to load account names',
+      accountNamesMore: '…and {count} more',
       rateAndAccounts: '{rate}x discount · {count} accounts',
       accountsCount: '{count} accounts',
       form: {

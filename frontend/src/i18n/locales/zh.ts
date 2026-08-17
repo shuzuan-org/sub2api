@@ -1781,6 +1781,10 @@ export default {
       accountsRateLimited: '限流:',
       accountsTotal: '总量:',
       accountsUnit: '个账号',
+      accountNamesLoading: '正在加载账号名称…',
+      accountNamesEmpty: '该分组暂无账号',
+      accountNamesFailed: '账号名称加载失败',
+      accountNamesMore: '…还有 {count} 个账号',
       form: {
         name: '名称',
         description: '描述',

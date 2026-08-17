@@ -118,7 +118,11 @@
           </template>
 
           <template #cell-account_count="{ row }">
-            <div class="space-y-0.5 text-xs">
+            <div
+              class="cursor-help space-y-0.5 text-xs"
+              :title="groupAccountNamesTitle(row.id)"
+              @mouseenter="loadGroupAccountNames(row.id)"
+            >
               <div>
                 <span class="text-gray-500 dark:text-gray-400">{{ t('admin.groups.accountsAvailable') }}</span>
                 <span class="ml-1 font-medium text-emerald-600 dark:text-emerald-400">{{ (row.active_account_count || 0) - (row.rate_limited_account_count || 0) }}</span>
@@ -1926,6 +1930,11 @@ const loading = ref(false)
 const usageMap = ref<Map<number, { today_cost: number; total_cost: number }>>(new Map())
 const usageLoading = ref(false)
 const capacityMap = ref<Map<number, { concurrencyUsed: number; concurrencyMax: number; sessionsUsed: number; sessionsMax: number; rpmUsed: number; rpmMax: number }>>(new Map())
+// 账号数单元格 hover 提示：懒加载该分组的账号名称，用原生 title 展示
+const GROUP_ACCOUNT_NAMES_LIMIT = 200
+const groupAccountNames = ref<Map<number, string>>(new Map())
+const groupAccountNamesFailed = ref<Set<number>>(new Set())
+const groupAccountNamesLoading = new Set<number>()
 const searchQuery = ref('')
 const filters = reactive({
   platform: '',
@@ -2288,6 +2297,9 @@ const loadGroups = async () => {
     groups.value = response.items
     pagination.total = response.total
     pagination.pages = response.pages
+    // 分组列表刷新后重新拉取账号名称，避免 hover 提示停留在旧数据
+    groupAccountNames.value.clear()
+    groupAccountNamesFailed.value.clear()
     loadUsageSummary()
     loadCapacitySummary()
   } catch (error: any) {
@@ -2300,6 +2312,37 @@ const loadGroups = async () => {
     if (abortController === currentController && !signal.aborted) {
       loading.value = false
     }
+  }
+}
+
+const groupAccountNamesTitle = (groupId: number): string => {
+  const cached = groupAccountNames.value.get(groupId)
+  if (cached !== undefined) return cached
+  if (groupAccountNamesFailed.value.has(groupId)) return t('admin.groups.accountNamesFailed')
+  return t('admin.groups.accountNamesLoading')
+}
+
+const loadGroupAccountNames = async (groupId: number) => {
+  if (groupAccountNames.value.has(groupId) || groupAccountNamesLoading.has(groupId)) return
+  groupAccountNamesLoading.add(groupId)
+  groupAccountNamesFailed.value.delete(groupId)
+  try {
+    const result = await adminAPI.accounts.list(1, GROUP_ACCOUNT_NAMES_LIMIT, {
+      group: String(groupId),
+      lite: 'true'
+    })
+    const names = (result.items || []).map((account) => account.name).filter(Boolean)
+    const lines = names.length > 0 ? [...names] : [t('admin.groups.accountNamesEmpty')]
+    const remaining = (result.total || 0) - names.length
+    if (remaining > 0) {
+      lines.push(t('admin.groups.accountNamesMore', { count: remaining }))
+    }
+    groupAccountNames.value.set(groupId, lines.join('\n'))
+  } catch (error) {
+    groupAccountNamesFailed.value.add(groupId)
+    console.error('Error loading group account names:', error)
+  } finally {
+    groupAccountNamesLoading.delete(groupId)
   }
 }
 
