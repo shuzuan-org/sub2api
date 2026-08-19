@@ -495,8 +495,14 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 }
 
 // appendRawJSON appends a JSON fragment string to existing raw JSON.
+//
+// content_block_start 里 tool_use 的 input 是空对象占位（"input":{}），真实参数
+// 全部由后续 input_json_delta 增量给出。占位值不是"已累积内容"，必须被替换而不是
+// 拼在增量前面 —— 否则非流式聚合出来的 arguments 会是 `{}{"file_path":...}`，
+// 客户端 JSON.parse 直接抛异常（无参数工具则是 `{}{}`）。
 func appendRawJSON(existing json.RawMessage, fragment string) json.RawMessage {
-	if len(existing) == 0 {
+	trimmed := bytes.TrimSpace(existing)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("{}")) {
 		return json.RawMessage(fragment)
 	}
 	return json.RawMessage(string(existing) + fragment)

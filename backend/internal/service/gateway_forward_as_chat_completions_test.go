@@ -3,6 +3,7 @@
 package service
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestExtractCCReasoningEffortFromBody(t *testing.T) {
@@ -175,4 +177,80 @@ func TestHandleCCBufferedFromAnthropic_WritesJSONContentType(t *testing.T) {
 	require.Empty(t, rec.Header().Get("Content-Encoding"))
 	require.Equal(t, "rid_cc_ct", rec.Header().Get("x-request-id"))
 	require.Contains(t, rec.Body.String(), `"object":"chat.completion"`)
+}
+
+// 非流式聚合时，content_block_start 的 tool_use 占位 input({}) 不能被当成已累积内容，
+// 否则 input_json_delta 会拼在它后面，客户端拿到 `{}{"file_path":...}` 这种非法 JSON。
+func TestHandleCCBufferedFromAnthropic_ToolCallArgumentsAreValidJSON(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	resp := &http.Response{
+		Header: http.Header{"x-request-id": []string{"rid_cc_toolargs"}},
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`event: message_start`,
+			`data: {"type":"message_start","message":{"id":"msg_tool","type":"message","role":"assistant","content":[],"model":"glm-5.2","stop_reason":"","usage":{"input_tokens":10}}}`,
+			``,
+			`event: content_block_start`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"read_file","input":{}}}`,
+			``,
+			`event: content_block_delta`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\": "}}`,
+			``,
+			`event: content_block_delta`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"/a/b.md\"}"}}`,
+			``,
+			`event: content_block_stop`,
+			`data: {"type":"content_block_stop","index":0}`,
+			``,
+			`event: message_delta`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":6}}`,
+			``,
+		}, "\n"))),
+	}
+
+	svc := &GatewayService{}
+	_, err := svc.handleCCBufferedFromAnthropic(resp, c, "glm-5.2", "glm-5.2", nil, time.Now())
+	require.NoError(t, err)
+
+	args := gjson.Get(rec.Body.String(), "choices.0.message.tool_calls.0.function.arguments")
+	require.True(t, args.Exists(), "tool_calls arguments missing: %s", rec.Body.String())
+	require.Equal(t, `{"file_path": "/a/b.md"}`, args.String())
+	require.True(t, json.Valid([]byte(args.String())), "arguments must be valid JSON, got %q", args.String())
+}
+
+// 无参数工具：模型只吐一个 `{}` 增量，占位 input 也不能让它变成 `{}{}`。
+func TestHandleCCBufferedFromAnthropic_EmptyToolArgumentsStayEmptyObject(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`event: message_start`,
+			`data: {"type":"message_start","message":{"id":"msg_tool_empty","type":"message","role":"assistant","content":[],"model":"glm-5.2","usage":{"input_tokens":10}}}`,
+			``,
+			`event: content_block_start`,
+			`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_2","name":"now","input":{}}}`,
+			``,
+			`event: content_block_delta`,
+			`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{}"}}`,
+			``,
+			`event: message_delta`,
+			`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":2}}`,
+			``,
+		}, "\n"))),
+	}
+
+	svc := &GatewayService{}
+	_, err := svc.handleCCBufferedFromAnthropic(resp, c, "glm-5.2", "glm-5.2", nil, time.Now())
+	require.NoError(t, err)
+
+	args := gjson.Get(rec.Body.String(), "choices.0.message.tool_calls.0.function.arguments")
+	require.Equal(t, `{}`, args.String())
 }
