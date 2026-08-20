@@ -23,6 +23,13 @@ scrape_configs:
         labels:
           service: sub2api
           env: prod
+    # 生产 /metrics 需要 Bearer Token（无 token 直接 401）。token 明文单行放在
+    # gitignored 的 observability/bearer_token.txt，由 compose bind-mount 进容器；
+    # 新环境要先自己建这个文件，否则 Prometheus 起不来。
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/bearer_token.txt
+    # 不设 tls_config：napi.metask-ai.com 用的是公网可信证书，走默认校验即可。
 
   - job_name: prometheus
     static_configs:

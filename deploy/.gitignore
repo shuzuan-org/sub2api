@@ -13,6 +13,9 @@ redis_data/
 # Alertmanager SMTP 授权码（明文，单行）
 observability/alertmanager_smtp_password
 
+# Prometheus 抓生产 /metrics 用的 Bearer Token（明文，单行）
+observability/bearer_token.txt
+
 # Backup files
 *.backup
 *.bak
