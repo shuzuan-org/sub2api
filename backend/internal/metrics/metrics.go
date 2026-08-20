@@ -428,14 +428,36 @@ func (c *accountPoolCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *accountPoolCollector) Collect(ch chan<- prometheus.Metric) {
 	stats := c.statsFunc()
+
+	// 先按归一化后的 (platform, model) 合并再发出：NormalizeModel 会折叠大小写等
+	// 写法差异，不同原始模型名可能落到同一标签组合。对同一标签组合发出两条 series，
+	// Prometheus registry 会报 "collected before with the same name and label values"
+	// 并让整个 /metrics 返回 500 —— 一个模型的写法冲突足以打掉全部指标，
+	// 所以这里做一层兜底收敛，不依赖调用方保证唯一性。
+	type poolKey struct{ platform, model string }
+	merged := make(map[poolKey]AccountPoolStat, len(stats))
+	order := make([]poolKey, 0, len(stats))
 	for _, s := range stats {
 		model := NormalizeModel(s.Model)
 		if model == "" || model == "__other__" {
 			continue
 		}
-		ch <- prometheus.MustNewConstMetric(c.availableDesc, prometheus.GaugeValue, float64(s.Available), s.Platform, model)
-		ch <- prometheus.MustNewConstMetric(c.totalDesc, prometheus.GaugeValue, float64(s.Total), s.Platform, model)
-		ch <- prometheus.MustNewConstMetric(c.unavailableDesc, prometheus.GaugeValue, float64(s.Unavailable), s.Platform, model)
+		k := poolKey{platform: s.Platform, model: model}
+		agg, seen := merged[k]
+		if !seen {
+			order = append(order, k)
+		}
+		agg.Available += s.Available
+		agg.Total += s.Total
+		agg.Unavailable += s.Unavailable
+		merged[k] = agg
+	}
+
+	for _, k := range order {
+		agg := merged[k]
+		ch <- prometheus.MustNewConstMetric(c.availableDesc, prometheus.GaugeValue, float64(agg.Available), k.platform, k.model)
+		ch <- prometheus.MustNewConstMetric(c.totalDesc, prometheus.GaugeValue, float64(agg.Total), k.platform, k.model)
+		ch <- prometheus.MustNewConstMetric(c.unavailableDesc, prometheus.GaugeValue, float64(agg.Unavailable), k.platform, k.model)
 	}
 }
 

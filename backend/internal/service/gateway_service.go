@@ -9290,10 +9290,7 @@ func (s *GatewayService) AccountPoolStats(ctx context.Context) []metrics.Account
 			counts[key{platform: platform, model: ""}]++
 			continue
 		}
-		for model := range mapping {
-			if model == "" {
-				continue
-			}
+		for _, model := range distinctNormalizedModels(mapping) {
 			counts[key{platform: platform, model: model}]++
 		}
 	}
@@ -9318,10 +9315,7 @@ func (s *GatewayService) AccountPoolStats(ctx context.Context) []metrics.Account
 				totalCounts[key{platform: platform, model: ""}]++
 				continue
 			}
-			for model := range mapping {
-				if model == "" {
-					continue
-				}
+			for _, model := range distinctNormalizedModels(mapping) {
 				totalCounts[key{platform: platform, model: model}]++
 			}
 		}
@@ -9347,6 +9341,32 @@ func (s *GatewayService) AccountPoolStats(ctx context.Context) []metrics.Account
 			Available:   avail,
 			Unavailable: total - avail,
 		})
+	}
+	return out
+}
+
+// distinctNormalizedModels 返回账号 model mapping 中去重后的归一化模型名。
+//
+// 必须先归一化再去重：metrics.NormalizeModel 会把仅大小写不同的写法（如 "GLM-5.2"
+// 与 "glm-5.2"）折叠成同一个标签值。若按原始 key 逐个计数，同一 (platform, model)
+// 会出现两个来源不同的计数项，Collector 就会对同一标签组合发出两条 series，
+// Prometheus registry 判为重复采集，整个 /metrics 直接 500（所有指标一起丢失）。
+func distinctNormalizedModels(mapping map[string]string) []string {
+	if len(mapping) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(mapping))
+	out := make([]string, 0, len(mapping))
+	for model := range mapping {
+		normalized := metrics.NormalizeModel(model)
+		if normalized == "" {
+			continue
+		}
+		if _, dup := seen[normalized]; dup {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
 	}
 	return out
 }
