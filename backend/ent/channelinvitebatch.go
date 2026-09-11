@@ -22,6 +22,8 @@ type ChannelInviteBatch struct {
 	Name string `json:"name,omitempty"`
 	// 赠送余额金额（U）
 	BonusAmount float64 `json:"bonus_amount,omitempty"`
+	// 是否需要绑定手机号后发放奖励
+	RequirePhoneVerification bool `json:"require_phone_verification,omitempty"`
 	// 每码最大使用次数，0=无限
 	MaxUsesPerCode int `json:"max_uses_per_code,omitempty"`
 	// 有效期开始时间
@@ -104,6 +106,8 @@ func (*ChannelInviteBatch) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case channelinvitebatch.FieldRequirePhoneVerification:
+			values[i] = new(sql.NullBool)
 		case channelinvitebatch.FieldBonusAmount:
 			values[i] = new(sql.NullFloat64)
 		case channelinvitebatch.FieldID, channelinvitebatch.FieldMaxUsesPerCode, channelinvitebatch.FieldCreatedBy:
@@ -144,6 +148,12 @@ func (_m *ChannelInviteBatch) assignValues(columns []string, values []any) error
 				return fmt.Errorf("unexpected type %T for field bonus_amount", values[i])
 			} else if value.Valid {
 				_m.BonusAmount = value.Float64
+			}
+		case channelinvitebatch.FieldRequirePhoneVerification:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field require_phone_verification", values[i])
+			} else if value.Valid {
+				_m.RequirePhoneVerification = value.Bool
 			}
 		case channelinvitebatch.FieldMaxUsesPerCode:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -264,6 +274,9 @@ func (_m *ChannelInviteBatch) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("bonus_amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.BonusAmount))
+	builder.WriteString(", ")
+	builder.WriteString("require_phone_verification=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RequirePhoneVerification))
 	builder.WriteString(", ")
 	builder.WriteString("max_uses_per_code=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MaxUsesPerCode))

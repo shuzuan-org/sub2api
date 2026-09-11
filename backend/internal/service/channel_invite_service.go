@@ -55,15 +55,23 @@ func NewChannelInviteService(
 
 // CreateBatch 创建渠道邀请码批次
 func (s *ChannelInviteService) CreateBatch(ctx context.Context, input *CreateChannelInviteBatchInput) (*ChannelInviteBatch, error) {
+	if input.BonusAmount <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_BONUS_AMOUNT", "bonus amount must be greater than 0")
+	}
+	requirePhone := true
+	if input.RequirePhoneVerification != nil {
+		requirePhone = *input.RequirePhoneVerification
+	}
 	batch := &ChannelInviteBatch{
-		Name:           strings.TrimSpace(input.Name),
-		BonusAmount:    input.BonusAmount,
-		MaxUsesPerCode: input.MaxUsesPerCode,
-		StartTime:      input.StartTime,
-		EndTime:        input.EndTime,
-		Status:         ChannelInviteBatchStatusActive,
-		Notes:          input.Notes,
-		CreatedBy:      input.CreatedBy,
+		Name:                     strings.TrimSpace(input.Name),
+		BonusAmount:              input.BonusAmount,
+		RequirePhoneVerification: requirePhone,
+		MaxUsesPerCode:           input.MaxUsesPerCode,
+		StartTime:                input.StartTime,
+		EndTime:                  input.EndTime,
+		Status:                   ChannelInviteBatchStatusActive,
+		Notes:                    input.Notes,
+		CreatedBy:                input.CreatedBy,
 	}
 
 	if batch.MaxUsesPerCode <= 0 {
@@ -100,6 +108,9 @@ func (s *ChannelInviteService) GetBatch(ctx context.Context, id int64) (*Channel
 
 // UpdateBatch 更新批次
 func (s *ChannelInviteService) UpdateBatch(ctx context.Context, id int64, input *UpdateChannelInviteBatchInput) (*ChannelInviteBatch, error) {
+	if input.BonusAmount != nil && *input.BonusAmount <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_BONUS_AMOUNT", "bonus amount must be greater than 0")
+	}
 	if err := s.repo.UpdateBatch(ctx, id, input); err != nil {
 		return nil, fmt.Errorf("update batch: %w", err)
 	}
@@ -267,7 +278,6 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 	if hasPrior {
 		return ErrChannelInviteAlreadyGranted
 	}
-
 	// 检查用户是否已使用过此码
 	existing, err := s.repo.GetUsageByCodeAndUser(txCtx, code.ID, userID)
 	if err != nil {
@@ -275,6 +285,15 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 	}
 	if existing != nil {
 		return ErrChannelInviteCodeAlreadyUsed
+	}
+
+	// 未发放的待处理记录也表示用户已经参加过渠道活动，禁止再次领取。
+	hasPending, err := s.repo.HasPendingBonusByUser(txCtx, userID)
+	if err != nil {
+		return fmt.Errorf("check pending bonus: %w", err)
+	}
+	if hasPending {
+		return ErrChannelInviteAlreadyGranted
 	}
 
 	// 增加使用次数
@@ -308,8 +327,8 @@ func (s *ChannelInviteService) ClaimCode(ctx context.Context, userID int64, code
 		}
 	}
 
-	// 如果用户已经绑定了手机号，立即发放奖励
-	bonusImmediate := user.PhoneNumber != nil && *user.PhoneNumber != ""
+	// 未要求手机验证，或用户已经绑定了手机号，立即发放奖励
+	bonusImmediate := !code.Batch.RequirePhoneVerification || (user.PhoneNumber != nil && *user.PhoneNumber != "")
 	if bonusImmediate {
 		if err := s.grantBonusInTx(txCtx, usage.ID, userID, code.Batch.BonusAmount); err != nil {
 			return fmt.Errorf("grant immediate bonus: %w", err)

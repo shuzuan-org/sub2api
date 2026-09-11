@@ -65,6 +65,11 @@ func BonusAmount(v float64) predicate.ChannelInviteBatch {
 	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldBonusAmount, v))
 }
 
+// RequirePhoneVerification applies equality check predicate on the "require_phone_verification" field. It's identical to RequirePhoneVerificationEQ.
+func RequirePhoneVerification(v bool) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldRequirePhoneVerification, v))
+}
+
 // MaxUsesPerCode applies equality check predicate on the "max_uses_per_code" field. It's identical to MaxUsesPerCodeEQ.
 func MaxUsesPerCode(v int) predicate.ChannelInviteBatch {
 	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldMaxUsesPerCode, v))
@@ -213,6 +218,16 @@ func BonusAmountLT(v float64) predicate.ChannelInviteBatch {
 // BonusAmountLTE applies the LTE predicate on the "bonus_amount" field.
 func BonusAmountLTE(v float64) predicate.ChannelInviteBatch {
 	return predicate.ChannelInviteBatch(sql.FieldLTE(FieldBonusAmount, v))
+}
+
+// RequirePhoneVerificationEQ applies the EQ predicate on the "require_phone_verification" field.
+func RequirePhoneVerificationEQ(v bool) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldEQ(FieldRequirePhoneVerification, v))
+}
+
+// RequirePhoneVerificationNEQ applies the NEQ predicate on the "require_phone_verification" field.
+func RequirePhoneVerificationNEQ(v bool) predicate.ChannelInviteBatch {
+	return predicate.ChannelInviteBatch(sql.FieldNEQ(FieldRequirePhoneVerification, v))
 }
 
 // MaxUsesPerCodeEQ applies the EQ predicate on the "max_uses_per_code" field.

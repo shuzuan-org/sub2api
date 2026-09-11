@@ -8084,36 +8084,37 @@ func (m *AnnouncementReadMutation) ResetEdge(name string) error {
 // ChannelInviteBatchMutation represents an operation that mutates the ChannelInviteBatch nodes in the graph.
 type ChannelInviteBatchMutation struct {
 	config
-	op                   Op
-	typ                  string
-	id                   *int64
-	name                 *string
-	bonus_amount         *float64
-	addbonus_amount      *float64
-	max_uses_per_code    *int
-	addmax_uses_per_code *int
-	start_time           *time.Time
-	end_time             *time.Time
-	status               *string
-	notes                *string
-	activity_copy_text   *string
-	created_at           *time.Time
-	updated_at           *time.Time
-	clearedFields        map[string]struct{}
-	creator              *int64
-	clearedcreator       bool
-	codes                map[int64]struct{}
-	removedcodes         map[int64]struct{}
-	clearedcodes         bool
-	batch_groups         map[int64]struct{}
-	removedbatch_groups  map[int64]struct{}
-	clearedbatch_groups  bool
-	usages               map[int64]struct{}
-	removedusages        map[int64]struct{}
-	clearedusages        bool
-	done                 bool
-	oldValue             func(context.Context) (*ChannelInviteBatch, error)
-	predicates           []predicate.ChannelInviteBatch
+	op                         Op
+	typ                        string
+	id                         *int64
+	name                       *string
+	bonus_amount               *float64
+	addbonus_amount            *float64
+	require_phone_verification *bool
+	max_uses_per_code          *int
+	addmax_uses_per_code       *int
+	start_time                 *time.Time
+	end_time                   *time.Time
+	status                     *string
+	notes                      *string
+	activity_copy_text         *string
+	created_at                 *time.Time
+	updated_at                 *time.Time
+	clearedFields              map[string]struct{}
+	creator                    *int64
+	clearedcreator             bool
+	codes                      map[int64]struct{}
+	removedcodes               map[int64]struct{}
+	clearedcodes               bool
+	batch_groups               map[int64]struct{}
+	removedbatch_groups        map[int64]struct{}
+	clearedbatch_groups        bool
+	usages                     map[int64]struct{}
+	removedusages              map[int64]struct{}
+	clearedusages              bool
+	done                       bool
+	oldValue                   func(context.Context) (*ChannelInviteBatch, error)
+	predicates                 []predicate.ChannelInviteBatch
 }
 
 var _ ent.Mutation = (*ChannelInviteBatchMutation)(nil)
@@ -8304,6 +8305,42 @@ func (m *ChannelInviteBatchMutation) AddedBonusAmount() (r float64, exists bool)
 func (m *ChannelInviteBatchMutation) ResetBonusAmount() {
 	m.bonus_amount = nil
 	m.addbonus_amount = nil
+}
+
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (m *ChannelInviteBatchMutation) SetRequirePhoneVerification(b bool) {
+	m.require_phone_verification = &b
+}
+
+// RequirePhoneVerification returns the value of the "require_phone_verification" field in the mutation.
+func (m *ChannelInviteBatchMutation) RequirePhoneVerification() (r bool, exists bool) {
+	v := m.require_phone_verification
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequirePhoneVerification returns the old "require_phone_verification" field's value of the ChannelInviteBatch entity.
+// If the ChannelInviteBatch object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ChannelInviteBatchMutation) OldRequirePhoneVerification(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequirePhoneVerification is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequirePhoneVerification requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequirePhoneVerification: %w", err)
+	}
+	return oldValue.RequirePhoneVerification, nil
+}
+
+// ResetRequirePhoneVerification resets all changes to the "require_phone_verification" field.
+func (m *ChannelInviteBatchMutation) ResetRequirePhoneVerification() {
+	m.require_phone_verification = nil
 }
 
 // SetMaxUsesPerCode sets the "max_uses_per_code" field.
@@ -8938,12 +8975,15 @@ func (m *ChannelInviteBatchMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ChannelInviteBatchMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.name != nil {
 		fields = append(fields, channelinvitebatch.FieldName)
 	}
 	if m.bonus_amount != nil {
 		fields = append(fields, channelinvitebatch.FieldBonusAmount)
+	}
+	if m.require_phone_verification != nil {
+		fields = append(fields, channelinvitebatch.FieldRequirePhoneVerification)
 	}
 	if m.max_uses_per_code != nil {
 		fields = append(fields, channelinvitebatch.FieldMaxUsesPerCode)
@@ -8984,6 +9024,8 @@ func (m *ChannelInviteBatchMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case channelinvitebatch.FieldBonusAmount:
 		return m.BonusAmount()
+	case channelinvitebatch.FieldRequirePhoneVerification:
+		return m.RequirePhoneVerification()
 	case channelinvitebatch.FieldMaxUsesPerCode:
 		return m.MaxUsesPerCode()
 	case channelinvitebatch.FieldStartTime:
@@ -9015,6 +9057,8 @@ func (m *ChannelInviteBatchMutation) OldField(ctx context.Context, name string) 
 		return m.OldName(ctx)
 	case channelinvitebatch.FieldBonusAmount:
 		return m.OldBonusAmount(ctx)
+	case channelinvitebatch.FieldRequirePhoneVerification:
+		return m.OldRequirePhoneVerification(ctx)
 	case channelinvitebatch.FieldMaxUsesPerCode:
 		return m.OldMaxUsesPerCode(ctx)
 	case channelinvitebatch.FieldStartTime:
@@ -9055,6 +9099,13 @@ func (m *ChannelInviteBatchMutation) SetField(name string, value ent.Value) erro
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetBonusAmount(v)
+		return nil
+	case channelinvitebatch.FieldRequirePhoneVerification:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequirePhoneVerification(v)
 		return nil
 	case channelinvitebatch.FieldMaxUsesPerCode:
 		v, ok := value.(int)
@@ -9227,6 +9278,9 @@ func (m *ChannelInviteBatchMutation) ResetField(name string) error {
 		return nil
 	case channelinvitebatch.FieldBonusAmount:
 		m.ResetBonusAmount()
+		return nil
+	case channelinvitebatch.FieldRequirePhoneVerification:
+		m.ResetRequirePhoneVerification()
 		return nil
 	case channelinvitebatch.FieldMaxUsesPerCode:
 		m.ResetMaxUsesPerCode()

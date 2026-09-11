@@ -67,6 +67,20 @@ func (_u *ChannelInviteBatchUpdate) AddBonusAmount(v float64) *ChannelInviteBatc
 	return _u
 }
 
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (_u *ChannelInviteBatchUpdate) SetRequirePhoneVerification(v bool) *ChannelInviteBatchUpdate {
+	_u.mutation.SetRequirePhoneVerification(v)
+	return _u
+}
+
+// SetNillableRequirePhoneVerification sets the "require_phone_verification" field if the given value is not nil.
+func (_u *ChannelInviteBatchUpdate) SetNillableRequirePhoneVerification(v *bool) *ChannelInviteBatchUpdate {
+	if v != nil {
+		_u.SetRequirePhoneVerification(*v)
+	}
+	return _u
+}
+
 // SetMaxUsesPerCode sets the "max_uses_per_code" field.
 func (_u *ChannelInviteBatchUpdate) SetMaxUsesPerCode(v int) *ChannelInviteBatchUpdate {
 	_u.mutation.ResetMaxUsesPerCode()
@@ -407,6 +421,9 @@ func (_u *ChannelInviteBatchUpdate) sqlSave(ctx context.Context) (_node int, err
 	if value, ok := _u.mutation.AddedBonusAmount(); ok {
 		_spec.AddField(channelinvitebatch.FieldBonusAmount, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.RequirePhoneVerification(); ok {
+		_spec.SetField(channelinvitebatch.FieldRequirePhoneVerification, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.MaxUsesPerCode(); ok {
 		_spec.SetField(channelinvitebatch.FieldMaxUsesPerCode, field.TypeInt, value)
 	}
@@ -659,6 +676,20 @@ func (_u *ChannelInviteBatchUpdateOne) SetNillableBonusAmount(v *float64) *Chann
 // AddBonusAmount adds value to the "bonus_amount" field.
 func (_u *ChannelInviteBatchUpdateOne) AddBonusAmount(v float64) *ChannelInviteBatchUpdateOne {
 	_u.mutation.AddBonusAmount(v)
+	return _u
+}
+
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (_u *ChannelInviteBatchUpdateOne) SetRequirePhoneVerification(v bool) *ChannelInviteBatchUpdateOne {
+	_u.mutation.SetRequirePhoneVerification(v)
+	return _u
+}
+
+// SetNillableRequirePhoneVerification sets the "require_phone_verification" field if the given value is not nil.
+func (_u *ChannelInviteBatchUpdateOne) SetNillableRequirePhoneVerification(v *bool) *ChannelInviteBatchUpdateOne {
+	if v != nil {
+		_u.SetRequirePhoneVerification(*v)
+	}
 	return _u
 }
 
@@ -1031,6 +1062,9 @@ func (_u *ChannelInviteBatchUpdateOne) sqlSave(ctx context.Context) (_node *Chan
 	}
 	if value, ok := _u.mutation.AddedBonusAmount(); ok {
 		_spec.AddField(channelinvitebatch.FieldBonusAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.RequirePhoneVerification(); ok {
+		_spec.SetField(channelinvitebatch.FieldRequirePhoneVerification, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.MaxUsesPerCode(); ok {
 		_spec.SetField(channelinvitebatch.FieldMaxUsesPerCode, field.TypeInt, value)

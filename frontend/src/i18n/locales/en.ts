@@ -4910,7 +4910,9 @@ export default {
         inviter: 'Inviter',
         inviterPlaceholder: 'Search by email...',
         copyText: 'Activity Copy Text',
-        copyTextPlaceholder: 'e.g. Bind and get 500U'
+        copyTextPlaceholder: 'e.g. Bind and get 500U',
+        requirePhoneVerification: 'Require phone verification',
+        requirePhoneVerificationHint: 'When enabled, activity points are granted only after phone binding'
       }
     },
 

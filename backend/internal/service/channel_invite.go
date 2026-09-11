@@ -6,18 +6,19 @@ import (
 
 // ChannelInviteBatch 渠道邀请码批次
 type ChannelInviteBatch struct {
-	ID               int64
-	Name             string
-	BonusAmount      float64
-	MaxUsesPerCode   int
-	StartTime        *time.Time
-	EndTime          *time.Time
-	Status           string
-	Notes            string
-	ActivityCopyText string
-	CreatedBy        int64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                       int64
+	Name                     string
+	BonusAmount              float64
+	RequirePhoneVerification bool
+	MaxUsesPerCode           int
+	StartTime                *time.Time
+	EndTime                  *time.Time
+	Status                   string
+	Notes                    string
+	ActivityCopyText         string
+	CreatedBy                int64
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 
 	// 关联
 	Groups    []Group
@@ -88,26 +89,28 @@ func (b *ChannelInviteBatch) IsActive() bool {
 
 // CreateChannelInviteBatchInput 创建批次输入
 type CreateChannelInviteBatchInput struct {
-	Name             string
-	BonusAmount      float64
-	MaxUsesPerCode   int
-	StartTime        *time.Time
-	EndTime          *time.Time
-	Notes            string
-	ActivityCopyText string
-	CreatedBy        int64
-	GroupIDs         []int64
+	Name                     string
+	BonusAmount              float64
+	RequirePhoneVerification *bool
+	MaxUsesPerCode           int
+	StartTime                *time.Time
+	EndTime                  *time.Time
+	Notes                    string
+	ActivityCopyText         string
+	CreatedBy                int64
+	GroupIDs                 []int64
 }
 
 // UpdateChannelInviteBatchInput 更新批次输入
 type UpdateChannelInviteBatchInput struct {
-	Name             *string
-	BonusAmount      *float64
-	MaxUsesPerCode   *int
-	StartTime        *time.Time
-	EndTime          *time.Time
-	Status           *string
-	Notes            *string
-	ActivityCopyText *string
-	GroupIDs         []int64 // 非空时替换全部分组关联
+	Name                     *string
+	BonusAmount              *float64
+	RequirePhoneVerification *bool
+	MaxUsesPerCode           *int
+	StartTime                *time.Time
+	EndTime                  *time.Time
+	Status                   *string
+	Notes                    *string
+	ActivityCopyText         *string
+	GroupIDs                 []int64 // 非空时替换全部分组关联
 }

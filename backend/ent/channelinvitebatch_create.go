@@ -46,6 +46,20 @@ func (_c *ChannelInviteBatchCreate) SetNillableBonusAmount(v *float64) *ChannelI
 	return _c
 }
 
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (_c *ChannelInviteBatchCreate) SetRequirePhoneVerification(v bool) *ChannelInviteBatchCreate {
+	_c.mutation.SetRequirePhoneVerification(v)
+	return _c
+}
+
+// SetNillableRequirePhoneVerification sets the "require_phone_verification" field if the given value is not nil.
+func (_c *ChannelInviteBatchCreate) SetNillableRequirePhoneVerification(v *bool) *ChannelInviteBatchCreate {
+	if v != nil {
+		_c.SetRequirePhoneVerification(*v)
+	}
+	return _c
+}
+
 // SetMaxUsesPerCode sets the "max_uses_per_code" field.
 func (_c *ChannelInviteBatchCreate) SetMaxUsesPerCode(v int) *ChannelInviteBatchCreate {
 	_c.mutation.SetMaxUsesPerCode(v)
@@ -259,6 +273,10 @@ func (_c *ChannelInviteBatchCreate) defaults() {
 		v := channelinvitebatch.DefaultBonusAmount
 		_c.mutation.SetBonusAmount(v)
 	}
+	if _, ok := _c.mutation.RequirePhoneVerification(); !ok {
+		v := channelinvitebatch.DefaultRequirePhoneVerification
+		_c.mutation.SetRequirePhoneVerification(v)
+	}
 	if _, ok := _c.mutation.MaxUsesPerCode(); !ok {
 		v := channelinvitebatch.DefaultMaxUsesPerCode
 		_c.mutation.SetMaxUsesPerCode(v)
@@ -289,6 +307,9 @@ func (_c *ChannelInviteBatchCreate) check() error {
 	}
 	if _, ok := _c.mutation.BonusAmount(); !ok {
 		return &ValidationError{Name: "bonus_amount", err: errors.New(`ent: missing required field "ChannelInviteBatch.bonus_amount"`)}
+	}
+	if _, ok := _c.mutation.RequirePhoneVerification(); !ok {
+		return &ValidationError{Name: "require_phone_verification", err: errors.New(`ent: missing required field "ChannelInviteBatch.require_phone_verification"`)}
 	}
 	if _, ok := _c.mutation.MaxUsesPerCode(); !ok {
 		return &ValidationError{Name: "max_uses_per_code", err: errors.New(`ent: missing required field "ChannelInviteBatch.max_uses_per_code"`)}
@@ -347,6 +368,10 @@ func (_c *ChannelInviteBatchCreate) createSpec() (*ChannelInviteBatch, *sqlgraph
 	if value, ok := _c.mutation.BonusAmount(); ok {
 		_spec.SetField(channelinvitebatch.FieldBonusAmount, field.TypeFloat64, value)
 		_node.BonusAmount = value
+	}
+	if value, ok := _c.mutation.RequirePhoneVerification(); ok {
+		_spec.SetField(channelinvitebatch.FieldRequirePhoneVerification, field.TypeBool, value)
+		_node.RequirePhoneVerification = value
 	}
 	if value, ok := _c.mutation.MaxUsesPerCode(); ok {
 		_spec.SetField(channelinvitebatch.FieldMaxUsesPerCode, field.TypeInt, value)
@@ -524,6 +549,18 @@ func (u *ChannelInviteBatchUpsert) UpdateBonusAmount() *ChannelInviteBatchUpsert
 // AddBonusAmount adds v to the "bonus_amount" field.
 func (u *ChannelInviteBatchUpsert) AddBonusAmount(v float64) *ChannelInviteBatchUpsert {
 	u.Add(channelinvitebatch.FieldBonusAmount, v)
+	return u
+}
+
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (u *ChannelInviteBatchUpsert) SetRequirePhoneVerification(v bool) *ChannelInviteBatchUpsert {
+	u.Set(channelinvitebatch.FieldRequirePhoneVerification, v)
+	return u
+}
+
+// UpdateRequirePhoneVerification sets the "require_phone_verification" field to the value that was provided on create.
+func (u *ChannelInviteBatchUpsert) UpdateRequirePhoneVerification() *ChannelInviteBatchUpsert {
+	u.SetExcluded(channelinvitebatch.FieldRequirePhoneVerification)
 	return u
 }
 
@@ -730,6 +767,20 @@ func (u *ChannelInviteBatchUpsertOne) AddBonusAmount(v float64) *ChannelInviteBa
 func (u *ChannelInviteBatchUpsertOne) UpdateBonusAmount() *ChannelInviteBatchUpsertOne {
 	return u.Update(func(s *ChannelInviteBatchUpsert) {
 		s.UpdateBonusAmount()
+	})
+}
+
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (u *ChannelInviteBatchUpsertOne) SetRequirePhoneVerification(v bool) *ChannelInviteBatchUpsertOne {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.SetRequirePhoneVerification(v)
+	})
+}
+
+// UpdateRequirePhoneVerification sets the "require_phone_verification" field to the value that was provided on create.
+func (u *ChannelInviteBatchUpsertOne) UpdateRequirePhoneVerification() *ChannelInviteBatchUpsertOne {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.UpdateRequirePhoneVerification()
 	})
 }
 
@@ -1123,6 +1174,20 @@ func (u *ChannelInviteBatchUpsertBulk) AddBonusAmount(v float64) *ChannelInviteB
 func (u *ChannelInviteBatchUpsertBulk) UpdateBonusAmount() *ChannelInviteBatchUpsertBulk {
 	return u.Update(func(s *ChannelInviteBatchUpsert) {
 		s.UpdateBonusAmount()
+	})
+}
+
+// SetRequirePhoneVerification sets the "require_phone_verification" field.
+func (u *ChannelInviteBatchUpsertBulk) SetRequirePhoneVerification(v bool) *ChannelInviteBatchUpsertBulk {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.SetRequirePhoneVerification(v)
+	})
+}
+
+// UpdateRequirePhoneVerification sets the "require_phone_verification" field to the value that was provided on create.
+func (u *ChannelInviteBatchUpsertBulk) UpdateRequirePhoneVerification() *ChannelInviteBatchUpsertBulk {
+	return u.Update(func(s *ChannelInviteBatchUpsert) {
+		s.UpdateRequirePhoneVerification()
 	})
 }
 
