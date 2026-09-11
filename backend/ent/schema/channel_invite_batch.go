@@ -39,6 +39,9 @@ func (ChannelInviteBatch) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0).
 			Comment("赠送余额金额（U）"),
+		field.Bool("require_phone_verification").
+			Default(true).
+			Comment("是否需要绑定手机号后发放奖励"),
 		field.Int("max_uses_per_code").
 			Default(1).
 			Comment("每码最大使用次数，0=无限"),

@@ -81,6 +81,13 @@ var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibil
 			"5f5f2de6c2ddb695ed6d033b4f1b3a8c82084a6d29c0fd8ec9763c4e0582ce87": {},
 		},
 	},
+	// 105: 本地历史数据库曾使用过旧版 metawork OAuth 客户端迁移内容。
+	"105_metawork_oauth_client.sql": {
+		fileChecksum: "c229a08676a84302145ee9ad730d8386f4cd3cded090d0e95e6bc6d3d6633798",
+		acceptedDBChecksum: map[string]struct{}{
+			"23394548be7d33757680a9f8a23bf527765f6be191bae30a47169e9a47bb51b4": {},
+		},
+	},
 }
 
 // ApplyMigrations 将嵌入的 SQL 迁移文件应用到指定的数据库。

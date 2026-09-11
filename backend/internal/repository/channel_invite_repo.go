@@ -30,6 +30,7 @@ func (r *channelInviteRepository) CreateBatch(ctx context.Context, batch *servic
 	builder := client.ChannelInviteBatch.Create().
 		SetName(batch.Name).
 		SetBonusAmount(batch.BonusAmount).
+		SetRequirePhoneVerification(batch.RequirePhoneVerification).
 		SetMaxUsesPerCode(batch.MaxUsesPerCode).
 		SetStatus(batch.Status).
 		SetCreatedBy(batch.CreatedBy).
@@ -94,6 +95,9 @@ func (r *channelInviteRepository) UpdateBatch(ctx context.Context, id int64, inp
 	}
 	if input.BonusAmount != nil {
 		builder.SetBonusAmount(*input.BonusAmount)
+	}
+	if input.RequirePhoneVerification != nil {
+		builder.SetRequirePhoneVerification(*input.RequirePhoneVerification)
 	}
 	if input.MaxUsesPerCode != nil {
 		builder.SetMaxUsesPerCode(*input.MaxUsesPerCode)
@@ -486,18 +490,19 @@ func channelInviteBatchEntityToService(m *dbent.ChannelInviteBatch) *service.Cha
 		return nil
 	}
 	b := &service.ChannelInviteBatch{
-		ID:               m.ID,
-		Name:             m.Name,
-		BonusAmount:      m.BonusAmount,
-		MaxUsesPerCode:   m.MaxUsesPerCode,
-		StartTime:        m.StartTime,
-		EndTime:          m.EndTime,
-		Status:           m.Status,
-		Notes:            derefString(m.Notes),
-		ActivityCopyText: derefString(m.ActivityCopyText),
-		CreatedBy:        m.CreatedBy,
-		CreatedAt:        m.CreatedAt,
-		UpdatedAt:        m.UpdatedAt,
+		ID:                       m.ID,
+		Name:                     m.Name,
+		BonusAmount:              m.BonusAmount,
+		RequirePhoneVerification: m.RequirePhoneVerification,
+		MaxUsesPerCode:           m.MaxUsesPerCode,
+		StartTime:                m.StartTime,
+		EndTime:                  m.EndTime,
+		Status:                   m.Status,
+		Notes:                    derefString(m.Notes),
+		ActivityCopyText:         derefString(m.ActivityCopyText),
+		CreatedBy:                m.CreatedBy,
+		CreatedAt:                m.CreatedAt,
+		UpdatedAt:                m.UpdatedAt,
 	}
 	if m.Edges.Creator != nil {
 		b.Creator = userEntityToService(m.Edges.Creator)

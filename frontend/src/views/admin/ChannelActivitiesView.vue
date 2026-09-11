@@ -184,8 +184,17 @@
         <!-- 单码积分 -->
         <div>
           <label class="input-label">{{ t('admin.channelActivity.form.bonusAmount') }} *</label>
-          <input v-model.number="form.bonus_amount" type="number" class="input w-48" min="0" step="0.01" required />
+          <input v-model.number="form.bonus_amount" type="number" class="input w-48" min="0.01" step="0.01" required />
           <p class="input-hint">{{ t('admin.channelActivity.form.bonusHint') }}</p>
+        </div>
+
+        <!-- 手机验证要求 -->
+        <div>
+          <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-300">
+            <input v-model="form.require_phone_verification" type="checkbox" />
+            {{ t('admin.channelActivity.form.requirePhoneVerification') }}
+          </label>
+          <p class="input-hint">{{ t('admin.channelActivity.form.requirePhoneVerificationHint') }}</p>
         </div>
 
         <!-- 单人邀请码数量（每码最大使用次数） -->
@@ -333,6 +342,7 @@ const form = ref({
   max_uses_per_code: 100,
   created_by: 0,
   activity_copy_text: '',
+  require_phone_verification: true,
 })
 function openCreateModal() {
   editingBatch.value = null
@@ -344,6 +354,7 @@ function openCreateModal() {
     max_uses_per_code: 100,
     created_by: 0,
     activity_copy_text: '',
+    require_phone_verification: true,
   }
   selectedInviter.value = null
   inviterSearch.value = ''
@@ -361,6 +372,7 @@ function openEditModal(batch: ChannelInviteBatch) {
     max_uses_per_code: batch.max_uses_per_code,
     created_by: batch.created_by,
     activity_copy_text: batch.activity_copy_text || '',
+    require_phone_verification: batch.require_phone_verification !== false,
   }
   selectedInviter.value = batch.creator || null
   inviterSearch.value = ''
@@ -383,7 +395,8 @@ async function handleSubmitForm() {
       notes: '',
       activity_copy_text: form.value.activity_copy_text,
       created_by: form.value.created_by,
-      group_ids: []
+      group_ids: [],
+      require_phone_verification: form.value.require_phone_verification
     }
 
     if (form.value.start_time) {

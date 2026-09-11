@@ -224,6 +224,7 @@ var knownRemoteModelLimits = []struct {
 	maxTokens      int
 }{
 	{prefix: "deepseek-v4-flash", maxInputTokens: 196608, maxTokens: 128000},
+	{prefix: "glm-5-3", maxInputTokens: 1000000, maxTokens: 131072},
 }
 
 func remoteModelLimits(normalized string) (maxInputTokens, maxTokens int) {

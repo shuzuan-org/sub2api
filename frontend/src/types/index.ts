@@ -1706,6 +1706,7 @@ export interface ChannelInviteBatch {
   id: number
   name: string
   bonus_amount: number
+  require_phone_verification: boolean
   max_uses_per_code: number
   start_time: string | null
   end_time: string | null
@@ -1748,6 +1749,7 @@ export interface ChannelInviteCodeUsage {
 export interface CreateChannelInviteBatchRequest {
   name: string
   bonus_amount: number
+  require_phone_verification?: boolean
   max_uses_per_code?: number
   start_time?: number
   end_time?: number
@@ -1760,6 +1762,7 @@ export interface CreateChannelInviteBatchRequest {
 export interface UpdateChannelInviteBatchRequest {
   name?: string
   bonus_amount?: number
+  require_phone_verification?: boolean
   max_uses_per_code?: number
   start_time?: number
   end_time?: number
@@ -1768,4 +1771,3 @@ export interface UpdateChannelInviteBatchRequest {
   activity_copy_text?: string
   group_ids?: number[]
 }
-

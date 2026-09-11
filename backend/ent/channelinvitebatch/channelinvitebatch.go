@@ -18,6 +18,8 @@ const (
 	FieldName = "name"
 	// FieldBonusAmount holds the string denoting the bonus_amount field in the database.
 	FieldBonusAmount = "bonus_amount"
+	// FieldRequirePhoneVerification holds the string denoting the require_phone_verification field in the database.
+	FieldRequirePhoneVerification = "require_phone_verification"
 	// FieldMaxUsesPerCode holds the string denoting the max_uses_per_code field in the database.
 	FieldMaxUsesPerCode = "max_uses_per_code"
 	// FieldStartTime holds the string denoting the start_time field in the database.
@@ -81,6 +83,7 @@ var Columns = []string{
 	FieldID,
 	FieldName,
 	FieldBonusAmount,
+	FieldRequirePhoneVerification,
 	FieldMaxUsesPerCode,
 	FieldStartTime,
 	FieldEndTime,
@@ -107,6 +110,8 @@ var (
 	NameValidator func(string) error
 	// DefaultBonusAmount holds the default value on creation for the "bonus_amount" field.
 	DefaultBonusAmount float64
+	// DefaultRequirePhoneVerification holds the default value on creation for the "require_phone_verification" field.
+	DefaultRequirePhoneVerification bool
 	// DefaultMaxUsesPerCode holds the default value on creation for the "max_uses_per_code" field.
 	DefaultMaxUsesPerCode int
 	// DefaultStatus holds the default value on creation for the "status" field.
@@ -137,6 +142,11 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByBonusAmount orders the results by the bonus_amount field.
 func ByBonusAmount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBonusAmount, opts...).ToFunc()
+}
+
+// ByRequirePhoneVerification orders the results by the require_phone_verification field.
+func ByRequirePhoneVerification(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequirePhoneVerification, opts...).ToFunc()
 }
 
 // ByMaxUsesPerCode orders the results by the max_uses_per_code field.

@@ -388,6 +388,7 @@ var (
 		{Name: "id", Type: field.TypeInt64, Increment: true},
 		{Name: "name", Type: field.TypeString, Size: 100},
 		{Name: "bonus_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "require_phone_verification", Type: field.TypeBool, Default: true},
 		{Name: "max_uses_per_code", Type: field.TypeInt, Default: 1},
 		{Name: "start_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "end_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
@@ -406,7 +407,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "channel_invite_batches_users_channel_invite_batches",
-				Columns:    []*schema.Column{ChannelInviteBatchesColumns[11]},
+				Columns:    []*schema.Column{ChannelInviteBatchesColumns[12]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -415,12 +416,12 @@ var (
 			{
 				Name:    "channelinvitebatch_status",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelInviteBatchesColumns[6]},
+				Columns: []*schema.Column{ChannelInviteBatchesColumns[7]},
 			},
 			{
 				Name:    "channelinvitebatch_created_by",
 				Unique:  false,
-				Columns: []*schema.Column{ChannelInviteBatchesColumns[11]},
+				Columns: []*schema.Column{ChannelInviteBatchesColumns[12]},
 			},
 		},
 	}

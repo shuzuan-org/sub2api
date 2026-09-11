@@ -5075,7 +5075,9 @@ export default {
         inviter: '邀请人',
         inviterPlaceholder: '输入邮箱搜索...',
         copyText: '活动文案',
-        copyTextPlaceholder: '例如：绑定即送500U'
+        copyTextPlaceholder: '例如：绑定即送500U',
+        requirePhoneVerification: '需要手机验证',
+        requirePhoneVerificationHint: '勾选后，用户绑定手机号时才发放活动积分'
       }
     },
 

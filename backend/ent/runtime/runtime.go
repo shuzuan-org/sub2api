@@ -374,22 +374,26 @@ func init() {
 	channelinvitebatchDescBonusAmount := channelinvitebatchFields[1].Descriptor()
 	// channelinvitebatch.DefaultBonusAmount holds the default value on creation for the bonus_amount field.
 	channelinvitebatch.DefaultBonusAmount = channelinvitebatchDescBonusAmount.Default.(float64)
+	// channelinvitebatchDescRequirePhoneVerification is the schema descriptor for require_phone_verification field.
+	channelinvitebatchDescRequirePhoneVerification := channelinvitebatchFields[2].Descriptor()
+	// channelinvitebatch.DefaultRequirePhoneVerification holds the default value on creation for the require_phone_verification field.
+	channelinvitebatch.DefaultRequirePhoneVerification = channelinvitebatchDescRequirePhoneVerification.Default.(bool)
 	// channelinvitebatchDescMaxUsesPerCode is the schema descriptor for max_uses_per_code field.
-	channelinvitebatchDescMaxUsesPerCode := channelinvitebatchFields[2].Descriptor()
+	channelinvitebatchDescMaxUsesPerCode := channelinvitebatchFields[3].Descriptor()
 	// channelinvitebatch.DefaultMaxUsesPerCode holds the default value on creation for the max_uses_per_code field.
 	channelinvitebatch.DefaultMaxUsesPerCode = channelinvitebatchDescMaxUsesPerCode.Default.(int)
 	// channelinvitebatchDescStatus is the schema descriptor for status field.
-	channelinvitebatchDescStatus := channelinvitebatchFields[5].Descriptor()
+	channelinvitebatchDescStatus := channelinvitebatchFields[6].Descriptor()
 	// channelinvitebatch.DefaultStatus holds the default value on creation for the status field.
 	channelinvitebatch.DefaultStatus = channelinvitebatchDescStatus.Default.(string)
 	// channelinvitebatch.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	channelinvitebatch.StatusValidator = channelinvitebatchDescStatus.Validators[0].(func(string) error)
 	// channelinvitebatchDescCreatedAt is the schema descriptor for created_at field.
-	channelinvitebatchDescCreatedAt := channelinvitebatchFields[9].Descriptor()
+	channelinvitebatchDescCreatedAt := channelinvitebatchFields[10].Descriptor()
 	// channelinvitebatch.DefaultCreatedAt holds the default value on creation for the created_at field.
 	channelinvitebatch.DefaultCreatedAt = channelinvitebatchDescCreatedAt.Default.(func() time.Time)
 	// channelinvitebatchDescUpdatedAt is the schema descriptor for updated_at field.
-	channelinvitebatchDescUpdatedAt := channelinvitebatchFields[10].Descriptor()
+	channelinvitebatchDescUpdatedAt := channelinvitebatchFields[11].Descriptor()
 	// channelinvitebatch.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	channelinvitebatch.DefaultUpdatedAt = channelinvitebatchDescUpdatedAt.Default.(func() time.Time)
 	// channelinvitebatch.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
