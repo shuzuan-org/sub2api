@@ -1112,6 +1112,21 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "gateway.stream_keepalive_interval",
 		},
 		{
+			name:    "gateway stream tool args bytes negative",
+			mutate:  func(c *Config) { c.Gateway.StreamToolArgsMaxBytes = -1 },
+			wantErr: "gateway.stream_tool_args_max_bytes",
+		},
+		{
+			name:    "gateway stream tool args duration too short",
+			mutate:  func(c *Config) { c.Gateway.StreamToolArgsMaxDurationSeconds = 29 },
+			wantErr: "gateway.stream_tool_args_max_duration_seconds",
+		},
+		{
+			name:    "gateway stream tool args duration negative",
+			mutate:  func(c *Config) { c.Gateway.StreamToolArgsMaxDurationSeconds = -1 },
+			wantErr: "gateway.stream_tool_args_max_duration_seconds",
+		},
+		{
 			name:    "gateway openai ws oauth max conns factor",
 			mutate:  func(c *Config) { c.Gateway.OpenAIWS.OAuthMaxConnsFactor = 0 },
 			wantErr: "gateway.openai_ws.oauth_max_conns_factor",

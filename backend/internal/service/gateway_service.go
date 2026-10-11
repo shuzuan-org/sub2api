@@ -5230,6 +5230,37 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		intervalCh = intervalTicker.C
 	}
 
+	keepaliveInterval := time.Duration(0)
+	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
+		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
+	}
+	var keepaliveTicker *time.Ticker
+	if keepaliveInterval > 0 {
+		keepaliveTicker = time.NewTicker(keepaliveInterval)
+		defer keepaliveTicker.Stop()
+	}
+	var keepaliveCh <-chan time.Time
+	if keepaliveTicker != nil {
+		keepaliveCh = keepaliveTicker.C
+	}
+	lastDataAt := time.Now()
+	toolArgsMaxBytes := 0
+	toolArgsMaxDurationSeconds := 0
+	if s.cfg != nil {
+		toolArgsMaxBytes = s.cfg.Gateway.StreamToolArgsMaxBytes
+		toolArgsMaxDurationSeconds = s.cfg.Gateway.StreamToolArgsMaxDurationSeconds
+	}
+	toolArgsGuard := newAnthropicToolArgsGuard(toolArgsMaxBytes, toolArgsMaxDurationSeconds)
+	var toolArgsTicker *time.Ticker
+	if toolArgsMaxDurationSeconds > 0 {
+		toolArgsTicker = time.NewTicker(time.Second)
+		defer toolArgsTicker.Stop()
+	}
+	var toolArgsCh <-chan time.Time
+	if toolArgsTicker != nil {
+		toolArgsCh = toolArgsTicker.C
+	}
+
 	writeRawLine := func(line string) {
 		if clientDisconnected {
 			return
@@ -5243,6 +5274,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		} else if line == "" {
 			// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
 			flusher.Flush()
+			lastDataAt = time.Now()
 		}
 	}
 
@@ -5341,6 +5373,16 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 					firstTokenMs = &ms
 				}
 				s.parseSSEUsagePassthrough(data, usage)
+				if reason, limited := toolArgsGuard.observeEvent(gjson.Get(trimmed, "type").String(), trimmed, time.Now()); limited {
+					metrics.RecordStreamToolArgsLimit(model, reason)
+					releaseHoldBuffer()
+					guardWriter.finish(writeRawLine)
+					if !clientDisconnected {
+						_, _ = fmt.Fprint(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"tool-call arguments exceeded gateway limit\"}}\n\n")
+						flusher.Flush()
+					}
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("tool-call arguments exceeded gateway limit: %s", reason)
+				}
 			} else {
 				trimmed := strings.TrimSpace(line)
 				if strings.HasPrefix(trimmed, "event:") && anthropicStreamEventIsTerminal(strings.TrimSpace(strings.TrimPrefix(trimmed, "event:")), "") {
@@ -5381,6 +5423,18 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 
 			writeLine(line)
 
+		case <-toolArgsCh:
+			if reason, limited := toolArgsGuard.expired(time.Now()); limited {
+				metrics.RecordStreamToolArgsLimit(model, reason)
+				releaseHoldBuffer()
+				guardWriter.finish(writeRawLine)
+				if !clientDisconnected {
+					_, _ = fmt.Fprint(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"tool-call arguments exceeded gateway limit\"}}\n\n")
+					flusher.Flush()
+				}
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("tool-call arguments exceeded gateway limit: %s", reason)
+			}
+
 		case <-intervalCh:
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
 			if time.Since(lastRead) < streamInterval {
@@ -5396,6 +5450,19 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				s.rateLimitService.HandleStreamTimeout(ctx, account, model)
 			}
 			return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream data interval timeout")
+
+		case <-keepaliveCh:
+			if clientDisconnected || time.Since(lastDataAt) < keepaliveInterval {
+				continue
+			}
+			releaseHoldBuffer()
+			if _, werr := fmt.Fprint(w, "event: ping\ndata: {\"type\":\"ping\"}\n\n"); werr != nil {
+				clientDisconnected = true
+				logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during keepalive ping, continuing to drain upstream for billing: account=%d", account.ID)
+				continue
+			}
+			flusher.Flush()
+			lastDataAt = time.Now()
 		}
 	}
 }
@@ -7052,6 +7119,22 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		keepaliveCh = keepaliveTicker.C
 	}
 	lastDataAt := time.Now()
+	toolArgsMaxBytes := 0
+	toolArgsMaxDurationSeconds := 0
+	if s.cfg != nil {
+		toolArgsMaxBytes = s.cfg.Gateway.StreamToolArgsMaxBytes
+		toolArgsMaxDurationSeconds = s.cfg.Gateway.StreamToolArgsMaxDurationSeconds
+	}
+	toolArgsGuard := newAnthropicToolArgsGuard(toolArgsMaxBytes, toolArgsMaxDurationSeconds)
+	var toolArgsTicker *time.Ticker
+	if toolArgsMaxDurationSeconds > 0 {
+		toolArgsTicker = time.NewTicker(time.Second)
+		defer toolArgsTicker.Stop()
+	}
+	var toolArgsCh <-chan time.Time
+	if toolArgsTicker != nil {
+		toolArgsCh = toolArgsTicker.C
+	}
 
 	// 出口块配平守卫：上游（anthropic 兼容的第三方上游）漏发 content_block_stop
 	// 就 start 下一个块时，严格校验的客户端会判流非法并中断输出。
@@ -7229,6 +7312,11 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		if err != nil {
 			return err
 		}
+		if reason, limited := toolArgsGuard.observeEvent(gjson.Get(data, "type").String(), data, time.Now()); limited {
+			metrics.RecordStreamToolArgsLimit(originalModel, reason)
+			sendErrorEvent("tool_call_arguments_limit_" + reason)
+			return fmt.Errorf("tool-call arguments exceeded gateway limit: %s", reason)
+		}
 		outputBlocks = applyAnthropicBlockGuardToBlocks(blockGuard, outputBlocks, data)
 		for _, block := range outputBlocks {
 			if !clientDisconnected {
@@ -7364,7 +7452,19 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 			pendingEventLines = append(pendingEventLines, line)
 
+		case <-toolArgsCh:
+			if reason, limited := toolArgsGuard.expired(time.Now()); limited {
+				metrics.RecordStreamToolArgsLimit(originalModel, reason)
+				sendErrorEvent("tool_call_arguments_limit_" + reason)
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("tool-call arguments exceeded gateway limit: %s", reason)
+			}
+
 		case <-intervalCh:
+			if reason, limited := toolArgsGuard.expired(time.Now()); limited {
+				metrics.RecordStreamToolArgsLimit(originalModel, reason)
+				sendErrorEvent("tool_call_arguments_limit_" + reason)
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("tool-call arguments exceeded gateway limit: %s", reason)
+			}
 			lastRead := time.Unix(0, atomic.LoadInt64(&lastReadAt))
 			if time.Since(lastRead) < streamInterval {
 				continue
@@ -7398,6 +7498,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				continue
 			}
 			flusher.Flush()
+			lastDataAt = time.Now()
 		}
 	}
 

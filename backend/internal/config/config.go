@@ -424,6 +424,10 @@ type GatewayConfig struct {
 	StreamDataIntervalTimeout int `mapstructure:"stream_data_interval_timeout"`
 	// StreamKeepaliveInterval: 流式 keepalive 间隔（秒），0表示禁用
 	StreamKeepaliveInterval int `mapstructure:"stream_keepalive_interval"`
+	// StreamToolArgsMaxBytes: 单个 tool-use 参数累计最大字节数，0表示禁用
+	StreamToolArgsMaxBytes int `mapstructure:"stream_tool_args_max_bytes"`
+	// StreamToolArgsMaxDurationSeconds: 单个 tool-use 参数最长持续时间（秒），0表示禁用
+	StreamToolArgsMaxDurationSeconds int `mapstructure:"stream_tool_args_max_duration_seconds"`
 	// MaxLineSize: 上游 SSE 单行最大字节数（0使用默认值）
 	MaxLineSize int `mapstructure:"max_line_size"`
 
@@ -1442,6 +1446,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.concurrency_slot_ttl_minutes", 30) // 并发槽位过期时间（支持超长请求）
 	viper.SetDefault("gateway.stream_data_interval_timeout", 180)
 	viper.SetDefault("gateway.stream_keepalive_interval", 10)
+	viper.SetDefault("gateway.stream_tool_args_max_bytes", 256*1024)
+	viper.SetDefault("gateway.stream_tool_args_max_duration_seconds", 300)
 	viper.SetDefault("gateway.max_line_size", 500*1024*1024)
 	viper.SetDefault("gateway.scheduling.sticky_session_max_waiting", 3)
 	viper.SetDefault("gateway.scheduling.sticky_session_wait_timeout", 120*time.Second)
@@ -2029,6 +2035,15 @@ func (c *Config) Validate() error {
 	if c.Gateway.StreamKeepaliveInterval != 0 &&
 		(c.Gateway.StreamKeepaliveInterval < 5 || c.Gateway.StreamKeepaliveInterval > 30) {
 		return fmt.Errorf("gateway.stream_keepalive_interval must be 0 or between 5-30 seconds")
+	}
+	if c.Gateway.StreamToolArgsMaxBytes < 0 {
+		return fmt.Errorf("gateway.stream_tool_args_max_bytes must be non-negative")
+	}
+	if c.Gateway.StreamToolArgsMaxDurationSeconds < 0 {
+		return fmt.Errorf("gateway.stream_tool_args_max_duration_seconds must be non-negative")
+	}
+	if c.Gateway.StreamToolArgsMaxDurationSeconds != 0 && c.Gateway.StreamToolArgsMaxDurationSeconds < 30 {
+		return fmt.Errorf("gateway.stream_tool_args_max_duration_seconds must be 0 or at least 30 seconds")
 	}
 	// 兼容旧键 sticky_previous_response_ttl_seconds
 	if c.Gateway.OpenAIWS.StickyResponseIDTTLSeconds <= 0 && c.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds > 0 {

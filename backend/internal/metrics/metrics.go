@@ -93,6 +93,13 @@ var (
 		Help: "Anthropic SSE content-block protocol violations repaired at the gateway, by model and reason.",
 	}, []string{"model", "reason"})
 
+	// StreamToolArgsLimitTotal counts tool-call streams terminated by the
+	// gateway's bounded argument guard. Labels are intentionally low-cardinality.
+	StreamToolArgsLimitTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "sub2api_stream_tool_args_limit_total",
+		Help: "Anthropic tool-call streams terminated by gateway argument limits, by model and reason.",
+	}, []string{"model", "reason"})
+
 	// RequestInterruptedTotal 长任务在各阶段被中断的次数（项5）。
 	// phase: "slotwait"|"stream"；cause: "client"|"shutdown"|"deadline"。
 	RequestInterruptedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -334,6 +341,15 @@ func RecordStreamBlockRepair(model, reason string) {
 		model = "__other__"
 	}
 	StreamBlockRepairTotal.WithLabelValues(model, reason).Inc()
+}
+
+// RecordStreamToolArgsLimit records a bounded tool-call stream termination.
+func RecordStreamToolArgsLimit(model, reason string) {
+	model = NormalizeModel(model)
+	if model == "" {
+		model = "__other__"
+	}
+	StreamToolArgsLimitTotal.WithLabelValues(model, reason).Inc()
 }
 
 // RecordUpstreamLatency 记录一次上游请求的延迟。
