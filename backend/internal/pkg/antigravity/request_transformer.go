@@ -549,13 +549,24 @@ func parseToolResultContent(content json.RawMessage, isError bool) string {
 	// 尝试解析为数组
 	var arr []map[string]any
 	if err := json.Unmarshal(content, &arr); err == nil {
-		var texts []string
+		var results []string
 		for _, item := range arr {
-			if text, ok := item["text"].(string); ok {
-				texts = append(texts, text)
+			switch item["type"] {
+			case "text":
+				if text, ok := item["text"].(string); ok {
+					results = append(results, text)
+				}
+			case "image":
+				if source, ok := item["source"].(map[string]any); ok && source["type"] == "base64" {
+					mediaType, mediaTypeOK := source["media_type"].(string)
+					data, dataOK := source["data"].(string)
+					if mediaTypeOK && dataOK {
+						results = append(results, fmt.Sprintf("![image](data:%s;base64,%s)", mediaType, data))
+					}
+				}
 			}
 		}
-		result := strings.Join(texts, "\n")
+		result := strings.Join(results, "\n")
 		if strings.TrimSpace(result) == "" {
 			if isError {
 				return "Tool execution failed with no output."
