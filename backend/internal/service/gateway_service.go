@@ -151,6 +151,13 @@ const inlineAnthropicErrorPrefix = `{"type":"error"`
 // 用这个上限兜底，避免无限缓冲。
 const maxHoldBufferLines = 16
 
+// messageStartHoldTimeout bounds the compatibility window used to detect an
+// HTTP 200 stream that wraps an upstream error after message_start. Some
+// providers (notably GLM-5.3-Flash) can emit message_start and then remain
+// silent while preparing the first token; keeping this window short prevents
+// that provider behavior from adding visible first-packet latency.
+const messageStartHoldTimeout = 100 * time.Millisecond
+
 // parseInlineAnthropicErrorJSON 识别上游非规范 SSE 响应里一行裸 Anthropic 错误 JSON
 // （形如 `{"type":"error","error":{"type":"...","message":"..."}}`，无 SSE 前缀）。
 // 返回推荐的 HTTP 状态码、原始 JSON body 和是否匹配。
@@ -5275,6 +5282,9 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
 			flusher.Flush()
 			lastDataAt = time.Now()
+			if keepaliveTicker != nil {
+				keepaliveTicker.Reset(keepaliveInterval)
+			}
 		}
 	}
 
@@ -5301,7 +5311,28 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	holdWindowOpen := true
 	var heldMessageStart []string
 	var pendingEventLines []string
+	var holdTimer *time.Timer
+	var holdTimerCh <-chan time.Time
+	stopHoldTimer := func() {
+		if holdTimer == nil {
+			return
+		}
+		if !holdTimer.Stop() {
+			select {
+			case <-holdTimer.C:
+			default:
+			}
+		}
+		holdTimer = nil
+		holdTimerCh = nil
+	}
+	startHoldTimer := func() {
+		stopHoldTimer()
+		holdTimer = time.NewTimer(messageStartHoldTimeout)
+		holdTimerCh = holdTimer.C
+	}
 	releaseHoldBuffer := func() {
+		stopHoldTimer()
 		holdWindowOpen = false
 		for _, l := range heldMessageStart {
 			writeLine(l)
@@ -5403,9 +5434,11 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				}
 				eventName, dataLine := sseEventBlockHead(pendingEventLines)
 				if heldMessageStart == nil && sseEventIsMessageStart(eventName, dataLine) {
-					// 扣住 message_start，等下一个事件揭晓这是正常流还是被包装的错误
+					// 短暂扣住 message_start，等下一个事件揭晓这是正常流还是
+					// 被包装的错误；超时后自动放行，避免首包延迟。
 					heldMessageStart = pendingEventLines
 					pendingEventLines = nil
+					startHoldTimer()
 					continue
 				}
 				if errStatus, errBody, matched := parseAnthropicSSEErrorEvent(eventName, dataLine); matched {
@@ -5463,6 +5496,15 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			}
 			flusher.Flush()
 			lastDataAt = time.Now()
+			if keepaliveTicker != nil {
+				keepaliveTicker.Reset(keepaliveInterval)
+			}
+
+		case <-holdTimerCh:
+			// Do not wait indefinitely for a second upstream event. The short
+			// window above still catches the common wrapped-error shape while
+			// allowing a quiet provider to deliver message_start promptly.
+			releaseHoldBuffer()
 		}
 	}
 }
@@ -7177,9 +7219,30 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	firstNonEmptyLine := true
 
 	pendingEventLines := make([]string, 0, 4)
-	// heldMessageStart 暂存首个 message_start 事件，等看到下一个事件再决定放行还是改写。
+	// heldMessageStart 暂存首个 message_start 事件，等看到下一个事件或
+	// hold timeout 再决定放行还是改写。
 	// 见 flushHeldMessageStart / parseAnthropicSSEErrorEvent 的注释。
 	var heldMessageStart []string
+	var holdTimer *time.Timer
+	var holdTimerCh <-chan time.Time
+	stopHoldTimer := func() {
+		if holdTimer == nil {
+			return
+		}
+		if !holdTimer.Stop() {
+			select {
+			case <-holdTimer.C:
+			default:
+			}
+		}
+		holdTimer = nil
+		holdTimerCh = nil
+	}
+	startHoldTimer := func() {
+		stopHoldTimer()
+		holdTimer = time.NewTimer(messageStartHoldTimeout)
+		holdTimerCh = holdTimer.C
+	}
 
 	processSSEEvent := func(lines []string) ([]string, string, *sseUsagePatch, error) {
 		if len(lines) == 0 {
@@ -7327,6 +7390,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				}
 				flusher.Flush()
 				lastDataAt = time.Now()
+				if keepaliveTicker != nil {
+					keepaliveTicker.Reset(keepaliveInterval)
+				}
 			}
 			if data != "" {
 				if firstTokenMs == nil && data != "[DONE]" {
@@ -7343,6 +7409,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 	// flushHeldMessageStart 把扣住的 message_start 补写给客户端（尽力而为）。
 	flushHeldMessageStart = func() {
+		stopHoldTimer()
 		if len(heldMessageStart) == 0 {
 			return
 		}
@@ -7424,6 +7491,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					if heldMessageStart == nil && sseEventIsMessageStart(eventName, dataLine) {
 						heldMessageStart = append([]string(nil), pendingEventLines...)
 						pendingEventLines = pendingEventLines[:0]
+						startHoldTimer()
 						continue
 					}
 					if errStatus, errBody, matched := parseAnthropicSSEErrorEvent(eventName, dataLine); matched {
@@ -7451,6 +7519,11 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 
 			pendingEventLines = append(pendingEventLines, line)
+
+		case <-holdTimerCh:
+			// Bound the wrapped-error detection window so a quiet upstream
+			// cannot delay the first packet indefinitely.
+			flushHeldMessageStart()
 
 		case <-toolArgsCh:
 			if reason, limited := toolArgsGuard.expired(time.Now()); limited {
@@ -7499,6 +7572,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 			flusher.Flush()
 			lastDataAt = time.Now()
+			if keepaliveTicker != nil {
+				keepaliveTicker.Reset(keepaliveInterval)
+			}
 		}
 	}
 

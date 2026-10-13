@@ -1130,6 +1130,50 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDuringUpstr
 	require.Contains(t, rec.Body.String(), `{"type":"message_stop"}`)
 }
 
+func TestGatewayService_AnthropicAPIKeyPassthrough_MessageStartHoldTimeout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Gateway: config.GatewayConfig{
+				StreamKeepaliveInterval:   0,
+				StreamDataIntervalTimeout: 2,
+				MaxLineSize:               defaultMaxLineSize,
+			},
+		},
+	}
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       pr,
+	}
+
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n"))
+		time.Sleep(250 * time.Millisecond)
+		_, _ = pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+		_ = pw.Close()
+	}()
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 8}, time.Now(), "glm-5.3-flash")
+		resultCh <- err
+	}()
+
+	time.Sleep(180 * time.Millisecond)
+	require.Contains(t, rec.Body.String(), `"type":"message_start"`, "message_start should be released by the bounded hold window")
+	require.NoError(t, <-resultCh)
+	<-writeDone
+}
+
 func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
