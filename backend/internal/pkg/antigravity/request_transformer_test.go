@@ -8,6 +8,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseToolResultContent_MixedTextAndImage(t *testing.T) {
+	content := json.RawMessage(`[
+		{"type":"text","text":"before"},
+		{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}},
+		{"type":"text","text":"after"}
+	]`)
+
+	got := parseToolResultContent(content, false)
+	want := "before\n![image](data:image/png;base64,aGVsbG8=)\nafter"
+	require.Equal(t, want, got)
+}
+
+func TestParseToolResultContent_ImageOnly(t *testing.T) {
+	content := json.RawMessage(`[
+		{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"/9j/4AAQ"}}
+	]`)
+
+	got := parseToolResultContent(content, false)
+	require.Equal(t, "![image](data:image/jpeg;base64,/9j/4AAQ)", got)
+}
+
 // TestBuildParts_ThinkingBlockWithoutSignature 测试thinking block无signature时的处理
 func TestBuildParts_ThinkingBlockWithoutSignature(t *testing.T) {
 	tests := []struct {
