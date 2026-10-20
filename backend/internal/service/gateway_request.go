@@ -1097,3 +1097,57 @@ func RectifyThinkingBudget(body []byte) ([]byte, bool) {
 
 	return modified, changed
 }
+
+// adaptiveRectifyMinBudgetTokens is the smallest budget_tokens Anthropic-compatible
+// upstreams accept for thinking.type=enabled.
+const adaptiveRectifyMinBudgetTokens = 1024
+
+// isAdaptiveThinkingUnsupportedError detects upstreams (third-party Anthropic-compatible
+// providers) that reject thinking.type=adaptive, e.g.
+// "The parameter `type` specified in the request are not valid: invalid value adaptive".
+// It deliberately does not match "strategy requires thinking to be enabled or adaptive".
+func isAdaptiveThinkingUnsupportedError(errMsg string) bool {
+	m := strings.ToLower(errMsg)
+	if !strings.Contains(m, "adaptive") {
+		return false
+	}
+	return strings.Contains(m, "invalid value") ||
+		strings.Contains(m, "not valid") ||
+		strings.Contains(m, "not supported") ||
+		strings.Contains(m, "unsupported")
+}
+
+// RectifyAdaptiveThinking downgrades thinking.type=adaptive to thinking.type=enabled with
+// an explicit budget_tokens that stays below max_tokens (min 1024). Other thinking fields
+// are preserved. Returns (original body, false) if the request is not adaptive.
+func RectifyAdaptiveThinking(body []byte) ([]byte, bool) {
+	if gjson.GetBytes(body, "thinking.type").String() != "adaptive" {
+		return body, false
+	}
+
+	maxTokens := gjson.GetBytes(body, "max_tokens").Int()
+	budget := int64(BudgetRectifyBudgetTokens)
+	if maxTokens > 0 && budget >= maxTokens {
+		budget = maxTokens - 1
+	}
+
+	modified := body
+	if budget < adaptiveRectifyMinBudgetTokens {
+		budget = adaptiveRectifyMinBudgetTokens
+		result, err := sjson.SetBytes(modified, "max_tokens", 2*adaptiveRectifyMinBudgetTokens)
+		if err != nil {
+			return body, false
+		}
+		modified = result
+	}
+
+	result, err := sjson.SetBytes(modified, "thinking.type", "enabled")
+	if err != nil {
+		return body, false
+	}
+	result, err = sjson.SetBytes(result, "thinking.budget_tokens", budget)
+	if err != nil {
+		return body, false
+	}
+	return result, true
+}

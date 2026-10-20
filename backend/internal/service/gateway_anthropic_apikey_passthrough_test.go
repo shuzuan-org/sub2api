@@ -1127,6 +1127,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDuringUpstr
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), "event: ping")
+	require.Contains(t, rec.Body.String(), "data: {\"type\":\"ping\"}")
 	require.Contains(t, rec.Body.String(), `{"type":"message_stop"}`)
 }
 
@@ -1172,6 +1173,102 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_MessageStartHoldTimeout(t *te
 	require.Contains(t, rec.Body.String(), `"type":"message_start"`, "message_start should be released by the bounded hold window")
 	require.NoError(t, <-resultCh)
 	<-writeDone
+}
+
+func TestGatewayService_AnthropicAPIKeyPassthrough_PreservesToolArgumentDeltas(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Gateway: config.GatewayConfig{
+				MaxLineSize: defaultMaxLineSize,
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       pr,
+	}
+	go func() {
+		defer func() { _ = pw.Close() }()
+		write := func(event, data string) {
+			_, _ = pw.Write([]byte("event: " + event + "\ndata: " + data + "\n\n"))
+		}
+		write("message_start", `{"type":"message_start","message":{"usage":{"input_tokens":1}}}`)
+		write("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"read_file","input":{}}}`)
+		write("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\": "}}`)
+		write("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"/tmp/a\"}"}}`)
+		write("content_block_stop", `{"type":"content_block_stop","index":0}`)
+		write("message_delta", `{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":2}}`)
+		write("message_stop", `{"type":"message_stop"}`)
+	}()
+
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "glm-5.3-flash")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	body := rec.Body.String()
+	require.Equal(t, 2, strings.Count(body, `"type":"input_json_delta"`))
+	require.Contains(t, body, `\"path\": `)
+	require.Contains(t, body, `\"/tmp/a\"}`)
+	require.NotContains(t, body, `"type":"text_delta"`, "tool arguments must not be replaced with a synthetic text delta")
+}
+
+func TestGatewayService_AnthropicAPIKeyPassthrough_KeepaliveResetsAfterRealSSEOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Gateway: config.GatewayConfig{
+				StreamKeepaliveInterval: 1,
+				MaxLineSize:             defaultMaxLineSize,
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       pr,
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 9}, time.Now(), "glm-5.3-flash")
+		resultCh <- err
+	}()
+
+	write := func(event, data string) {
+		_, _ = pw.Write([]byte("event: " + event + "\ndata: " + data + "\n\n"))
+	}
+	write("message_start", `{"type":"message_start","message":{"usage":{"input_tokens":1}}}`)
+	write("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)
+	// Let the original ticker become close to its first deadline before the
+	// next real event arrives. Without Reset, that stale deadline would emit a
+	// ping while the event is still open.
+	time.Sleep(600 * time.Millisecond)
+	// Keep this event open for a moment after both real SSE lines have been
+	// forwarded. A line-based keepalive implementation must still regard that
+	// output as activity and defer its ping.
+	_, _ = pw.Write([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n"))
+	time.Sleep(700 * time.Millisecond)
+	require.NotContains(t, rec.Body.String(), "event: ping", "real SSE output should reset the keepalive deadline before the event blank line")
+	_, _ = pw.Write([]byte("\n"))
+	write("content_block_stop", `{"type":"content_block_stop","index":0}`)
+	write("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}`)
+	write("message_stop", `{"type":"message_stop"}`)
+	_ = pw.Close()
+
+	require.NoError(t, <-resultCh)
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(t *testing.T) {

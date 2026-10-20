@@ -158,6 +158,11 @@ const maxHoldBufferLines = 16
 // that provider behavior from adding visible first-packet latency.
 const messageStartHoldTimeout = 100 * time.Millisecond
 
+// anthropicStreamPingEvent is the canonical Anthropic SSE keepalive event.
+// Keep it identical on both streaming paths so clients see a normal ping
+// event rather than an implementation-specific comment or empty data frame.
+const anthropicStreamPingEvent = "event: ping\ndata: {\"type\":\"ping\"}\n\n"
+
 // parseInlineAnthropicErrorJSON 识别上游非规范 SSE 响应里一行裸 Anthropic 错误 JSON
 // （形如 `{"type":"error","error":{"type":"...","message":"..."}}`，无 SSE 前缀）。
 // 返回推荐的 HTTP 状态码、原始 JSON body 和是否匹配。
@@ -4579,6 +4584,40 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry build failed: %v", account.ID, buildErr)
 						}
 					}
+				} else if isAdaptiveThinkingUnsupportedError(errMsg) {
+					// 第三方 Anthropic 兼容上游不认 thinking.type=adaptive（Claude Code 默认发送），
+					// 降级为 enabled + 显式 budget_tokens 重试一次。
+					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+						Platform:           account.Platform,
+						AccountID:          account.ID,
+						AccountName:        account.Name,
+						UpstreamStatusCode: resp.StatusCode,
+						UpstreamRequestID:  resp.Header.Get("x-request-id"),
+						UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
+						Kind:               "adaptive_thinking_unsupported",
+						Message:            errMsg,
+					})
+
+					rectifiedBody, applied := RectifyAdaptiveThinking(body)
+					if applied && time.Since(retryStart) < maxRetryElapsed {
+						logger.LegacyPrintf("service.gateway", "Account %d: upstream rejects adaptive thinking, retrying with thinking.type=enabled", account.ID)
+						adaptiveRetryCtx, releaseAdaptiveRetryCtx := detachStreamUpstreamContext(ctx, reqStream)
+						adaptiveRetryReq, buildErr := s.buildUpstreamRequest(adaptiveRetryCtx, c, account, rectifiedBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
+						releaseAdaptiveRetryCtx()
+						if buildErr == nil {
+							adaptiveRetryResp, retryErr := s.httpUpstream.DoWithTLS(adaptiveRetryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
+							if retryErr == nil {
+								resp = adaptiveRetryResp
+								break
+							}
+							if adaptiveRetryResp != nil && adaptiveRetryResp.Body != nil {
+								_ = adaptiveRetryResp.Body.Close()
+							}
+							logger.LegacyPrintf("service.gateway", "Account %d: adaptive thinking retry failed: %v", account.ID, retryErr)
+						} else {
+							logger.LegacyPrintf("service.gateway", "Account %d: adaptive thinking retry build failed: %v", account.ID, buildErr)
+						}
+					}
 				}
 
 				resp.Body = io.NopCloser(bytes.NewReader(respBody))
@@ -5251,6 +5290,12 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		keepaliveCh = keepaliveTicker.C
 	}
 	lastDataAt := time.Now()
+	markStreamOutput := func() {
+		lastDataAt = time.Now()
+		if keepaliveTicker != nil {
+			keepaliveTicker.Reset(keepaliveInterval)
+		}
+	}
 	toolArgsMaxBytes := 0
 	toolArgsMaxDurationSeconds := 0
 	if s.cfg != nil {
@@ -5278,12 +5323,14 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 		} else if _, err := io.WriteString(w, "\n"); err != nil {
 			clientDisconnected = true
 			logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-		} else if line == "" {
+		} else {
 			// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
-			flusher.Flush()
-			lastDataAt = time.Now()
-			if keepaliveTicker != nil {
-				keepaliveTicker.Reset(keepaliveInterval)
+			// Keepalive timing is based on each successfully forwarded line,
+			// rather than only the terminating blank line. This also handles
+			// providers that omit the final blank line before closing a stream.
+			markStreamOutput()
+			if line == "" {
+				flusher.Flush()
 			}
 		}
 	}
@@ -5489,16 +5536,13 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 				continue
 			}
 			releaseHoldBuffer()
-			if _, werr := fmt.Fprint(w, "event: ping\ndata: {\"type\":\"ping\"}\n\n"); werr != nil {
+			if _, werr := io.WriteString(w, anthropicStreamPingEvent); werr != nil {
 				clientDisconnected = true
 				logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during keepalive ping, continuing to drain upstream for billing: account=%d", account.ID)
 				continue
 			}
 			flusher.Flush()
-			lastDataAt = time.Now()
-			if keepaliveTicker != nil {
-				keepaliveTicker.Reset(keepaliveInterval)
-			}
+			markStreamOutput()
 
 		case <-holdTimerCh:
 			// Do not wait indefinitely for a second upstream event. The short
@@ -7161,6 +7205,12 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		keepaliveCh = keepaliveTicker.C
 	}
 	lastDataAt := time.Now()
+	markStreamOutput := func() {
+		lastDataAt = time.Now()
+		if keepaliveTicker != nil {
+			keepaliveTicker.Reset(keepaliveInterval)
+		}
+	}
 	toolArgsMaxBytes := 0
 	toolArgsMaxDurationSeconds := 0
 	if s.cfg != nil {
@@ -7389,10 +7439,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					break
 				}
 				flusher.Flush()
-				lastDataAt = time.Now()
-				if keepaliveTicker != nil {
-					keepaliveTicker.Reset(keepaliveInterval)
-				}
+				markStreamOutput()
 			}
 			if data != "" {
 				if firstTokenMs == nil && data != "[DONE]" {
@@ -7565,16 +7612,13 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			flushHeldMessageStart()
 			// SSE ping 事件：Anthropic 原生格式，客户端会正确处理，
 			// 同时保持连接活跃防止 Cloudflare Tunnel 等代理断开
-			if _, werr := fmt.Fprint(w, "event: ping\ndata: {\"type\": \"ping\"}\n\n"); werr != nil {
+			if _, werr := io.WriteString(w, anthropicStreamPingEvent); werr != nil {
 				clientDisconnected = true
 				logger.LegacyPrintf("service.gateway", "Client disconnected during keepalive ping, continuing to drain upstream for billing")
 				continue
 			}
 			flusher.Flush()
-			lastDataAt = time.Now()
-			if keepaliveTicker != nil {
-				keepaliveTicker.Reset(keepaliveInterval)
-			}
+			markStreamOutput()
 		}
 	}
 

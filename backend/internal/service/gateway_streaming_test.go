@@ -485,6 +485,107 @@ func TestHandleStreamingResponse_HeldMessageStartFlushedOnUpstreamClose(t *testi
 	require.Contains(t, rec.Body.String(), "message_start", "扣住的 message_start 不能被吞掉")
 }
 
+// A quiet provider must not hold the first message_start indefinitely while
+// the gateway waits to decide whether a later event is a wrapped error.
+func TestHandleStreamingResponse_MessageStartHoldTimeout(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+	svc.cfg.Gateway.StreamDataIntervalTimeout = 2
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n"))
+		time.Sleep(250 * time.Millisecond)
+		_, _ = pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+		_ = pw.Close()
+	}()
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 8}, time.Now(), "glm-5.3-flash", "glm-5.3-flash", false)
+		resultCh <- err
+	}()
+
+	time.Sleep(180 * time.Millisecond)
+	require.Contains(t, rec.Body.String(), `"type":"message_start"`, "message_start should be released by the bounded hold window")
+	require.NoError(t, <-resultCh)
+	<-writeDone
+}
+
+func TestHandleStreamingResponse_StreamingKeepaliveDuringUpstreamSilence(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+	svc.cfg.Gateway.StreamKeepaliveInterval = 1
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		_, _ = pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n"))
+		time.Sleep(1200 * time.Millisecond)
+		_, _ = pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+		_ = pw.Close()
+	}()
+
+	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 8}, time.Now(), "glm-5.3-flash", "glm-5.3-flash", false)
+	<-writeDone
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.Contains(t, rec.Body.String(), "data: {\"type\":\"ping\"}")
+	require.Contains(t, rec.Body.String(), `{"type":"message_stop"}`)
+}
+
+// Tool-call argument deltas are already valid Anthropic SSE payloads. The
+// block guard must preserve each real partial_json chunk and never synthesize
+// a replacement delta while releasing the held message_start.
+func TestHandleStreamingResponse_PreservesToolArgumentDeltas(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+	go func() {
+		defer func() { _ = pw.Close() }()
+		write := func(event, data string) {
+			_, _ = pw.Write([]byte("event: " + event + "\ndata: " + data + "\n\n"))
+		}
+		write("message_start", `{"type":"message_start","message":{"usage":{"input_tokens":1}}}`)
+		write("content_block_start", `{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"read_file","input":{}}}`)
+		write("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\": "}}`)
+		write("content_block_delta", `{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"/tmp/a\"}"}}`)
+		write("content_block_stop", `{"type":"content_block_stop","index":0}`)
+		write("message_delta", `{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":2}}`)
+		write("message_stop", `{"type":"message_stop"}`)
+	}()
+
+	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "glm-5.3-flash", "glm-5.3-flash", false)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	body := rec.Body.String()
+	require.Equal(t, 2, strings.Count(body, `"type":"input_json_delta"`))
+	require.Contains(t, body, `\"path\": `)
+	require.Contains(t, body, `\"/tmp/a\"}`)
+	require.NotContains(t, body, `"type":"text_delta"`, "tool arguments must not be replaced with a synthetic text delta")
+}
+
 // Passthrough 路径：同样的 message_start + error 形状也要改写成 HTTP 400。
 func TestHandleStreamingResponseAnthropicAPIKeyPassthrough_MessageStartThenErrorRewritesToHTTP400(t *testing.T) {
 	gin.SetMode(gin.TestMode)

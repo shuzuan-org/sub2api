@@ -1211,3 +1211,38 @@ func BenchmarkParseGatewayRequest_New_Large(b *testing.B) {
 		_, _ = ParseGatewayRequest(data, "")
 	}
 }
+
+func TestIsAdaptiveThinkingUnsupportedError(t *testing.T) {
+	require.True(t, isAdaptiveThinkingUnsupportedError("The parameter `type` specified in the request are not valid: invalid value adaptive"))
+	require.True(t, isAdaptiveThinkingUnsupportedError("thinking.type `adaptive` is not supported by this model"))
+	require.False(t, isAdaptiveThinkingUnsupportedError("strategy requires thinking to be enabled or adaptive"))
+	require.False(t, isAdaptiveThinkingUnsupportedError("thinking.type `disabled` is not supported by this model"))
+}
+
+func TestRectifyAdaptiveThinking(t *testing.T) {
+	t.Run("converts adaptive to enabled with capped budget", func(t *testing.T) {
+		body := []byte(`{"max_tokens":64000,"thinking":{"type":"adaptive","display":"summarized"}}`)
+		out, ok := RectifyAdaptiveThinking(body)
+		require.True(t, ok)
+		require.JSONEq(t, `{"max_tokens":64000,"thinking":{"type":"enabled","display":"summarized","budget_tokens":32000}}`, string(out))
+	})
+
+	t.Run("keeps budget below max_tokens", func(t *testing.T) {
+		out, ok := RectifyAdaptiveThinking([]byte(`{"max_tokens":8192,"thinking":{"type":"adaptive"}}`))
+		require.True(t, ok)
+		require.JSONEq(t, `{"max_tokens":8192,"thinking":{"type":"enabled","budget_tokens":8191}}`, string(out))
+	})
+
+	t.Run("raises max_tokens when too small for minimum budget", func(t *testing.T) {
+		out, ok := RectifyAdaptiveThinking([]byte(`{"max_tokens":512,"thinking":{"type":"adaptive"}}`))
+		require.True(t, ok)
+		require.JSONEq(t, `{"max_tokens":2048,"thinking":{"type":"enabled","budget_tokens":1024}}`, string(out))
+	})
+
+	t.Run("ignores non-adaptive requests", func(t *testing.T) {
+		body := []byte(`{"max_tokens":8192,"thinking":{"type":"enabled","budget_tokens":4096}}`)
+		out, ok := RectifyAdaptiveThinking(body)
+		require.False(t, ok)
+		require.Equal(t, string(body), string(out))
+	})
+}
