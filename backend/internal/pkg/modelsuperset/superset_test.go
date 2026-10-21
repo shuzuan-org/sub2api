@@ -306,6 +306,18 @@ func TestBuildModel_DeepSeekV4FlashRealMetaWins(t *testing.T) {
 	}
 }
 
+func TestBuildModel_DeepSeekFlashRemoteOnlyLimits(t *testing.T) {
+	for _, id := range []string{"deepseek-flash", "deepseek-flash-1017"} {
+		m := BuildModel(id, OriginAnthropic, ModelMeta{})
+		if m.MaxInputTokens != 1048576 {
+			t.Errorf("%s max_input_tokens = %d, want 1048576", id, m.MaxInputTokens)
+		}
+		if m.MaxTokens != 393216 {
+			t.Errorf("%s max_tokens = %d, want 393216", id, m.MaxTokens)
+		}
+	}
+}
+
 func TestBuildModel_GLM53RemoteOnlyLimits(t *testing.T) {
 	for _, id := range []string{"glm-5.3", "GLM-5.3-Flash"} {
 		m := BuildModel(id, OriginAnthropic, ModelMeta{})

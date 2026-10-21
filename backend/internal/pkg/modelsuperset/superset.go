@@ -224,6 +224,8 @@ var knownRemoteModelLimits = []struct {
 	maxTokens      int
 }{
 	{prefix: "deepseek-v4-flash", maxInputTokens: 196608, maxTokens: 128000},
+	// DeepSeek V4.1 Flash under its bare provider name (deepseek-flash, deepseek-flash-1017).
+	{prefix: "deepseek-flash", maxInputTokens: 1048576, maxTokens: 393216},
 	{prefix: "glm-5-3", maxInputTokens: 1000000, maxTokens: 131072},
 }
 
