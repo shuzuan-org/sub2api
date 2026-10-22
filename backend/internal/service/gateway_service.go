@@ -9643,23 +9643,19 @@ func distinctNormalizedModels(mapping map[string]string) []string {
 	return out
 }
 
+// UpstreamPoolStatsProvider is optionally implemented by HTTPUpstream to expose pool stats.
+// repository 侧有编译期断言保证实现它；签名一旦漂移，断言失败会在编译时暴露，而不是指标静默恒为 0。
+type UpstreamPoolStatsProvider interface {
+	PoolStats() metrics.UpstreamPoolStat
+}
+
 // UpstreamPoolStats returns a snapshot of the HTTP upstream client pool.
 func (s *GatewayService) UpstreamPoolStats() metrics.UpstreamPoolStat {
 	if s == nil || s.httpUpstream == nil {
 		return metrics.UpstreamPoolStat{}
 	}
-	type poolStatser interface {
-		PoolStats() struct {
-			ClientsCached int
-			InFlightTotal int
-		}
-	}
-	if ps, ok := s.httpUpstream.(poolStatser); ok {
-		stats := ps.PoolStats()
-		return metrics.UpstreamPoolStat{
-			ClientsCached: stats.ClientsCached,
-			InFlightTotal: stats.InFlightTotal,
-		}
+	if ps, ok := s.httpUpstream.(UpstreamPoolStatsProvider); ok {
+		return ps.PoolStats()
 	}
 	return metrics.UpstreamPoolStat{}
 }

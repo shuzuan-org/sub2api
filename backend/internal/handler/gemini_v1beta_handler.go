@@ -198,6 +198,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		reqLog.Warn("gemini.user_wait_counter_increment_failed", zap.Error(err))
 	} else if !canWait {
 		reqLog.Info("gemini.user_wait_queue_full", zap.Int("max_wait", maxWait))
+		markOpsUserLimited(c)
 		googleError(c, http.StatusTooManyRequests, "Too many pending requests, please retry later")
 		return
 	}

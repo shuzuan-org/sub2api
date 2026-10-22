@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -274,6 +275,27 @@ func (s *HTTPUpstreamSuite) TestIdleTTLDoesNotEvictActive() {
 	_, _ = svc.getOrCreateClient("", 2, 1)
 
 	require.True(s.T(), hasEntry(svc, entry1), "有活跃请求时不应回收")
+}
+
+// service.GatewayService 通过该接口断言读取连接池水位；签名漂移时这里直接编译失败，
+// 避免 sub2api_upstream_pool_* 指标静默恒为 0。
+var _ service.UpstreamPoolStatsProvider = (*httpUpstreamService)(nil)
+
+// TestPoolStats 验证连接池快照：缓存数、缓存上限、进行中请求数
+func (s *HTTPUpstreamSuite) TestPoolStats() {
+	s.cfg.Gateway = config.GatewayConfig{
+		ConnectionPoolIsolation: config.ConnectionPoolIsolationAccount,
+		MaxUpstreamClients:      50,
+	}
+	svc := s.newService()
+	entry := mustGetOrCreateClient(s.T(), svc, "", 1, 1)
+	mustGetOrCreateClient(s.T(), svc, "", 2, 1)
+	atomic.StoreInt64(&entry.inFlight, 3)
+
+	stats := svc.PoolStats()
+	require.Equal(s.T(), 2, stats.ClientsCached)
+	require.Equal(s.T(), 50, stats.ClientsLimit)
+	require.Equal(s.T(), 3, stats.InFlightTotal)
 }
 
 // TestHTTPUpstreamSuite 运行测试套件

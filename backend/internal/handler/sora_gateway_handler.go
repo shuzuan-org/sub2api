@@ -184,6 +184,7 @@ func (h *SoraGatewayHandler) ChatCompletions(c *gin.Context) {
 		reqLog.Warn("sora.user_wait_counter_increment_failed", zap.Error(err))
 	} else if !canWait {
 		reqLog.Info("sora.user_wait_queue_full", zap.Int("max_wait", maxWait))
+		markOpsUserLimited(c)
 		h.errorResponse(c, http.StatusTooManyRequests, "rate_limit_error", "Too many pending requests, please retry later")
 		return
 	}

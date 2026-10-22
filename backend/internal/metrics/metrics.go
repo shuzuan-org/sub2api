@@ -511,6 +511,7 @@ func RegisterAccountPoolGauges(statsFunc AccountPoolStatsFunc) {
 // UpstreamPoolStat 返回 HTTP 上游连接池的瞬时统计值。
 type UpstreamPoolStat struct {
 	ClientsCached int // 缓存的上游客户端实例数量
+	ClientsLimit  int // 客户端缓存上限（gateway.max_upstream_clients），满了新请求直接失败
 	InFlightTotal int // 总进行中请求数（跨所有客户端）
 }
 
@@ -519,6 +520,7 @@ type UpstreamPoolStatsFunc func() UpstreamPoolStat
 
 var (
 	upstreamPoolClientsCached prometheus.Gauge
+	upstreamPoolClientsLimit  prometheus.Gauge
 	upstreamPoolInFlight      prometheus.Gauge
 	upstreamPoolOnce          sync.Once
 )
@@ -536,6 +538,10 @@ func RegisterUpstreamPoolGauges(statsFunc UpstreamPoolStatsFunc) {
 			Name: "sub2api_upstream_pool_clients_cached",
 			Help: "Number of cached HTTP upstream client instances.",
 		})
+		upstreamPoolClientsLimit = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sub2api_upstream_pool_clients_limit",
+			Help: "Upper bound of cached HTTP upstream client instances (gateway.max_upstream_clients).",
+		})
 		upstreamPoolInFlight = prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "sub2api_upstream_pool_in_flight",
 			Help: "Total in-flight upstream HTTP requests across all cached clients.",
@@ -544,6 +550,7 @@ func RegisterUpstreamPoolGauges(statsFunc UpstreamPoolStatsFunc) {
 		collector := &upstreamPoolCollector{
 			statsFunc:   statsFunc,
 			cachedGauge: upstreamPoolClientsCached,
+			limitGauge:  upstreamPoolClientsLimit,
 			flightGauge: upstreamPoolInFlight,
 		}
 		prometheus.MustRegister(collector)
@@ -553,18 +560,22 @@ func RegisterUpstreamPoolGauges(statsFunc UpstreamPoolStatsFunc) {
 type upstreamPoolCollector struct {
 	statsFunc   UpstreamPoolStatsFunc
 	cachedGauge prometheus.Gauge
+	limitGauge  prometheus.Gauge
 	flightGauge prometheus.Gauge
 }
 
 func (c *upstreamPoolCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.cachedGauge.Describe(ch)
+	c.limitGauge.Describe(ch)
 	c.flightGauge.Describe(ch)
 }
 
 func (c *upstreamPoolCollector) Collect(ch chan<- prometheus.Metric) {
 	stats := c.statsFunc()
 	c.cachedGauge.Set(float64(stats.ClientsCached))
+	c.limitGauge.Set(float64(stats.ClientsLimit))
 	c.flightGauge.Set(float64(stats.InFlightTotal))
 	c.cachedGauge.Collect(ch)
+	c.limitGauge.Collect(ch)
 	c.flightGauge.Collect(ch)
 }

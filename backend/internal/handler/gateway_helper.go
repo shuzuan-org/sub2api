@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -275,7 +276,13 @@ func (h *ConcurrencyHelper) AcquireUserSlotWithWait(c *gin.Context, userID int64
 	}
 
 	// Need to wait - handle streaming ping if needed
-	return h.waitForSlotWithPing(c, "user", userID, maxConcurrency, isStream, streamStarted)
+	releaseFunc, err = h.waitForSlotWithPing(c, "user", userID, maxConcurrency, isStream, streamStarted)
+	// 只有"等不到用户槽位"才算用户级业务限制；Redis 等基础设施错误仍按真实错误统计。
+	var concurrencyErr *ConcurrencyError
+	if errors.As(err, &concurrencyErr) {
+		markOpsUserLimited(c)
+	}
+	return releaseFunc, err
 }
 
 // AcquireAccountSlotWithWait acquires an account concurrency slot, waiting if necessary.

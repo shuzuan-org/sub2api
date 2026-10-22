@@ -30,6 +30,8 @@ const (
 
 	opsUpstreamModelKey = "ops_upstream_model"
 	opsRequestTypeKey   = "ops_request_type"
+	// opsUserLimitedKey 标记请求被"用户级"并发/排队限制拦下（见 markOpsUserLimited）。
+	opsUserLimitedKey = "ops_user_limited"
 
 	// 错误过滤匹配常量 — shouldSkipOpsErrorLog 和错误分类共用
 	opsErrContextCanceled            = "context canceled"
@@ -777,7 +779,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		normalizedType := normalizeOpsErrorType(parsed.ErrorType, parsed.Code)
 
 		phase := classifyOpsPhase(normalizedType, parsed.Message, parsed.Code)
-		isBusinessLimited := classifyOpsIsBusinessLimited(normalizedType, phase, parsed.Code, status, parsed.Message)
+		isBusinessLimited, severity := classifyOpsLimitAndSeverity(isOpsUserLimited(c), normalizedType, phase, parsed.Code, status, parsed.Message)
 
 		errorOwner := classifyOpsErrorOwner(phase, parsed.Message)
 		errorSource := classifyOpsErrorSource(phase, parsed.Message)
@@ -823,7 +825,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 
 			ErrorPhase:        phase,
 			ErrorType:         normalizedType,
-			Severity:          classifyOpsSeverity(normalizedType, status),
+			Severity:          severity,
 			StatusCode:        status,
 			IsBusinessLimited: isBusinessLimited,
 			IsCountTokens:     isCountTokensRequest(c),
@@ -1200,6 +1202,38 @@ func classifyOpsIsRetryable(errType string, statusCode int) bool {
 	default:
 		return statusCode >= 500
 	}
+}
+
+// classifyOpsLimitAndSeverity 给出 business_limited 与 severity 的最终判定。
+//
+// 用户级排队/并发满与账号级排队满对外文案相同（"Too many pending requests"），
+// 只能靠 handler 打的标记（userLimited）区分：前者是用户自身配额内的预期拦截，
+// 不计入真实错误，也不应是 P1；后者是容量不足，维持原分类。
+func classifyOpsLimitAndSeverity(userLimited bool, errType, phase, code string, status int, message string) (bool, string) {
+	if userLimited {
+		return true, "P3"
+	}
+	return classifyOpsIsBusinessLimited(errType, phase, code, status, message), classifyOpsSeverity(errType, status)
+}
+
+// markOpsUserLimited 标记本次请求被用户级并发槽位/排队上限拦下（业务限制，非服务故障）。
+// 账号级排队满不要调用：那是容量不足，应计入真实错误。
+func markOpsUserLimited(c *gin.Context) {
+	if c != nil {
+		c.Set(opsUserLimitedKey, true)
+	}
+}
+
+func isOpsUserLimited(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	v, ok := c.Get(opsUserLimitedKey)
+	if !ok {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
 }
 
 func classifyOpsIsBusinessLimited(errType, phase, code string, status int, message string) bool {

@@ -213,6 +213,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		// On error, allow request to proceed
 	} else if !canWait {
 		reqLog.Info("gateway.user_wait_queue_full", zap.Int("max_wait", maxWait))
+		markOpsUserLimited(c)
 		h.errorResponse(c, http.StatusTooManyRequests, "rate_limit_error", "Too many pending requests, please retry later")
 		return
 	}

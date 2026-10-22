@@ -110,6 +110,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	if err != nil {
 		reqLog.Warn("gateway.responses.user_wait_counter_increment_failed", zap.Error(err))
 	} else if !canWait {
+		markOpsUserLimited(c)
 		h.responsesErrorResponse(c, http.StatusTooManyRequests, "rate_limit_error", "Too many pending requests, please retry later")
 		return
 	}

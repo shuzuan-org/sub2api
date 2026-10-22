@@ -917,6 +917,7 @@ func (h *OpenAIGatewayHandler) acquireResponsesUserSlot(
 		// 按现有降级语义：等待计数异常时放行后续抢槽流程
 	} else if !canWait {
 		reqLog.Info("openai.user_wait_queue_full", zap.Int("max_wait", maxWait))
+		markOpsUserLimited(c)
 		h.errorResponse(c, http.StatusTooManyRequests, "rate_limit_error", "Too many pending requests, please retry later")
 		return nil, false
 	}
