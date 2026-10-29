@@ -388,6 +388,7 @@ export default {
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
+    profitReport: 'Profit Report',
     redeem: 'Redeem',
     profile: 'Profile',
     invite: 'Invite Friends',
@@ -3564,6 +3565,133 @@ export default {
           failed: 'Failed',
           canceled: 'Canceled'
         }
+      }
+    },
+
+    // Profit Report
+    profitReport: {
+      title: 'Profit Report',
+      description: 'Revenue, supplier cost and margin by account, model and group',
+      loadFailed: 'Failed to load profit report',
+      displayUnit: 'Unit',
+      unitRmb: 'RMB ¥',
+      unitU: 'Credits U',
+      rateLabel: '1 U = ? CNY',
+      rateNote: 'Logs, balances and prices are all in credits (U); settlement is in CNY. Default 1 U = 0.1 CNY (same as the top-up packages). The rate only changes the display, never discounts or margin rates.',
+      snapshot: 'Generated {time} · {rows} aggregated rows',
+      resetAll: 'Reset all to DB values',
+      kpi: {
+        revenue: 'Revenue (billed)',
+        listPrice: 'List price',
+        cost: 'Cost',
+        costHint: 'List price × account discount',
+        margin: 'Gross margin',
+        marginHint: 'Revenue − cost',
+        marginRate: 'Margin rate',
+        marginRateHint: 'Margin / revenue',
+        requests: 'Requests',
+        tokens: 'Total tokens',
+        tokensHint: 'Incl. cache read/write'
+      },
+      discount: {
+        title: 'Supplier cost discounts',
+        hint: 'Fill either the discount or the cost: a discount computes the cost; a total cost back-solves the discount (and clears per-model overrides for that account). Changed rows are highlighted; saving writes the account billing multiplier.',
+        showIdle: 'Show accounts with no traffic in range',
+        account: 'Account',
+        platform: 'Platform',
+        dbValue: 'In DB',
+        discount: 'Cost discount',
+        costEditable: 'Cost (editable)',
+        costTitle: 'Enter this account\'s total cost for the period ({sym}); discount = cost ÷ list price {list}',
+        perModel: 'Per-model override',
+        perModelBtn: 'Per-model discount',
+        perModelNote: 'Per-model discounts are for what-if only; accounts have no such field, so they are not saved.',
+        inherit: 'inherit',
+        noRequests: 'No requests in range',
+        unschedulable: 'paused',
+        lastUsed: 'Not schedulable, last used {time}',
+        deleted: 'deleted',
+        saveChanged: 'Save changes to accounts ({n})',
+        saveConfirmTitle: 'Write account cost discounts',
+        saveConfirmMsg: 'rate_multiplier of {n} account(s) will be set to the values on this page; the gateway will use the new multipliers for account-side accounting.',
+        saved: 'Saved cost discount for {n} account(s)',
+        saveFailed: 'Failed to save: {names}'
+      },
+      chart: {
+        title: 'Daily revenue vs cost',
+        hint: 'per day, hover for details',
+        revenue: 'Revenue',
+        cost: 'Cost',
+        margin: 'Margin',
+        noData: 'No data in the selected range'
+      },
+      tabs: {
+        account: 'By account',
+        model: 'By model',
+        group: 'By group',
+        modelacc: 'Model × account'
+      },
+      tabHints: {
+        account: 'Revenue and cost per supplier account.',
+        model: 'One model across all accounts.',
+        group: 'Groups set the user-facing multiplier, which is why revenue is below list price.',
+        modelacc: 'Rows with a colored bar are models served by more than one supplier: compare prices here.'
+      },
+      columns: {
+        account: 'Account',
+        model: 'Model',
+        group: 'Group',
+        platform: 'Platform',
+        dbDiscount: 'DB discount',
+        accountCount: 'Accounts',
+        requests: 'Requests',
+        tokens: 'Tokens',
+        listPrice: 'List price',
+        revenue: 'Revenue',
+        cost: 'Cost',
+        margin: 'Margin',
+        marginRate: 'Margin %',
+        groupRate: 'Group rate',
+        applied: 'Effective rate',
+        discount: 'Discount'
+      },
+      tables: {
+        filterPlaceholder: 'Filter by name…',
+        total: 'Total',
+        noData: 'No data',
+        noGroup: '(no group)'
+      },
+      export: {
+        csv: 'Export CSV',
+        copy: 'Copy CSV',
+        unitRmb: ' (CNY)',
+        unitU: ' (U)'
+      },
+      formula: {
+        title: 'How the numbers are computed (one real log line)',
+        step1: 'List price = Σ tokens × unit price: input 9,639 × 0.000098 + output 1,061 × 0.000308 + cache read 11,328 × 0.0000182 = 1.4776 U',
+        step2: 'Revenue = list price × group rate: the key belongs to a 0.85 group, 1.4776 × 0.85 = 1.2559 U. This is what was deducted from the user; the page uses the logged value as is.',
+        step3: 'Cost = list price × account discount: with the DB multiplier 1.0 the cost is 1.4776 U; this page replaces 1.0 with the discount you enter.',
+        step4: 'Margin = revenue − cost = −0.2216 U, margin rate −17.6%; with a 0.5 discount the cost becomes 0.7388 and the margin rate 41.2%.',
+        note: 'Example from a glm-5.3-flash request on 2026-10-26; unit prices come from that row\'s pricing snapshot, all raw U values.'
+      },
+      calc: {
+        title: 'Single-request check',
+        note: 'Unit prices in U per token (same unit as the pricing snapshot); results use the unit selected above.',
+        inTok: 'Input tokens',
+        outTok: 'Output tokens',
+        cwTok: 'Cache write tokens',
+        crTok: 'Cache read tokens',
+        pIn: 'Input price/token',
+        pOut: 'Output price/token',
+        pCw: 'Cache write price',
+        pCr: 'Cache read price',
+        groupRate: 'Group rate',
+        accountDiscount: 'Account discount',
+        listPrice: 'List price',
+        revenue: 'Revenue',
+        cost: 'Cost',
+        margin: 'Margin'
       }
     },
 

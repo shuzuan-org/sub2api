@@ -471,6 +471,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/profit-report',
+    name: 'AdminProfitReport',
+    component: () => import('@/views/admin/ProfitReportView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Profit Report',
+      titleKey: 'admin.profitReport.title',
+      descriptionKey: 'admin.profitReport.description'
+    }
+  },
+  {
     path: '/admin/alipay',
     name: 'AdminAlipay',
     component: () => import('@/views/admin/AlipayView.vue'),

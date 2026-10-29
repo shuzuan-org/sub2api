@@ -34,6 +34,7 @@ type AdminHandlers struct {
 	Alipay                *admin.AlipayHandler
 	ChannelInvite         *admin.ChannelInviteHandler
 	UserOperations        *admin.UserOperationsHandler
+	ProfitReport          *admin.ProfitReportHandler
 }
 
 // Handlers contains all HTTP handlers

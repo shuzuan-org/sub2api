@@ -388,6 +388,7 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
+    profitReport: '收入看板',
     redeem: '兑换',
     profile: '个人资料',
     invite: '邀请好友',
@@ -3724,6 +3725,133 @@ export default {
           failed: '失败',
           canceled: '已取消'
         }
+      }
+    },
+
+    // Profit Report
+    profitReport: {
+      title: '收入看板',
+      description: '按供应商账号、模型、分组查看实付收入、成本与毛利',
+      loadFailed: '加载收入数据失败',
+      displayUnit: '显示单位',
+      unitRmb: '人民币 ¥',
+      unitU: '系统额度 U',
+      rateLabel: '1 U = ? 元',
+      rateNote: '日志、余额、单价的原始单位都是系统额度 U，结算按人民币。默认 1 U = 0.1 元（与充值套餐一致）；改换算只影响显示，不影响折扣和毛利率。',
+      snapshot: '数据生成于 {time} · {rows} 行聚合',
+      resetAll: '全部重置为库中值',
+      kpi: {
+        revenue: '实付收入',
+        listPrice: '标价',
+        cost: '成本',
+        costHint: '标价 × 账号成本折扣',
+        margin: '毛利',
+        marginHint: '实付 − 成本',
+        marginRate: '毛利率',
+        marginRateHint: '毛利 / 实付',
+        requests: '请求数',
+        tokens: '总 token',
+        tokensHint: '含缓存读写'
+      },
+      discount: {
+        title: '供应商成本折扣',
+        hint: '折扣和成本二选一填：填折扣算成本，或直接填本期总成本反推折扣（会清掉该账号的按模型覆盖）。改动行标黄，保存后写入账号的计费倍率。',
+        showIdle: '显示范围内无流量的账号',
+        account: '账号',
+        platform: '平台',
+        dbValue: '库中值',
+        discount: '成本折扣',
+        costEditable: '成本（可填）',
+        costTitle: '直接填该账号本期总成本（{sym}），自动反推折扣 = 成本 ÷ 标价 {list}',
+        perModel: '模型级覆盖',
+        perModelBtn: '按模型设折扣',
+        perModelNote: '按模型的折扣只用于本页试算，账号表没有对应字段，不会被保存。',
+        inherit: '继承',
+        noRequests: '该范围内无请求',
+        unschedulable: '停调',
+        lastUsed: '已停止调度，最后使用 {time}',
+        deleted: '已删除',
+        saveChanged: '保存改动到账号 ({n})',
+        saveConfirmTitle: '写入账号成本折扣',
+        saveConfirmMsg: '将把 {n} 个账号的 rate_multiplier 更新为页面上填写的值，网关随后按新倍率记账。',
+        saved: '已保存 {n} 个账号的成本折扣',
+        saveFailed: '保存失败：{names}'
+      },
+      chart: {
+        title: '每日实付 vs 成本',
+        hint: '按天，悬停看明细',
+        revenue: '实付收入',
+        cost: '成本',
+        margin: '毛利',
+        noData: '所选范围内没有数据'
+      },
+      tabs: {
+        account: '按账号',
+        model: '按模型',
+        group: '按分组',
+        modelacc: '模型 × 账号'
+      },
+      tabHints: {
+        account: '每个供应商账号的收入与成本。',
+        model: '同一模型跨所有账号的汇总。',
+        group: '分组决定用户实付倍率，这解释了实付为什么低于标价。',
+        modelacc: '同一模型有多个供应商的行左侧带色条，这是比价的地方。'
+      },
+      columns: {
+        account: '账号',
+        model: '模型',
+        group: '分组',
+        platform: '平台',
+        dbDiscount: '库中折扣',
+        accountCount: '账号数',
+        requests: '请求数',
+        tokens: 'token',
+        listPrice: '标价',
+        revenue: '实付',
+        cost: '成本',
+        margin: '毛利',
+        marginRate: '毛利率',
+        groupRate: '分组倍率',
+        applied: '实际折扣',
+        discount: '折扣'
+      },
+      tables: {
+        filterPlaceholder: '按名称过滤…',
+        total: '合计',
+        noData: '无数据',
+        noGroup: '(无分组)'
+      },
+      export: {
+        csv: '导出 CSV',
+        copy: '复制 CSV',
+        unitRmb: '(元)',
+        unitU: '(U)'
+      },
+      formula: {
+        title: '公式说明（用一条真实日志逐步算）',
+        step1: '标价 = Σ token × 单价：输入 9,639 × 0.000098 + 输出 1,061 × 0.000308 + 缓存读 11,328 × 0.0000182 = 1.4776 U',
+        step2: '实付 = 标价 × 分组倍率：该 key 属于分组「GLM-官方」，倍率 0.85，1.4776 × 0.85 = 1.2559 U，这是真正从用户余额扣掉的数，本页直接取日志值。',
+        step3: '成本 = 标价 × 账号折扣：账号库中倍率 1.0 时成本 1.4776 U；本页把 1.0 换成你填的折扣。',
+        step4: '毛利 = 实付 − 成本 = −0.2216 U，毛利率 −17.6%；折扣填 0.5 时成本变 0.7388，毛利率变 41.2%。',
+        note: '示例来自 2026-10-26 模型 glm-5.3-flash 的一条日志，单价取该行的 pricing_snapshot，均为原始 U 值。'
+      },
+      calc: {
+        title: '单笔核对计算器',
+        note: '单价按 U/token 填（和日志单价快照同单位），结果按上方所选单位显示。',
+        inTok: '输入 token',
+        outTok: '输出 token',
+        cwTok: '缓存写 token',
+        crTok: '缓存读 token',
+        pIn: '输入单价/token',
+        pOut: '输出单价/token',
+        pCw: '缓存写单价',
+        pCr: '缓存读单价',
+        groupRate: '分组倍率',
+        accountDiscount: '账号折扣',
+        listPrice: '标价',
+        revenue: '实付',
+        cost: '成本',
+        margin: '毛利'
       }
     },
 

@@ -27,6 +27,7 @@ import backupAPI from './backup'
 import tlsFingerprintProfileAPI from './tlsFingerprintProfile'
 import subscriptionPlansAPI from './subscription-plans'
 import channelActivitiesAPI from './channelActivities'
+import profitReportAPI from './profitReport'
 
 /**
  * Unified admin API object for convenient access
@@ -55,7 +56,8 @@ export const adminAPI = {
   backup: backupAPI,
   tlsFingerprintProfiles: tlsFingerprintProfileAPI,
   subscriptionPlans: subscriptionPlansAPI,
-  channelActivities: channelActivitiesAPI
+  channelActivities: channelActivitiesAPI,
+  profitReport: profitReportAPI
 }
 
 export {
@@ -82,7 +84,8 @@ export {
   backupAPI,
   tlsFingerprintProfileAPI,
   subscriptionPlansAPI,
-  channelActivitiesAPI
+  channelActivitiesAPI,
+  profitReportAPI
 }
 
 export default adminAPI

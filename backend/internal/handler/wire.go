@@ -37,6 +37,7 @@ func ProvideAdminHandlers(
 	alipayHandler *admin.AlipayHandler,
 	channelInviteHandler *admin.ChannelInviteHandler,
 	userOperationsHandler *admin.UserOperationsHandler,
+	profitReportHandler *admin.ProfitReportHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
 		Dashboard:             dashboardHandler,
@@ -67,6 +68,7 @@ func ProvideAdminHandlers(
 		Alipay:                alipayHandler,
 		ChannelInvite:         channelInviteHandler,
 		UserOperations:        userOperationsHandler,
+		ProfitReport:          profitReportHandler,
 	}
 }
 
@@ -174,6 +176,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAlipayHandler,
 	admin.NewChannelInviteHandler,
 	admin.NewUserOperationsHandler,
+	admin.NewProfitReportHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,
