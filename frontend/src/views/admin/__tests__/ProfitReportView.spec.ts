@@ -4,11 +4,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { ProfitReportResponse } from '@/api/admin/profitReport'
 import ProfitReportView from '../ProfitReportView.vue'
 
-const { getReport, updateAccount, showError, showSuccess } = vi.hoisted(() => ({
+const { getReport, updateAccount, showError, showSuccess, copyToClipboard } = vi.hoisted(() => ({
   getReport: vi.fn(),
   updateAccount: vi.fn(),
   showError: vi.fn(),
-  showSuccess: vi.fn()
+  showSuccess: vi.fn(),
+  copyToClipboard: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -23,7 +24,7 @@ vi.mock('@/stores/app', () => ({
 }))
 
 vi.mock('@/composables/useClipboard', () => ({
-  useClipboard: () => ({ copied: false, copyToClipboard: vi.fn() })
+  useClipboard: () => ({ copied: false, copyToClipboard })
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -111,7 +112,47 @@ describe('admin ProfitReportView', () => {
     updateAccount.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
+    copyToClipboard.mockReset()
     getReport.mockResolvedValue(createReport())
+  })
+
+  it('settles in RMB only: no unit switch, legacy U preference is ignored and not persisted', async () => {
+    localStorage.setItem('profit-report-v1', JSON.stringify({ currency: 'U', rate: 7, tab: 'model' }))
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="settlement"]').text()).toBe('¥ · 1 U = 0.1 admin.profitReport.yuan')
+    expect(wrapper.text()).not.toContain('admin.profitReport.unitU')
+    // 金额仍按 1 U = 0.1 元显示，不受旧偏好里的 U / 汇率影响
+    expect(wrapper.text()).toContain('¥0.21')
+    expect(wrapper.text()).toContain('¥0.25')
+    // 其它偏好（tab）照常恢复
+
+    const saved = JSON.parse(localStorage.getItem('profit-report-v1') || '{}')
+    expect(saved).not.toHaveProperty('currency')
+    expect(saved).not.toHaveProperty('rate')
+    expect(saved.tab).toBe('model')
+  })
+
+  it('exports money columns converted to RMB with the CNY unit in the header', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const copyBtn = wrapper.findAll('button').find((b) => b.text() === 'admin.profitReport.export.copy')
+    expect(copyBtn).toBeTruthy()
+    await copyBtn!.trigger('click')
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1)
+    const csv = copyToClipboard.mock.calls[0][0] as string
+    const [header, ...body] = csv.replace(/^\uFEFF/, '').split('\n')
+    expect(header).toContain('admin.profitReport.export.unitRmb')
+    expect(header).not.toContain('admin.profitReport.export.unitU')
+    // 账号 13：标价 1.4776 U → 0.1478 元；实付 1.2559 U → 0.1256 元
+    const glm = body.find((l) => l.startsWith('GLM5-小豪'))
+    expect(glm).toBeTruthy()
+    expect(glm).toContain('0.1478')
+    expect(glm).toContain('0.1256')
+    expect(glm).not.toContain('1.4776')
   })
 
   it('loads the last 30 days by default', async () => {
@@ -162,7 +203,7 @@ describe('admin ProfitReportView', () => {
 
     const costInput = wrapper.find('input[aria-label="GLM5-小豪 admin.profitReport.discount.costEditable"]')
     expect(costInput.exists()).toBe(true)
-    // 填 ¥0.10 = 1 U → 折扣 1 / 1.4776 = 0.6768
+    // 成本框按人民币填：¥0.10 = 1 U → 折扣 1 / 1.4776 = 0.6768
     await costInput.setValue('0.10')
     await costInput.trigger('change')
     await flushPromises()

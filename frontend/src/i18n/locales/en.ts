@@ -3573,11 +3573,9 @@ export default {
       title: 'Profit Report',
       description: 'Revenue, supplier cost and margin by account, model and group',
       loadFailed: 'Failed to load profit report',
-      displayUnit: 'Unit',
-      unitRmb: 'RMB ¥',
-      unitU: 'Credits U',
-      rateLabel: '1 U = ? CNY',
-      rateNote: 'Logs, balances and prices are all in credits (U); settlement is in CNY. Default 1 U = 0.1 CNY (same as the top-up packages). The rate only changes the display, never discounts or margin rates.',
+      settlement: 'Settlement',
+      yuan: 'CNY',
+      rateNote: 'Settlement is in CNY only. Logs, balances and prices are stored in credits (U) and shown here at the system-wide rate 1 U = 0.1 CNY (same as the top-up packages); discounts and margin rates are ratios and do not depend on the conversion.',
       snapshot: 'Generated {time} · {rows} aggregated rows',
       resetAll: 'Reset all to DB values',
       kpi: {
@@ -3602,7 +3600,7 @@ export default {
         dbValue: 'In DB',
         discount: 'Cost discount',
         costEditable: 'Cost (editable)',
-        costTitle: 'Enter this account\'s total cost for the period ({sym}); discount = cost ÷ list price {list}',
+        costTitle: 'Enter this account\'s total cost for the period ({sym}, CNY); discount = cost ÷ list price {list}',
         perModel: 'Per-model override',
         perModelBtn: 'Per-model discount',
         perModelNote: 'Per-model discounts are for what-if only; accounts have no such field, so they are not saved.',
@@ -3664,8 +3662,7 @@ export default {
       export: {
         csv: 'Export CSV',
         copy: 'Copy CSV',
-        unitRmb: ' (CNY)',
-        unitU: ' (U)'
+        unitRmb: ' (CNY)'
       },
       formula: {
         title: 'How the numbers are computed (one real log line)',

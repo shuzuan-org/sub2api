@@ -13,6 +13,40 @@ import type {
   ProfitReportGroup,
   ProfitReportRow
 } from '@/api/admin/profitReport'
+import { U_TO_RMB } from '@/utils/format'
+
+// ---------- 结算币种：只用人民币 ----------
+// 日志、单价、余额的原始单位是系统额度 U；对外结算一律按人民币，换算汇率是系统统一的 U_TO_RMB（1 U = 0.1 元）。
+// 折扣与毛利率是比值，与换算无关；只有金额列需要换算。
+
+/** U → 元 */
+export function uToRmb(u: number, rate = U_TO_RMB): number {
+  return u * rate
+}
+
+/** 元 → U（用于把用户填的人民币成本反推回 U 口径） */
+export function rmbToU(rmb: number, rate = U_TO_RMB): number {
+  return rate > 0 ? rmb / rate : 0
+}
+
+/** 人民币金额文本：¥1,234.56；负数写成 -¥1,234.56 */
+export function formatRmb(u: number, digits = 2, rate = U_TO_RMB): string {
+  const x = uToRmb(u, rate)
+  const abs = Math.abs(x).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return (x < 0 ? '-' : '') + '¥' + abs
+}
+
+/** KPI 用：金额 ≥ 10 万元时省掉小数 */
+export function formatRmbCompact(u: number, rate = U_TO_RMB): string {
+  return formatRmb(u, Math.abs(uToRmb(u, rate)) >= 1e5 ? 0 : 2, rate)
+}
+
+/** 坐标轴用：¥1.2M / ¥35K / ¥120 */
+export function formatRmbAxis(u: number, rate = U_TO_RMB): string {
+  const a = Math.abs(uToRmb(u, rate))
+  const s = a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a.toFixed(0)
+  return (u < 0 ? '-' : '') + '¥' + s
+}
 
 export type DetailTab = 'account' | 'model' | 'group' | 'modelacc'
 

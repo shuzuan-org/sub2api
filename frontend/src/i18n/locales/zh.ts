@@ -3733,11 +3733,9 @@ export default {
       title: '收入看板',
       description: '按供应商账号、模型、分组查看实付收入、成本与毛利',
       loadFailed: '加载收入数据失败',
-      displayUnit: '显示单位',
-      unitRmb: '人民币 ¥',
-      unitU: '系统额度 U',
-      rateLabel: '1 U = ? 元',
-      rateNote: '日志、余额、单价的原始单位都是系统额度 U，结算按人民币。默认 1 U = 0.1 元（与充值套餐一致）；改换算只影响显示，不影响折扣和毛利率。',
+      settlement: '结算币种',
+      yuan: '元',
+      rateNote: '结算只用人民币。日志、余额、单价的原始单位是系统额度 U，页面按系统统一汇率 1 U = 0.1 元（与充值套餐一致）换算显示；折扣和毛利率是比值，与换算无关。',
       snapshot: '数据生成于 {time} · {rows} 行聚合',
       resetAll: '全部重置为库中值',
       kpi: {
@@ -3762,7 +3760,7 @@ export default {
         dbValue: '库中值',
         discount: '成本折扣',
         costEditable: '成本（可填）',
-        costTitle: '直接填该账号本期总成本（{sym}），自动反推折扣 = 成本 ÷ 标价 {list}',
+        costTitle: '直接填该账号本期总成本（{sym}，人民币），自动反推折扣 = 成本 ÷ 标价 {list}',
         perModel: '模型级覆盖',
         perModelBtn: '按模型设折扣',
         perModelNote: '按模型的折扣只用于本页试算，账号表没有对应字段，不会被保存。',
@@ -3824,8 +3822,7 @@ export default {
       export: {
         csv: '导出 CSV',
         copy: '复制 CSV',
-        unitRmb: '(元)',
-        unitU: '(U)'
+        unitRmb: '(元)'
       },
       formula: {
         title: '公式说明（用一条真实日志逐步算）',

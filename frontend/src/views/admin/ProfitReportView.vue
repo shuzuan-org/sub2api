@@ -9,22 +9,11 @@
             <DateRangePicker v-model:start-date="startDate" v-model:end-date="endDate" @change="onDateRangeChange" />
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.profitReport.displayUnit') }}:</span>
-            <div class="w-36">
-              <Select v-model="currency" :options="currencyOptions" />
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <label for="pr-rate" class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.profitReport.rateLabel') }}</label>
-            <input
-              id="pr-rate"
-              v-model.number="rate"
-              type="number"
-              step="0.001"
-              min="0"
-              class="input w-24 font-mono"
-              :disabled="currency !== 'RMB'"
-            />
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.profitReport.settlement') }}:</span>
+            <span
+              data-test="settlement"
+              class="rounded-md bg-gray-100 px-2 py-1 font-mono text-sm text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+            >¥ · 1 U = {{ U_TO_RMB }} {{ t('admin.profitReport.yuan') }}</span>
           </div>
           <div class="ml-auto flex items-center gap-2">
             <button class="btn btn-secondary" :disabled="loading" @click="loadReport">
@@ -323,15 +312,20 @@ import {
   computeProfit,
   dbRate,
   eachDay,
+  formatRmb,
+  formatRmbAxis,
+  formatRmbCompact,
   formatTokensShort,
   isDiscountChanged,
   marginPct,
   newBucket,
   resolveDiscount,
+  rmbToU,
   solveDiscountFromCost,
   sortDetailRows,
   toCsv,
   totalDetailRows,
+  uToRmb,
   type DetailRow,
   type DetailTab,
   type DiscountState,
@@ -340,7 +334,6 @@ import {
 import type { ProfitReportAccount, ProfitReportGroup, ProfitReportResponse } from '@/api/admin/profitReport'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
-import Select from '@/components/common/Select.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProfitTrendChart from '@/components/admin/profitReport/ProfitTrendChart.vue'
@@ -349,11 +342,9 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
 
-// ---------- 本地持久化（仅本浏览器的便利：折扣草稿、单位、tab） ----------
+// ---------- 本地持久化（仅本浏览器的便利：折扣草稿、tab） ----------
 const LS_KEY = 'profit-report-v1'
 interface PersistedState {
-  currency?: 'RMB' | 'U'
-  rate?: number
   disc?: Record<string, string>
   ov?: Record<string, Record<string, string>>
   tab?: DetailTab
@@ -407,26 +398,12 @@ const grpById = computed<Record<string, ProfitReportGroup>>(() =>
   Object.fromEntries((report.value?.groups ?? []).map((g) => [g.id, g]))
 )
 
-// ---------- 单位 ----------
-const currency = ref<'RMB' | 'U'>(persisted.currency === 'U' ? 'U' : 'RMB')
-const rate = ref<number>(persisted.rate && persisted.rate > 0 ? persisted.rate : U_TO_RMB)
-const currencyOptions = computed(() => [
-  { value: 'RMB', label: t('admin.profitReport.unitRmb') },
-  { value: 'U', label: t('admin.profitReport.unitU') }
-])
-const factor = computed(() => (currency.value === 'RMB' ? (Number(rate.value) > 0 ? Number(rate.value) : U_TO_RMB) : 1))
-const sym = computed(() => (currency.value === 'RMB' ? '¥' : 'U'))
-
-const fm = (v: number, d = 2) => {
-  const x = v * factor.value
-  return (x < 0 ? '-' : '') + sym.value + Math.abs(x).toLocaleString('zh-CN', { minimumFractionDigits: d, maximumFractionDigits: d })
-}
-const fmK = (v: number) => fm(v, Math.abs(v * factor.value) >= 1e5 ? 0 : 2)
-const fmAxis = (v: number) => {
-  const a = Math.abs(v) * factor.value
-  const s = a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a.toFixed(0)
-  return (v < 0 ? '-' : '') + sym.value + s
-}
+// ---------- 结算：只用人民币。日志原始单位是 U，按系统统一汇率 U_TO_RMB 换算显示 ----------
+const factor = U_TO_RMB
+const sym = '¥'
+const fm = (v: number, d = 2) => formatRmb(v, d)
+const fmK = (v: number) => formatRmbCompact(v)
+const fmAxis = (v: number) => formatRmbAxis(v)
 const fi = (v: number) => Number(v).toLocaleString('zh-CN')
 const pctText = (p: number | null) => (p == null ? '—' : `${p.toFixed(1)}%`)
 const signClass = (v: number) => (v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')
@@ -448,7 +425,7 @@ const onOvInput = (id: number, model: string, value: string) => {
 const onCostChange = (id: number, value: string) => {
   const s = R.value.byAcc[id]
   if (!s) return
-  const d = solveDiscountFromCost((Number(value) || 0) / factor.value, s.list)
+  const d = solveDiscountFromCost(rmbToU(Number(value) || 0), s.list)
   if (d == null) return
   discState.disc[id] = String(d)
   delete discState.ov[id]
@@ -585,14 +562,14 @@ const cellHtml = (k: string, row: DetailRow): string => {
 // ---------- 导出 ----------
 const moneyKeys = new Set(['list', 'rev', 'cost', 'margin'])
 const buildCsv = () => {
-  const unit = currency.value === 'RMB' ? t('admin.profitReport.export.unitRmb') : t('admin.profitReport.export.unitU')
+  const unit = t('admin.profitReport.export.unitRmb')
   const header = columns.value.map((c) => t(`admin.profitReport.columns.${c.label}`) + (moneyKeys.has(c.key) ? unit : ''))
   const rows = sortedRows.value.map((r) =>
     columns.value.map((c) => {
       const v = (r as unknown as Record<string, unknown>)[c.key]
       if (v == null) return ''
       if (typeof v === 'number') {
-        if (moneyKeys.has(c.key)) return (v * factor.value).toFixed(4)
+        if (moneyKeys.has(c.key)) return uToRmb(v).toFixed(4)
         if (c.key === 'pct') return v.toFixed(2)
       }
       return v
@@ -660,16 +637,17 @@ const calcOut = computed(() => {
 
 // ---------- 持久化 ----------
 watch(
-  [currency, rate, activeTab, showIdle, () => JSON.stringify(discState)],
+  [activeTab, showIdle, () => JSON.stringify(discState)],
   () => {
     try {
-      const data: PersistedState = { currency: currency.value, rate: rate.value, tab: activeTab.value, showIdle: showIdle.value, disc: discState.disc, ov: discState.ov }
+      const data: PersistedState = { tab: activeTab.value, showIdle: showIdle.value, disc: discState.disc, ov: discState.ov }
       localStorage.setItem(LS_KEY, JSON.stringify(data))
     } catch {
       /* 私密模式或禁用存储时忽略 */
     }
   },
-  { deep: true }
+  // immediate：挂载时就重写一次，顺带清掉旧版本留下的 currency/rate 等已废弃字段
+  { deep: true, immediate: true }
 )
 </script>
 
