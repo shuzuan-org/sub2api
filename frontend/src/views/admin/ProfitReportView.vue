@@ -87,7 +87,6 @@
               <tr>
                 <th>{{ t('admin.profitReport.discount.account') }}</th>
                 <th>{{ t('admin.profitReport.discount.platform') }}</th>
-                <th class="r">{{ t('admin.profitReport.discount.dbValue') }}</th>
                 <th class="r">{{ t('admin.profitReport.discount.discount') }}</th>
                 <th class="r">{{ t('admin.profitReport.columns.requests') }}</th>
                 <th class="r">{{ t('admin.profitReport.columns.revenue') }}</th>
@@ -111,7 +110,6 @@
                     >{{ t('admin.profitReport.discount.unschedulable') }}</span>
                   </td>
                   <td><span v-if="a.platform" class="badge badge-gray">{{ a.platform }}</span></td>
-                  <td class="r">{{ dbRate(a).toFixed(2) }}</td>
                   <td class="r">
                     <input
                       type="number"
@@ -152,7 +150,7 @@
                   </td>
                 </tr>
                 <tr v-if="openIds.has(a.id)" class="pr-ov">
-                  <td colspan="10">
+                  <td colspan="9">
                     <div v-if="modelsOf(a.id).length" class="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <label v-for="m in modelsOf(a.id)" :key="m" class="inline-flex items-center gap-1.5 font-mono text-xs">
                         {{ m }}
@@ -174,7 +172,7 @@
                 </tr>
               </template>
               <tr v-if="!visibleAccounts.length">
-                <td colspan="10" class="py-8 text-center text-gray-500 dark:text-gray-400">{{ t('admin.profitReport.tables.noData') }}</td>
+                <td colspan="9" class="py-8 text-center text-gray-500 dark:text-gray-400">{{ t('admin.profitReport.tables.noData') }}</td>
               </tr>
             </tbody>
           </table>

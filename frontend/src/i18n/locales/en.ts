@@ -3597,7 +3597,6 @@ export default {
         showIdle: 'Show accounts with no traffic in range',
         account: 'Account',
         platform: 'Platform',
-        dbValue: 'In DB',
         discount: 'Cost discount',
         costEditable: 'Cost (editable)',
         costTitle: 'Enter this account\'s total cost for the period ({sym}, CNY); discount = cost ÷ list price {list}',

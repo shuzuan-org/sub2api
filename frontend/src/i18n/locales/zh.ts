@@ -3757,7 +3757,6 @@ export default {
         showIdle: '显示范围内无流量的账号',
         account: '账号',
         platform: '平台',
-        dbValue: '库中值',
         discount: '成本折扣',
         costEditable: '成本（可填）',
         costTitle: '直接填该账号本期总成本（{sym}，人民币），自动反推折扣 = 成本 ÷ 标价 {list}',
