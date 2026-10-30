@@ -3736,7 +3736,7 @@ export default {
       settlement: '结算币种',
       yuan: '元',
       rateNote: '结算只用人民币。日志、余额、单价的原始单位是系统额度 U，页面按系统统一汇率 1 U = 0.1 元（与充值套餐一致）换算显示；折扣和毛利率是比值，与换算无关。',
-      snapshot: '数据生成于 {time} · {rows} 行聚合',
+      snapshot: '数据区间 {start} ～ {end}（{tz} 自然日）· 生成于 {time} · {rows} 行聚合',
       resetAll: '全部重置为库中值',
       kpi: {
         revenue: '实付收入',

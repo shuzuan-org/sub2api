@@ -3576,7 +3576,7 @@ export default {
       settlement: 'Settlement',
       yuan: 'CNY',
       rateNote: 'Settlement is in CNY only. Logs, balances and prices are stored in credits (U) and shown here at the system-wide rate 1 U = 0.1 CNY (same as the top-up packages); discounts and margin rates are ratios and do not depend on the conversion.',
-      snapshot: 'Generated {time} · {rows} aggregated rows',
+      snapshot: 'Range {start} – {end} ({tz} calendar days) · generated {time} · {rows} aggregated rows',
       resetAll: 'Reset all to DB values',
       kpi: {
         revenue: 'Revenue (billed)',

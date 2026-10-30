@@ -24,8 +24,8 @@
         </div>
         <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.profitReport.rateNote') }}
-          <span v-if="report" class="ml-2 font-mono">
-            {{ t('admin.profitReport.snapshot', { time: formatDateTime(report.generated_at), rows: report.rows.length }) }}
+          <span v-if="report" class="ml-2 font-mono" data-test="snapshot">
+            {{ t('admin.profitReport.snapshot', { start: report.start_date, end: report.end_date, tz: report.timezone || 'server', time: formatDateTime(report.generated_at), rows: report.rows.length }) }}
           </span>
         </p>
       </div>

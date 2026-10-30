@@ -176,6 +176,11 @@ describe('admin ProfitReportView', () => {
     expect(text).toContain('-17.6%')
     // 请求数 4，token 22,358
     expect(text).toContain('22K')
+    // 页面标出接口实际返回的区间和切日时区，便于核对数字属于哪个区间
+    const snapshot = wrapper.find('[data-test="snapshot"]').text()
+    expect(snapshot).toContain('"start":"2026-10-26"')
+    expect(snapshot).toContain('"end":"2026-10-27"')
+    expect(snapshot).toContain('"tz":"Asia/Shanghai"')
   })
 
   it('hides idle accounts by default and recomputes when a discount is entered', async () => {

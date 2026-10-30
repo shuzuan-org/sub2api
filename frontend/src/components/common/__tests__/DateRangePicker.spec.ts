@@ -53,7 +53,7 @@ describe('DateRangePicker', () => {
     expect(wrapper.text()).toContain('Last 24 Hours')
   })
 
-  it('emits range updates with last24Hours preset when applied', async () => {
+  it('emits range updates with last24Hours preset as soon as it is clicked', async () => {
     const now = new Date()
     const today = formatLocalDate(now)
 
@@ -76,7 +76,6 @@ describe('DateRangePicker', () => {
     expect(presetButton).toBeDefined()
 
     await presetButton!.trigger('click')
-    await wrapper.find('.date-picker-apply').trigger('click')
 
     const nowAfterClick = new Date()
     const yesterdayAfterClick = new Date(nowAfterClick.getTime() - 24 * 60 * 60 * 1000)
@@ -92,5 +91,30 @@ describe('DateRangePicker', () => {
         preset: 'last24Hours'
       }
     ])
+  })
+
+  it('applies a preset immediately on click: emits the new range and closes the dropdown', async () => {
+    const now = new Date()
+    const today = formatLocalDate(now)
+    const thirtyAgo = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000)
+
+    const wrapper = mount(DateRangePicker, {
+      props: { startDate: formatLocalDate(thirtyAgo), endDate: today },
+      global: { stubs: { Icon: true } }
+    })
+
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    expect(wrapper.find('.date-picker-dropdown').exists()).toBe(true)
+    const presetButton = wrapper.findAll('.date-picker-preset').find((node) => node.text().includes('Today'))
+    expect(presetButton).toBeDefined()
+
+    await presetButton!.trigger('click')
+
+    // 不点「应用」也已经把区间推给父组件
+    expect(wrapper.emitted('update:startDate')?.[0]).toEqual([today])
+    expect(wrapper.emitted('update:endDate')?.[0]).toEqual([today])
+    expect(wrapper.emitted('change')?.[0]).toEqual([{ startDate: today, endDate: today, preset: 'today' }])
+    expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+    expect(wrapper.find('.date-picker-value').text()).toBe('Today')
   })
 })

@@ -244,11 +244,14 @@ const isPresetActive = (preset: DatePreset): boolean => {
   return activePreset.value === preset.value
 }
 
+// 点快捷项即生效：直接同步给父组件并触发 change，不必再点「应用」。
+// 否则触发器上已显示「今天」，父页面的数据却还是上一次区间的，看起来像算错。
 const selectPreset = (preset: DatePreset) => {
   const range = preset.getRange()
   localStartDate.value = range.start
   localEndDate.value = range.end
   activePreset.value = preset.value
+  apply()
 }
 
 const onDateChange = () => {
