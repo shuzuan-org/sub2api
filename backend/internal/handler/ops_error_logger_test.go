@@ -266,6 +266,14 @@ func TestNormalizeOpsErrorType(t *testing.T) {
 		{"empty type with subscription code", "", "SUBSCRIPTION_NOT_FOUND", "subscription_error"},
 		{"empty type no code", "", "", "api_error"},
 
+		// API key 鉴权中间件的错误码只带 code，归鉴权错误而不是 api_error。
+		{"empty type with API_KEY_REQUIRED", "", "API_KEY_REQUIRED", "authentication_error"},
+		{"empty type with INVALID_API_KEY", "", "INVALID_API_KEY", "authentication_error"},
+		{"empty type with API_KEY_DISABLED", "", "API_KEY_DISABLED", "authentication_error"},
+		{"empty type with API_KEY_EXPIRED", "", "API_KEY_EXPIRED", "authentication_error"},
+		{"empty type with USER_NOT_FOUND", "", "USER_NOT_FOUND", "authentication_error"},
+		{"empty type with USER_INACTIVE", "", "USER_INACTIVE", "authentication_error"},
+
 		// Known type overrides conflicting code-based mapping.
 		{"known type overrides conflicting code", "rate_limit_error", "INSUFFICIENT_BALANCE", "rate_limit_error"},
 	}
@@ -275,6 +283,28 @@ func TestNormalizeOpsErrorType(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestClassifyOps_APIKeyAuthCodesAreAuthNotInternal 回归：未带 / 无效 API key 的 401 曾被记成
+// phase=internal、severity=P2，119 上未登录 gate 探测把 Sub2apiHighRealErrorRatio 顶到 5.9%。
+func TestClassifyOps_APIKeyAuthCodesAreAuthNotInternal(t *testing.T) {
+	for _, code := range []string{"API_KEY_REQUIRED", "INVALID_API_KEY", "API_KEY_DISABLED", "API_KEY_EXPIRED", "USER_NOT_FOUND"} {
+		t.Run(code, func(t *testing.T) {
+			errType := normalizeOpsErrorType("", code)
+			phase := classifyOpsPhase(errType, "", code)
+			limited, severity := classifyOpsLimitAndSeverity(false, errType, phase, code, http.StatusUnauthorized, "")
+			require.Equal(t, "auth", phase)
+			require.Equal(t, "P3", severity)
+			require.False(t, limited)
+		})
+	}
+	// USER_INACTIVE 原本就算业务限制，改类型后仍保持。
+	errType := normalizeOpsErrorType("", "USER_INACTIVE")
+	phase := classifyOpsPhase(errType, "", "USER_INACTIVE")
+	limited, severity := classifyOpsLimitAndSeverity(false, errType, phase, "USER_INACTIVE", http.StatusUnauthorized, "")
+	require.Equal(t, "auth", phase)
+	require.Equal(t, "P3", severity)
+	require.True(t, limited)
 }
 
 // TestNormalizeOpsErrorType_OutputAlwaysBounded 是基数守卫：normalizeOpsErrorType 的输出
@@ -288,7 +318,7 @@ func TestNormalizeOpsErrorType_OutputAlwaysBounded(t *testing.T) {
 	}
 	codes := []string{
 		"", "INSUFFICIENT_BALANCE", "USAGE_LIMIT_EXCEEDED", "SUBSCRIPTION_NOT_FOUND",
-		"SUBSCRIPTION_INVALID", "random_code", "123",
+		"SUBSCRIPTION_INVALID", "API_KEY_REQUIRED", "INVALID_API_KEY", "USER_INACTIVE", "random_code", "123",
 	}
 	for _, et := range types {
 		for _, code := range codes {
