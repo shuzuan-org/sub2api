@@ -1065,6 +1065,11 @@ func parseOpsErrorResponse(body []byte) parsedOpsError {
 	code, _ := m["code"].(string)
 	msg, _ := m["message"].(string)
 	if code != "" || msg != "" {
+		// 这里显式给了 type，normalizeOpsErrorType 会把它当已知类型原样放行、不再看 code，
+		// 所以鉴权码必须在这里就定成 authentication_error。
+		if isOpsAPIKeyAuthCode(code) {
+			return parsedOpsError{ErrorType: "authentication_error", Message: msg, Code: code}
+		}
 		return parsedOpsError{ErrorType: "api_error", Message: msg, Code: code}
 	}
 
@@ -1140,12 +1145,22 @@ func normalizeOpsErrorType(errType string, code string) string {
 		return "billing_error"
 	case opsCodeUsageLimitExceeded, opsCodeSubscriptionNotFound, opsCodeSubscriptionInvalid:
 		return "subscription_error"
-	case opsCodeAPIKeyRequired, opsCodeInvalidAPIKey, opsCodeAPIKeyDisabled, opsCodeAPIKeyExpired,
-		opsCodeUserNotFound, opsCodeUserInactive:
-		return "authentication_error"
 	default:
+		if isOpsAPIKeyAuthCode(code) {
+			return "authentication_error"
+		}
 		return "api_error"
 	}
+}
+
+// isOpsAPIKeyAuthCode 判断是否为 API key 鉴权中间件返回的错误码。
+func isOpsAPIKeyAuthCode(code string) bool {
+	switch strings.TrimSpace(code) {
+	case opsCodeAPIKeyRequired, opsCodeInvalidAPIKey, opsCodeAPIKeyDisabled, opsCodeAPIKeyExpired,
+		opsCodeUserNotFound, opsCodeUserInactive:
+		return true
+	}
+	return false
 }
 
 func classifyOpsPhase(errType, message, code string) string {

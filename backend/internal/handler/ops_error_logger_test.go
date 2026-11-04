@@ -307,6 +307,43 @@ func TestClassifyOps_APIKeyAuthCodesAreAuthNotInternal(t *testing.T) {
 	require.True(t, limited)
 }
 
+// TestClassifyOps_APIKeyAuthResponseBody 端到端：从中间件真实写出的响应体开始，走
+// parseOpsErrorResponse → normalizeOpsErrorType → classifyOpsPhase，与 opsErrorLoggerMiddleware 同路径。
+// （只测 normalizeOpsErrorType("", code) 不够：解析器对 {code,message} 体会先填 type=api_error。）
+func TestClassifyOps_APIKeyAuthResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		code    string
+		status  int
+		phase   string
+		limited bool
+	}{
+		{"API_KEY_REQUIRED", http.StatusUnauthorized, "auth", false},
+		{"INVALID_API_KEY", http.StatusUnauthorized, "auth", false},
+		{"USER_INACTIVE", http.StatusUnauthorized, "auth", true},
+		// 非鉴权码维持原分类，避免顺带改动余额 / 订阅错误。
+		{"INSUFFICIENT_BALANCE", http.StatusForbidden, "request", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.code, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			middleware2.AbortWithError(c, tc.status, tc.code, "msg")
+
+			parsed := parseOpsErrorResponse(w.Body.Bytes())
+			errType := normalizeOpsErrorType(parsed.ErrorType, parsed.Code)
+			phase := classifyOpsPhase(errType, parsed.Message, parsed.Code)
+			limited, severity := classifyOpsLimitAndSeverity(false, errType, phase, parsed.Code, tc.status, parsed.Message)
+			require.Equal(t, tc.phase, phase)
+			require.Equal(t, tc.limited, limited)
+			if tc.phase == "auth" {
+				require.Equal(t, "authentication_error", errType)
+				require.Equal(t, "P3", severity)
+			}
+		})
+	}
+}
+
 // TestNormalizeOpsErrorType_OutputAlwaysBounded 是基数守卫：normalizeOpsErrorType 的输出
 // 直接作为 Prometheus 标签 type，必须始终落在有界枚举内，否则会造成标签爆炸。
 func TestNormalizeOpsErrorType_OutputAlwaysBounded(t *testing.T) {
