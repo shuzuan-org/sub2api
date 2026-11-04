@@ -1,0 +1,25 @@
+# 111.229.235.75：/etc/systemd/system/postgres_exporter.service（安装步骤见 ../README.md「生产接线」）
+# 二进制 /usr/local/bin/postgres_exporter（官方 release v0.20.1，与 metask-ai 同版本）；
+# DSN 在 /etc/postgres_exporter/env（0600，属主 postgres_exporter）：
+#   DATA_SOURCE_NAME=postgresql://metrics_ro:<密码>@127.0.0.1:5432/sub2api_v2?sslmode=disable
+# 只绑回环；119 经隧道 tunnel-sub2api-11122923575 抓 172.17.0.1:9112。
+[Unit]
+Description=Prometheus postgres_exporter for sub2api (127.0.0.1:9187)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=postgres_exporter
+Group=postgres_exporter
+EnvironmentFile=/etc/postgres_exporter/env
+ExecStart=/usr/local/bin/postgres_exporter --web.listen-address=127.0.0.1:9187 --no-collector.stat_bgwriter
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

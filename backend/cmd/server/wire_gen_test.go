@@ -77,6 +77,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // scheduledTestRunner
 		nil, // backupSvc
 		nil, // accountPricingSyncService
+		nil, // syntheticProbe
 	)
 
 	require.NotPanics(t, func() {

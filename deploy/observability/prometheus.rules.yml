@@ -1,217 +1,322 @@
-# sub2api 错误告警规则
+# sub2api 告警规则（部署身份 sub2api：111.229.235.75，公网 napi.metask-ai.com）。两处加载同一份：
+#   · 监控机 119.45.6.42 的共用 Prometheus（挂成 /etc/prometheus/sub2api-alerts.yml）：经共用 Alertmanager 发邮件。
+#     Alertmanager / blackbox / 邮件模板 / 死人开关是 metask-ai 建的共用设施（metask-ai 仓库 infra/monitoring/），接线见 ./README.md。
+#   · 本机验收栈（docker-compose.observability.yml，挂成 /etc/prometheus/prometheus.rules.yml）：只在 Prometheus /alerts 页可见，
+#     不接 Alertmanager、不发信（2026-11-04 决定：告警邮件统一由 119 发，避免同一邮箱收两份）。本机没有 blackbox / exporter，那几组恒 inactive。
 #
-# 数据源：sub2api_ops_error_total（与 ops_error_logs 同源的错误聚合计数）+
-#         sub2api_http_requests_total（总请求，算比率用）。
-# 阈值均为保守默认，可按实际流量/SLO 调整；每条注明依据。
-# 触发后经 Alertmanager 路由（本地未接 Alertmanager 时，规则仍会在 Prometheus /alerts 显示 firing）。
+# 分级（与 metask-ai / tassub2api 同一套，119 的 Alertmanager 只给 critical 发邮件）：
+#   severity=critical  中断级：用户现在就用不了。30 秒内邮件，1 小时重复，发恢复。
+#   severity=warning   降级：还能用但在变坏。只在 Alertmanager / Prometheus Alerts 页可见，不发邮件。
+# 约定：每条带 severity / env / service=sub2api；critical 的 description 写第一步排查什么。改完 `promtool check rules`。
 #
-# annotation 里的 dashboard 链接指向"Sub2api 错误分析与排障"看板，便于从告警跳到下钻。
-
+# 选择器：所有 sub2api_* 指标都限定 job=~"sub2api|sub2api-backend"（119 上是 sub2api，本机栈是 sub2api-backend），
+# 因为 119 上同时有 tassub2api（job=tassub2api）的同名指标——不加 job 会两套互相命中。新规则必须照此写。
+#
+# 阈值依据：2026-11-04 用本机栈抓到的 napi 14 天数据（10-21 起，平均 0.53 req/s）回放，见 README「阈值依据」。
 groups:
+  # ── 公网探测（119 上的 blackbox_exporter）───────────────────────────────────────────────
+  - name: sub2api-public
+    rules:
+      - alert: Sub2apiSiteDown
+        expr: probe_success{job="blackbox-http", instance="https://napi.metask-ai.com/health"} == 0
+        for: 2m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "napi.metask-ai.com 公网不可达"
+          description: "119 连续 2 分钟探测 /health 失败（非 2xx 或超时）：DNS、TLS、宿主 nginx、sub2api 进程任一环。先 ssh ubuntu@111.229.235.75 'systemctl status sub2api nginx; journalctl -u sub2api -n 50'。"
+
+      - alert: Sub2apiNotReady
+        expr: probe_success{job="blackbox-napi-ready"} == 0
+        for: 3m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "sub2api /ready 不是 ready（DB 或 Redis 不通）"
+          description: "进程在但依赖挂了，所有带鉴权 / 计费的请求都会失败。ssh 111.229.235.75 看 curl -s 127.0.0.1:8080/ready 里 db / redis 哪个 down，再 systemctl status postgresql redis-server。"
+
+      - alert: Sub2apiGatewayPublicDown
+        expr: probe_success{job="blackbox-napi-gate"} == 0
+        for: 2m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "网关公网入口 napi.metask-ai.com/v1/models 不正常"
+          description: "期望 nginx → sub2api 回 401 JSON（API_KEY_REQUIRED）；502 是进程挂了，HTML 401/403 是 nginx 自己回的，超时是主机问题。所有 API 调用方受影响。journalctl -u sub2api -n 100。"
+
+  # ── 监控自身：隧道判别与抓取目标 ──────────────────────────────────────────────────────────
+  - name: sub2api-monitoring
+    rules:
+      # 三个隧道目标一起掉而公网 /health 正常 ⇒ 119 的 SSH 隧道断了，不是生产故障。
+      # for 比下面 *TargetDown 的 3m 短，保证先 firing，再由 Alertmanager 的抑制规则压掉 scope=tunnel-sub2api 的目标告警。
+      - alert: Sub2apiMonitoringTunnelDown
+        expr: |
+          count(up{job=~"sub2api|sub2api-postgres|sub2api-sql"} == 0) == 3
+            and on() probe_success{job="blackbox-http", instance="https://napi.metask-ai.com/health"} == 1
+        for: 2m
+        labels: { severity: warning, env: prod, service: sub2api, scope: monitoring }
+        annotations:
+          summary: "119 → 111.229 的监控隧道断了（生产公网正常）"
+          description: "sub2api / sub2api-postgres / sub2api-sql 三个目标同时抓不到。119 上 sudo systemctl restart tunnel-sub2api-11122923575；期间所有基于 sub2api_* / pg_* / sub2api_biz_* 的告警都是盲区。"
+
+      # 兜底：进程活着但 /metrics 抓不到。公网也挂时被 Sub2apiSiteDown 压掉，隧道断时被上一条压掉。
+      - alert: Sub2apiTargetDown
+        expr: up{job=~"sub2api|sub2api-backend"} == 0
+        for: 3m
+        labels: { severity: critical, env: prod, service: sub2api, scope: tunnel-sub2api }
+        annotations:
+          summary: "Prometheus 抓不到 sub2api /metrics（{{ $labels.instance }}）"
+          description: "先看公网 curl -s https://napi.metask-ai.com/health；通则看隧道（Sub2apiMonitoringTunnelDown）或进程 /metrics 本身（ssh 111.229 curl -s 127.0.0.1:8080/metrics | head），不通则进程 / 主机。"
+
+      - alert: Sub2apiPostgresExporterDown
+        expr: up{job="sub2api-postgres"} == 0
+        for: 5m
+        labels: { severity: warning, env: prod, service: sub2api, scope: tunnel-sub2api }
+        annotations:
+          summary: "sub2api 的 postgres_exporter 抓不到"
+          description: "库本身是否可用看 Sub2apiPostgresDown / Sub2apiNotReady；只是 exporter 掉了就 ssh 111.229 sudo systemctl restart postgres_exporter。"
+
+      - alert: Sub2apiSqlExporterDown
+        expr: up{job="sub2api-sql"} == 0
+        for: 5m
+        labels: { severity: warning, env: prod, service: sub2api, scope: tunnel-sub2api }
+        annotations:
+          summary: "sub2api 的 sql_exporter 抓不到：计量入库 / 订阅到期告警失明"
+          description: "ssh 111.229 sudo systemctl status sql_exporter；journalctl -u sql_exporter 看是否某条查询报错（多为 metrics_ro 缺列权限）。"
+
+  # ── 中断级业务信号（按次数判，不按比率：低谷期分母太小）────────────────────────────────────
+  - name: sub2api-outage
+    rules:
+      # 上游 401 / 402 / 403：账号凭据是我们自己持有的，正常不会出现——出现就是欠费、密钥失效或封号。
+      # napi 14 天回放：只在 10-21 11:39–18:50 那次事故里响。402 独立桶随含它的二进制发布；发布前 402 落在 "4xx" 桶。
+      - alert: Sub2apiUpstreamAuthRejected
+        expr: sum by (instance, platform, model) (increase(sub2api_upstream_status_total{job=~"sub2api|sub2api-backend", upstream_status=~"401|402|403"}[10m])) >= 3
+        for: 2m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "上游 {{ $labels.platform }}/{{ $labels.model }} 10 分钟内 {{ $value | printf \"%.0f\" }} 次 401/402/403（欠费 / 密钥失效 / 封号）"
+          description: "111.229 上 sudo -u postgres psql -d sub2api_v2 -c \"select created_at, account_id, upstream_status_code, left(upstream_error_message,120) from ops_error_logs where upstream_status_code in (401,402,403) order by 1 desc limit 10\"；再到后台「账号管理」看该账号余额与状态。"
+
+      # 某模型 15 分钟内 ≥5 次上游失败且一次成功都没有：整条线断了（欠费、上游 5xx、全部 429）。400 是用户请求问题，不算。
+      # napi 14 天回放 3 次：10-22 gpt-5.5、10-31 / 11-03 gpt-6-astra，都是真实整线故障。
+      - alert: Sub2apiUpstreamAllFailing
+        expr: |
+          sum by (instance, platform, model) (increase(sub2api_upstream_status_total{job=~"sub2api|sub2api-backend", upstream_status=~"401|402|403|429|4xx|5..|5xx"}[15m])) >= 5
+            unless sum by (instance, platform, model) (increase(sub2api_upstream_status_total{job=~"sub2api|sub2api-backend", upstream_status=~"200|2xx"}[15m])) > 0
+        for: 5m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "上游 {{ $labels.platform }}/{{ $labels.model }} 15 分钟内全部失败（{{ $value | printf \"%.0f\" }} 次，0 次成功）"
+          description: "看 ops_error_logs 最近的 upstream_status_code / upstream_error_message 分布：402 是欠费，5xx 是上游故障，429 是配额打满（paratera 按 max_tokens 预扣）。该模型所有用户都在失败。"
+
+      # 调度阶段「No available accounts」（用户收 503），按模型判。
+      # 排除 model="__other__"（白名单外模型）：napi 上 user 7 持续请求 claude-3-haiku-20240307（无账号可服务），每天约 2900 次，不是故障。
+      # for 10m（2026-11-04 决定）：glm-5.2 约 9 分钟的 sglang AIMD 塌缩短突发不发信，整线长时间没号才发。
+      - alert: Sub2apiNoAvailableAccount
+        expr: sum by (instance, platform, model) (increase(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", phase="routing", model!="__other__"}[10m])) >= 5
+        for: 10m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 持续「没有可用账号」（10 分钟 {{ $value | printf \"%.0f\" }} 次 503）"
+          description: "后台「账号管理」看该模型账号是否被限流 / 临时封禁 / 不可调度；glm-5.2 / kimi 走 sglang-proxy 时多半是端点 AIMD 限流塌缩（ops_error_logs where error_phase='routing' 按 user_id 反查突发来源）。也检查账号 mapping 是否缺「真实名→真实名」自映射。"
+
+      # 某模型一个可用账号都没有（total 只含 active 且 schedulable 的账号，人为下线不计入）。napi 14 天回放从未满足。
+      - alert: Sub2apiAccountPoolEmpty
+        expr: sub2api_account_pool_available{job=~"sub2api|sub2api-backend"} == 0 and sub2api_account_pool_total{job=~"sub2api|sub2api-backend"} > 0
+        for: 5m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 可用账号为 0"
+          description: "全部账号被限流 / 过载 / 临时封禁 / error。后台「账号管理」解除封禁或补号；Grafana → Sub2api 按模型稳定性。"
+
+      - alert: Sub2apiPostgresDown
+        expr: pg_up{job="sub2api-postgres"} == 0
+        for: 2m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "sub2api 的 Postgres 不可达（postgres_exporter pg_up=0）"
+          description: "ssh 111.229 sudo systemctl status postgresql；磁盘满看 HostDiskCritical（metask-ai 规则，覆盖 node 组全部机器）。"
+
+  # ── 合成探针（sub2api 进程内 SyntheticProbeService，配置 probe.*）──────────────────────────
+  - name: sub2api-probe
+    rules:
+      # 每 10 分钟一轮；for 15m ≈ 连续两轮失败。网关回 2xx 但 usage_logs 没写也算失败（计量断）。
+      - alert: Sub2apiProbeModelFailing
+        expr: sub2api_probe_model_ok{job=~"sub2api|sub2api-backend"} == 0
+        for: 15m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "合成探针连续失败：模型 {{ $labels.model }}"
+          description: "看 sub2api_probe_model_http_status{model=\"{{ $labels.model }}\"}：0 是超时 / 连不上，402/403 是上游欠费或密钥失效，503 是没号可用，200 但 sub2api_probe_model_metered=0 是计量没落库。journalctl -u sub2api | grep SyntheticProbe 有每次失败的响应体。"
+
+      - alert: Sub2apiProbeStale
+        expr: |
+          sub2api_probe_last_run_timestamp_seconds{job=~"sub2api|sub2api-backend"} > 0
+            and time() - sub2api_probe_last_run_timestamp_seconds{job=~"sub2api|sub2api-backend"} > 30 * 60
+        for: 5m
+        labels: { severity: warning, env: prod, service: sub2api }
+        annotations:
+          summary: "合成探针 30 分钟没跑完一轮"
+          description: "进程在但探针循环卡住了（单轮里某个请求一直挂着，或 usage_logs 查询阻塞）。journalctl -u sub2api | grep SyntheticProbe；重启 / 热升级后恢复。"
+
+  # ── 计费与作业（sql_exporter，sub2api_biz_*）───────────────────────────────────────────
+  - name: sub2api-billing
+    rules:
+      # 有成功的模型请求，usage_logs 却 15 分钟一条没写：扣费 / 计量链路断了（用户在白用）。
+      - alert: Sub2apiUsageNotRecorded
+        expr: |
+          sum by (instance) (increase(sub2api_http_requests_total{job=~"sub2api|sub2api-backend", path=~"/v1/messages|/v1/chat/completions|/v1/responses|/responses|/chat/completions", code="200"}[15m])) >= 20
+            and on(instance) sum by (instance) (sub2api_biz_usage_logs_15m{job="sub2api-sql"}) == 0
+        for: 5m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "15 分钟内有 {{ $value | printf \"%.0f\" }} 次成功模型请求，但 usage_logs 没有新记录"
+          description: "计量异步写入（UsageRecordWorkerPool）卡住或写库失败：journalctl -u sub2api | grep -i 'usage' | tail；同时看 sub2api_db_pool_in_use 是否打满。"
+
+      - alert: Sub2apiSubscriptionExpiryStuck
+        expr: sub2api_biz_subscriptions_active_past_expiry{job="sub2api-sql"} > 0
+        for: 15m
+        labels: { severity: warning, env: prod, service: sub2api }
+        annotations:
+          summary: "{{ $value }} 个订阅已过期仍是 active（到期作业没在跑）"
+          description: "SubscriptionExpiryService 每分钟一次；journalctl -u sub2api | grep SubscriptionExpiry。过期订阅仍能用订阅额度。"
+
+  # ── 降级级：原有错误规则（2026-11-04 起从 page 降为 warning，不发信）───────────────────────────
+  # 回放依据：P1 占比规则在 napi 上 14 天响 219 次——user 7 的 claude-3-haiku 503 每天约 2900 次，单独就把 P1 占比顶在 6%；
+  # 排除 routing 后还有 8 次。内部错误规则 137 次，集中在 10-21 事故。持续性中断已由上面的 outage / probe 组判定。
   - name: sub2api-errors
     rules:
-      # 内部错误（phase=internal 是我们自己的 bug/未预期异常）——最高优先。
-      # 依据：健康服务内部错误率应趋近 0；持续 >0.05 req/s 说明有代码/依赖故障。
       - alert: Sub2apiInternalErrorSpike
-        expr: sum(rate(sub2api_ops_error_total{phase="internal"}[5m])) > 0.05
+        expr: sum by (instance) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", phase="internal"}[5m])) > 0.05
         for: 10m
-        labels:
-          severity: page
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "sub2api 内部错误持续升高（phase=internal）"
-          description: "近 5m 内部错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m 超过 0.05。多为代码 bug 或核心依赖（DB/Redis）故障。"
+          description: "近 5m 内部错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m 超过 0.05。注意当前分类会把部分 401 Invalid API key / 分组订阅限制也算进 internal。"
           dashboard: "Grafana → Sub2api 错误分析与排障（by phase 面板，选 phase=internal）"
 
-      # P1 错误占比过高（按比例而非"出现即报"）。
-      # 依据：P1 = 单请求 5xx 或 429（classifyOpsSeverity），逐条判定，零星出现属常态；
-      #       占总请求 >5% 持续 5m 才视为事故。附加 5m 内至少 5 条，避免低谷期 1/3 这种小样本误报。
-      #       用户级排队/并发满已归为 P3 + business_limited，不会进入本规则。
       - alert: Sub2apiP1ErrorsPresent
         expr: |
-          sum(rate(sub2api_ops_error_total{severity="P1"}[5m]))
-            / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9) > 0.05
-          and sum(increase(sub2api_ops_error_total{severity="P1"}[5m])) >= 5
+          sum by (instance) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", severity="P1", phase!="routing"}[5m]))
+            / clamp_min(sum by (instance) (rate(sub2api_http_requests_total{job=~"sub2api|sub2api-backend"}[5m])), 1e-9) > 0.05
+          and sum by (instance) (increase(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", severity="P1", phase!="routing"}[5m])) >= 5
         for: 5m
-        labels:
-          severity: page
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
-          summary: "sub2api P1 错误占比超过 5%"
-          description: "近 5m P1 错误占总请求 {{ $value | humanizePercentage }}，持续 5m。"
+          summary: "sub2api P1 错误（不含调度阶段）占比超过 5%"
+          description: "近 5m P1 错误占总请求 {{ $value | humanizePercentage }}，持续 5m。调度阶段（没号）由 Sub2apiNoAvailableAccount 单独判。"
           dashboard: "Grafana → Sub2api 错误分析与排障（by severity / 未解决 P1 表）"
 
-      # 真实错误率（排除业务限制）过高。
-      # 依据：business_limited=true 为额度/并发/计费等预期拦截，不应触发可用性告警；
-      #       其余错误占总请求 >2% 持续 10m 视为服务质量劣化。
       - alert: Sub2apiHighRealErrorRatio
         expr: |
-          sum(rate(sub2api_ops_error_total{business_limited="false"}[5m]))
-            / clamp_min(sum(rate(sub2api_http_requests_total[5m])), 1e-9) > 0.02
+          (
+            sum by (instance) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", business_limited="false", model!="__other__"}[5m]))
+              / clamp_min(sum by (instance) (rate(sub2api_http_requests_total{job=~"sub2api|sub2api-backend"}[5m])), 1e-9)
+          ) > 0.02
+          and sum by (instance) (rate(sub2api_http_requests_total{job=~"sub2api|sub2api-backend"}[5m])) > 0.05
         for: 10m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "sub2api 真实错误率超过 2%"
-          description: "近 5m 真实错误率（排除业务限制）{{ $value | humanizePercentage }}，持续 10m。"
+          description: "近 5m 真实错误率（排除业务限制与白名单外模型）{{ $value | humanizePercentage }}，持续 10m。"
           dashboard: "Grafana → Sub2api 错误分析与排障（真实错误率 / by type）"
 
-      # 单个上游平台劣化（upstream 阶段错误按 platform 拆分）。
-      # 依据：某平台 upstream 阶段真实错误 >0.1 req/s 持续 10m，通常是该上游/账号池不稳。
       - alert: Sub2apiUpstreamPlatformDegraded
-        expr: sum by (platform) (rate(sub2api_ops_error_total{phase="upstream", business_limited="false"}[5m])) > 0.1
+        expr: sum by (instance, platform) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", phase="upstream", business_limited="false"}[5m])) > 0.1
         for: 10m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "sub2api 上游平台 {{ $labels.platform }} 错误升高"
           description: "平台 {{ $labels.platform }} 近 5m upstream 阶段真实错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m。"
           dashboard: "Grafana → Sub2api 错误分析与排障（by platform，Top 上游状态码表）"
 
-      # 鉴权阶段错误突增（批量 token 过期 / 凭据失效）。
-      # 依据：auth 阶段错误短时突增多为账号 token 集体过期或上游认证策略变化。
       - alert: Sub2apiAuthErrorSpike
-        expr: sum(rate(sub2api_ops_error_total{phase="auth"}[5m])) > 0.1
+        expr: sum by (instance) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", phase="auth"}[5m])) > 0.1
         for: 5m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "sub2api 鉴权阶段错误突增（phase=auth）"
-          description: "近 5m auth 阶段错误率 {{ printf \"%.3f\" $value }} req/s，持续 5m。多为账号 token 集体过期/凭据失效。"
+          description: "近 5m auth 阶段错误率 {{ printf \"%.3f\" $value }} req/s，持续 5m。多为账号 token 集体过期 / 凭据失效。"
           dashboard: "Grafana → Sub2api 错误分析与排障（by phase，选 phase=auth）"
 
-  # 可用性兜底：上面所有基于 rate() 的规则在"抓不到数据"时都会静默，
-  # 进程挂掉 / Nginx 挂掉 / bearer token 失效这类最严重的事故必须单独兜住。
-  - name: sub2api-availability
-    rules:
-      # 抓取失败（进程挂、Nginx 挂、域名/证书问题、token 失效 401 都会让 up=0）。
-      # 依据：5s 抓一次，持续 2m 失败排除单次网络抖动。
-      - alert: Sub2apiDown
-        expr: up{job="sub2api-backend"} == 0
-        for: 2m
-        labels:
-          severity: page
-          service: sub2api
-        annotations:
-          summary: "sub2api /metrics 抓取失败（服务不可达）"
-          description: "Prometheus 连续 2m 抓不到 {{ $labels.instance }}。先查进程与 Nginx，再查 bearer_token 是否失效（401 同样会触发）。"
-          dashboard: "Prometheus → Status → Targets"
-
-      # 能抓到指标但没有任何业务请求（进程活着但不接流量，如 listener 交接异常、入口被挡）。
-      # 依据：/metrics 自身不计入 http_requests_total，生产 10m 零请求即视为异常。
+      # 进程可被抓取但 10 分钟零业务请求（listener 交接异常、入口被挡）。原为 page；napi 14 天回放 0 次。
+      # 注意：合成探针每 10 分钟有几次请求，会把「完全零流量」打断——它只在探针关闭或也一起不通时有意义，故为 warning。
       - alert: Sub2apiNoTraffic
-        expr: sum(rate(sub2api_http_requests_total[5m])) == 0
+        expr: sum by (instance) (rate(sub2api_http_requests_total{job=~"sub2api|sub2api-backend"}[5m])) == 0
         for: 10m
-        labels:
-          severity: page
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "sub2api 持续 10m 无任何业务请求"
           description: "进程可被抓取但 http_requests_total 无增长。检查入口 Nginx/DNS、tableflip 交接后新进程是否接管 listener。"
-          dashboard: "Grafana → Sub2api 错误分析与排障（成功率 / 真实错误率）"
 
   - name: sub2api-model-metrics
     rules:
-      # 单个模型上游错误持续升高（比平台级告警更精细）。
-      # 依据：某模型 upstream 阶段真实错误 >0.1 req/s 持续 10m，通常是该模型上游不稳。
       - alert: Sub2apiModelUpstreamDegraded
         expr: |
-          sum by (platform, model) (
-            rate(sub2api_ops_error_total{phase="upstream", business_limited="false"}[10m])
+          sum by (instance, platform, model) (
+            rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", phase="upstream", business_limited="false"}[10m])
           ) > 0.1
         for: 10m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 上游错误升高"
           description: "近 10m upstream 阶段真实错误率 {{ printf \"%.3f\" $value }} req/s，持续 10m。多为该模型上游不稳或账号池问题。"
           dashboard: "Grafana → Sub2api 按模型稳定性"
 
-      # 模型 TTFT 延迟飙升（首 token 时间过长）。
-      # 依据：TTFT P95 >30s 持续 15m，该模型上游可能排队严重或过载。
       - alert: Sub2apiModelHighLatency
         expr: |
           histogram_quantile(0.95,
-            sum by (platform, model, le) (
-              rate(sub2api_upstream_latency_seconds_bucket{phase="ttft"}[10m])
+            sum by (instance, platform, model, le) (
+              rate(sub2api_upstream_latency_seconds_bucket{job=~"sub2api|sub2api-backend", phase="ttft"}[10m])
             )
           ) > 30
         for: 15m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "模型 {{ $labels.platform }}/{{ $labels.model }} TTFT P95 超过 30s"
           description: "当前 TTFT P95 = {{ printf \"%.1f\" $value }}s。该模型上游可能排队严重或过载。"
           dashboard: "Grafana → Sub2api 按模型稳定性"
 
-      # 模型上游 429 限流频率过高（吞吐瓶颈预警）。
-      # 依据：某模型上游 429 >0.05 req/s 持续 10m，账号 RPM 配额可能不足。
       - alert: Sub2apiModelRateLimited
         expr: |
-          sum by (platform, model) (
-            rate(sub2api_upstream_status_total{upstream_status="429"}[10m])
+          sum by (instance, platform, model) (
+            rate(sub2api_upstream_status_total{job=~"sub2api|sub2api-backend", upstream_status="429"}[10m])
           ) > 0.05
         for: 10m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 上游 429 限流频率升高"
           description: "近 10m 上游 429 率 {{ printf \"%.3f\" $value }} req/s。该模型账号 RPM 配额可能不足，需检查账号池。"
           dashboard: "Grafana → Sub2api 按模型稳定性"
 
-      # 账号池枯竭（单模型无可用账号）。
-      # 依据：某模型可用账号不足总数 20% 持续 5m，需要紧急补充。
-      # 口径：total 只含"计划内"账号（active 且 schedulable=true，人为下线不计入），
-      #       故本告警只反映故障性不可用（限流/过载/临时封禁/账号 error）。
+      # 原为 page；napi 14 天回放 0 次。可用账号为 0 已由 Sub2apiAccountPoolEmpty（critical）判定，这里只留不足 20% 的预警。
       - alert: Sub2apiModelAccountPoolExhausted
         expr: |
-          sub2api_account_pool_available
-            / clamp_min(sub2api_account_pool_total, 1) < 0.2
+          sub2api_account_pool_available{job=~"sub2api|sub2api-backend"}
+            / clamp_min(sub2api_account_pool_total{job=~"sub2api|sub2api-backend"}, 1) < 0.2
         for: 5m
-        labels:
-          severity: page
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 可用账号不足 20%"
-          description: "当前可用账号占比 = {{ $value | humanizePercentage }}（具体个数见 sub2api_account_pool_available / _total）。急需补充账号或解除封禁。"
+          description: "当前可用账号占比 = {{ $value | humanizePercentage }}（具体个数见 sub2api_account_pool_available / _total）。"
           dashboard: "Grafana → Sub2api 按模型稳定性"
 
-      # 上游 5xx 错误率升高（上游服务端故障）。
-      # 依据：某模型上游 5xx >0.05 req/s 持续 5m。
       - alert: Sub2apiModelUpstream5xx
         expr: |
-          sum by (platform, model) (
-            rate(sub2api_upstream_status_total{upstream_status=~"5.."}[5m])
+          sum by (instance, platform, model) (
+            rate(sub2api_upstream_status_total{job=~"sub2api|sub2api-backend", upstream_status=~"5.."}[5m])
           ) > 0.05
         for: 5m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "模型 {{ $labels.platform }}/{{ $labels.model }} 上游 5xx 错误率升高"
           description: "近 5m 上游 5xx 率 {{ printf \"%.3f\" $value }} req/s。该模型上游服务可能故障。"
           dashboard: "Grafana → Sub2api 按模型稳定性"
 
-      # 上游客户端缓存即将打满（资源预警）。
-      # 依据：每个账号/代理一个 HTTP 客户端，缓存数达到 gateway.max_upstream_clients 后
-      #       新账号的请求直接失败（upstream client cache limit reached）。>80% 持续 10m 预警。
-      # 注：单客户端的连接上限在 account/account_proxy 隔离下等于账号并发，
-      #     那由调度器与 Sub2apiModelAccountPoolExhausted 覆盖，这里不重复。
       - alert: Sub2apiUpstreamPoolSaturated
         expr: |
-          sub2api_upstream_pool_clients_cached
-            / sub2api_upstream_pool_clients_limit > 0.8
-          and sub2api_upstream_pool_clients_limit > 0
+          sub2api_upstream_pool_clients_cached{job=~"sub2api|sub2api-backend"}
+            / sub2api_upstream_pool_clients_limit{job=~"sub2api|sub2api-backend"} > 0.8
+          and sub2api_upstream_pool_clients_limit{job=~"sub2api|sub2api-backend"} > 0
         for: 10m
-        labels:
-          severity: warning
-          service: sub2api
+        labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "上游客户端缓存占用超过 80%"
           description: "clients_cached / max_upstream_clients = {{ $value | humanizePercentage }}。满了之后新账号请求会直接失败，需调大 gateway.max_upstream_clients 或缩短 gateway.client_idle_ttl_seconds。"

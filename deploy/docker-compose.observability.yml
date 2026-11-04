@@ -11,6 +11,10 @@
 #   Prometheus http://127.0.0.1:9090
 # 停止：
 #   docker compose -f docker-compose.observability.yml down
+#
+# 本栈只做验收 / 排障看板，不发告警邮件（2026-11-04 起）：生产告警由监控机 119.45.6.42 的共用
+# Prometheus + Alertmanager 发，规则是同一份 observability/prometheus.rules.yml，见 observability/README.md。
+# 本机 Prometheus 仍加载规则，firing 只在 http://127.0.0.1:9090/alerts 可见。
 
 services:
   prometheus:
@@ -33,28 +37,6 @@ services:
       - sub2api-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  alertmanager:
-    image: prom/alertmanager:v0.28.1
-    container_name: sub2api-alertmanager
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:9093:9093"
-    volumes:
-      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      # SMTP 授权码（gitignored，单行明文；见 observability/alertmanager.yml 头注）
-      - ./observability/alertmanager_smtp_password:/etc/alertmanager/smtp_password:ro
-      - sub2api-alertmanager-data:/alertmanager
-    command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
-      - --storage.path=/alertmanager
-    networks:
-      - sub2api-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:9093/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -102,5 +84,4 @@ networks:
 
 volumes:
   sub2api-prometheus-data:
-  sub2api-alertmanager-data:
   sub2api-grafana-data:

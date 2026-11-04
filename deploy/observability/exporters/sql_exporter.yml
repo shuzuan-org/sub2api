@@ -1,0 +1,14 @@
+# sql_exporter（burningalchemist/sql_exporter）：导出 sub2api.collector.yml 里的业务不变量。
+# 生产路径 /etc/sql_exporter/；连接串放 /etc/sql_exporter/dsn（0600，属主 sql_exporter），由 systemd 单元经
+# -config.data-source-name 读入，这里不写密钥。只绑 127.0.0.1:9399，119 经 SSH 隧道（9113）抓。
+global:
+  scrape_timeout: 10s
+  scrape_timeout_offset: 500ms
+  min_interval: 30s        # 两次抓取之间缓存结果，避免每 15 秒扫一次表
+  max_connections: 2
+  max_idle_connections: 1
+target:
+  data_source_name: "postgres://override-me@127.0.0.1/sub2api_v2"
+  collectors: [sub2api]
+collector_files:
+  - "*.collector.yml"

@@ -1119,3 +1119,29 @@ alipay:
   # Production environment / 是否正式环境
   # true = 正式环境（生产），false = 沙箱环境（测试）
   is_prod: false
+
+# =============================================================================
+# Synthetic Probe / 端到端合成探针
+# =============================================================================
+# 定时用专用 API key 走本进程网关真调一次模型，再查 usage_logs 确认计量落库；
+# 结果导出为 sub2api_probe_* 指标，119 的 Sub2apiProbeModelFailing 据此告警（夜间零流量时发现上游欠费 / 没号可用）。
+# 一把 key 只绑一个分组：每个要探的上游分组配一个 target，各带自己的 api_key。
+# 建议用专用测试用户开 key（用量里可按用户剔除）；分组不要开「仅 Claude Code 客户端」类限制，探针 UA 是 sub2api-synthetic-probe/1.0。
+probe:
+  enabled: false
+  # 网关地址；默认直连本机 listener，不经 nginx（公网入口由 blackbox 探测覆盖）
+  base_url: "http://127.0.0.1:8080"
+  # 默认 key（target 不填 api_key 时使用）
+  api_key: ""
+  interval_seconds: 600
+  timeout_seconds: 60
+  max_tokens: 8
+  # 计量是异步写入，请求完成后等多久再查 usage_logs
+  metering_delay_seconds: 15
+  targets: []
+  # targets:
+  #   - model: "glm-5.3-flash"          # anthropic 协议分组：POST /v1/messages
+  #     api_key: "sk-..."
+  #   - model: "gpt-6"                  # openai 协议分组：POST /v1/chat/completions
+  #     protocol: openai
+  #     api_key: "sk-..."

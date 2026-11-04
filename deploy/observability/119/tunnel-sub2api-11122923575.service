@@ -1,0 +1,34 @@
+# 放到 119.45.6.42 的 /etc/systemd/system/，与现有 tunnel-node-11122923575（9103 → node_exporter）并列：
+#   sudo cp tunnel-sub2api-11122923575.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now tunnel-sub2api-11122923575
+# 前提：111.229 的 ~/.ssh/authorized_keys 里 119 那把 tunnel_key 是受限的
+#   restrict,port-forwarding,permitopen="127.0.0.1:9100",command="/bin/false"
+# 要追加 permitopen="127.0.0.1:8080",permitopen="127.0.0.1:9187",permitopen="127.0.0.1:9399"，否则 SSH 报 administratively prohibited。
+# 111.229 上 tc-shape.service 限制了 SSH 转发带宽：/metrics 明文 ~600KB，Prometheus 默认 gzip 抓取约 20KB，15s 间隔够用。
+#
+#   9111 → 127.0.0.1:8080   sub2api 进程 /metrics（不经 nginx，不需要 bearer）
+#   9112 → 127.0.0.1:9187   postgres_exporter   pg_*
+#   9113 → 127.0.0.1:9399   sql_exporter        sub2api_biz_*
+# 9101–9110 已被 node / cc2codex / tassub2api / metask 占用，9111 起是 sub2api（111.229）号段。
+[Unit]
+Description=SSH tunnels to sub2api metrics on 111.229.235.75 (bind docker0:9111-9113)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+ExecStart=/usr/bin/ssh -N \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o StrictHostKeyChecking=accept-new \
+  -o IdentitiesOnly=yes \
+  -i /home/ubuntu/.ssh/tunnel_key \
+  -L 172.17.0.1:9111:127.0.0.1:8080 \
+  -L 172.17.0.1:9112:127.0.0.1:9187 \
+  -L 172.17.0.1:9113:127.0.0.1:9399 \
+  ubuntu@111.229.235.75
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

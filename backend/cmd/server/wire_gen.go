@@ -273,7 +273,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionExpiryService := service.ProvideSubscriptionExpiryService(userSubscriptionRepository, billingCache, subscriptionService)
 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig)
 	accountPricingSyncService := service.ProvideAccountPricingSyncService(accountRepository, pricingService, opsService, timingWheelService)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, tokenRefreshService, accountExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, accountPricingSyncService)
+	syntheticProbeService := service.ProvideSyntheticProbeService(configConfig, apiKeyRepository, usageLogRepository)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, tokenRefreshService, accountExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, backupService, accountPricingSyncService, syntheticProbeService)
 	application := &Application{
 		Server:         httpServer,
 		Cleanup:        v,
@@ -330,6 +331,7 @@ func provideCleanup(
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	accountPricingSync *service.AccountPricingSyncService,
+	syntheticProbe *service.SyntheticProbeService,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -411,6 +413,10 @@ func provideCleanup(
 			}},
 			{"SubscriptionExpiryService", func() error {
 				subscriptionExpiry.Stop()
+				return nil
+			}},
+			{"SyntheticProbeService", func() error {
+				syntheticProbe.Stop()
 				return nil
 			}},
 			{"SubscriptionService", func() error {

@@ -378,6 +378,17 @@ func ProvideScheduledTestRunnerService(
 	return svc
 }
 
+// ProvideSyntheticProbeService creates and starts SyntheticProbeService (no-op unless probe.enabled).
+func ProvideSyntheticProbeService(cfg *config.Config, apiKeyRepo APIKeyRepository, usageLogRepo UsageLogRepository) *SyntheticProbeService {
+	var probeCfg config.ProbeConfig
+	if cfg != nil {
+		probeCfg = cfg.Probe
+	}
+	svc := NewSyntheticProbeService(probeCfg, apiKeyRepo, usageLogRepo)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -542,6 +553,7 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideSyntheticProbeService,
 	NewGroupCapacityService,
 	NewSubscriptionPlanService,
 	NewPhoneVerificationService,

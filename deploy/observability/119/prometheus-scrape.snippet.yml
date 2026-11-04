@@ -1,0 +1,96 @@
+# 并入监控机 119.45.6.42 的 ~/server-prometheus/prometheus/prometheus.yml（那份文件不在任何仓库里且丢过一次：改前先 cp 备份）。
+#
+# 部署身份：sub2api（111.229.235.75，公网 napi.metask-ai.com）。与 111.231.4.97 上的 tassub2api 是两套部署，
+# 指标前缀都是 sub2api_，靠 job 区分：本套 job=sub2api*，tassub2api 是 job=tassub2api。
+# 规则文件 ../prometheus.rules.yml（119 上挂成 /etc/prometheus/sub2api-alerts.yml）只认 job=~"sub2api|sub2api-backend"，
+# tassub2api 的规则只认 job=~"tassub2api|sub2api-backend"——两边互不命中（sub2api-backend 只在各自的本机验收栈出现）。
+#
+# 三个内网目标经 systemd 单元 tunnel-sub2api-11122923575（./tunnel-sub2api-11122923575.service）落到 docker0：
+#   9111 → 127.0.0.1:8080   sub2api /metrics          sub2api_*
+#   9112 → 127.0.0.1:9187   postgres_exporter         pg_*
+#   9113 → 127.0.0.1:9399   sql_exporter              sub2api_biz_*
+# relabel 把 instance 从 172.17.0.1:911x 改成机器 IP，与 node / tassub2api 两组一致。
+
+# 1）scrape_configs 下追加三个 job：
+scrape_configs:
+  - job_name: sub2api
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [host]
+        target_label: instance
+    static_configs:
+      - targets: ["172.17.0.1:9111"]
+        labels:
+          env: prod
+          host: "111.229.235.75"
+          service: sub2api
+
+  - job_name: sub2api-postgres
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [host]
+        target_label: instance
+    static_configs:
+      - targets: ["172.17.0.1:9112"]
+        labels:
+          env: prod
+          host: "111.229.235.75"
+          service: sub2api
+
+  # 业务不变量 30 秒缓存一次（exporters/sql_exporter.yml 的 min_interval），抓取放宽到 60s
+  - job_name: sub2api-sql
+    scrape_interval: 60s
+    scrape_timeout: 20s
+    relabel_configs:
+      - source_labels: [host]
+        target_label: instance
+    static_configs:
+      - targets: ["172.17.0.1:9113"]
+        labels:
+          env: prod
+          host: "111.229.235.75"
+          service: sub2api
+
+# 2）既有 job blackbox-http 的 static_configs 追加一组（单独打 service 标签，Alertmanager 按 service 分封邮件）：
+  - job_name: blackbox-http
+    static_configs:
+      - targets: [https://napi.metask-ai.com/health]
+        labels: { env: prod, service: sub2api }
+
+# 3）新增两个 blackbox job（模块 http_2xx_ready / http_401_sub2api 已在 metask-ai 仓库 infra/monitoring/blackbox/blackbox.yml，119 上已加载，不用改）：
+  - job_name: blackbox-napi-ready            # /ready 真连 DB 与 Redis，不 ready 回 503
+    metrics_path: /probe
+    params: { module: [http_2xx_ready] }
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    static_configs:
+      - targets: [https://napi.metask-ai.com/ready]
+        labels: { env: prod, service: sub2api }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  - job_name: blackbox-napi-gate             # 未带凭据的 /v1/models 期望 401 JSON（API_KEY_REQUIRED）
+    metrics_path: /probe
+    params: { module: [http_401_sub2api] }
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    static_configs:
+      - targets: [https://napi.metask-ai.com/v1/models]
+        labels: { env: prod, service: sub2api }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+# 4）rule_files 追加（~/server-prometheus/docker-compose.yml 的 prometheus 服务同时加 mount
+#    ./prometheus/sub2api-alerts.yml:/etc/prometheus/sub2api-alerts.yml:ro）：
+rule_files:
+  - /etc/prometheus/sub2api-alerts.yml      # sub2api（仓库 sub2api deploy/observability/prometheus.rules.yml）
