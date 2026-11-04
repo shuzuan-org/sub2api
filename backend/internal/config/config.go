@@ -84,6 +84,38 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	Alipay                  AlipayPaymentConfig           `mapstructure:"alipay"`
+	Probe                   ProbeConfig                   `mapstructure:"probe"`
+}
+
+// ProbeConfig 端到端合成探针：定时用一把专用 API key 走本进程网关真调一次模型，
+// 再查 usage_logs 确认计量落库，结果导出为 sub2api_probe_* 指标（119 告警用）。
+// 夜间零流量时，上游欠费 / 密钥失效 / 没号可用靠它发现。enabled=false 或没有 target 时不启动。
+type ProbeConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	// BaseURL 网关地址，默认 http://127.0.0.1:8080（绕过 nginx；公网入口由 blackbox 覆盖）。
+	BaseURL string `mapstructure:"base_url"`
+	// APIKey 默认探针 key（target 未单独指定时使用）。建议专用用户 + 专用 key，便于从用量里剔除。
+	APIKey string `mapstructure:"api_key"`
+	// IntervalSeconds 每轮间隔（秒），默认 600。
+	IntervalSeconds int `mapstructure:"interval_seconds"`
+	// TimeoutSeconds 单次模型请求超时（秒），默认 60。
+	TimeoutSeconds int `mapstructure:"timeout_seconds"`
+	// MaxTokens 每次请求的 max_tokens，默认 8（只验证链路，不要内容）。
+	MaxTokens int `mapstructure:"max_tokens"`
+	// MeteringDelaySeconds 请求完成后等多久再查 usage_logs（计量是异步写入），默认 15。
+	MeteringDelaySeconds int `mapstructure:"metering_delay_seconds"`
+	// Targets 每个付费上游挑一个最便宜的对话模型。
+	Targets []ProbeTarget `mapstructure:"targets"`
+}
+
+// ProbeTarget 一个探测目标。
+type ProbeTarget struct {
+	// Model 请求里的 model 字段，也是指标的 model 标签。
+	Model string `mapstructure:"model"`
+	// Protocol anthropic（POST /v1/messages，默认）| openai（POST /v1/chat/completions）。
+	Protocol string `mapstructure:"protocol"`
+	// APIKey 可选；key 绑定分组，不同平台的模型通常要不同的 key。空则用 probe.api_key。
+	APIKey string `mapstructure:"api_key"`
 }
 
 // AlipayPaymentConfig 支付宝支付配置（config.yaml 中配置，优先于管理后台 Setting 表）
@@ -1357,6 +1389,13 @@ func setDefaults() {
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
 
 	// Idempotency
+	viper.SetDefault("probe.enabled", false)
+	viper.SetDefault("probe.base_url", "http://127.0.0.1:8080")
+	viper.SetDefault("probe.interval_seconds", 600)
+	viper.SetDefault("probe.timeout_seconds", 60)
+	viper.SetDefault("probe.max_tokens", 8)
+	viper.SetDefault("probe.metering_delay_seconds", 15)
+
 	viper.SetDefault("idempotency.observe_only", true)
 	viper.SetDefault("idempotency.default_ttl_seconds", 86400)
 	viper.SetDefault("idempotency.system_operation_ttl_seconds", 3600)
@@ -1879,6 +1918,9 @@ func (c *Config) Validate() error {
 		if c.UsageCleanup.TaskTimeoutSeconds < 0 {
 			return fmt.Errorf("usage_cleanup.task_timeout_seconds must be non-negative")
 		}
+	}
+	if err := c.Probe.validate(); err != nil {
+		return err
 	}
 	if c.Idempotency.DefaultTTLSeconds <= 0 {
 		return fmt.Errorf("idempotency.default_ttl_seconds must be positive")
@@ -2437,4 +2479,33 @@ func warnIfInsecureURL(field, raw string) {
 	if strings.EqualFold(u.Scheme, "http") {
 		slog.Warn("url uses http scheme; use https in production to avoid token leakage", "field", field)
 	}
+}
+
+func (p *ProbeConfig) validate() error {
+	if !p.Enabled {
+		return nil
+	}
+	if p.IntervalSeconds < 60 {
+		return fmt.Errorf("probe.interval_seconds must be >= 60")
+	}
+	if p.TimeoutSeconds <= 0 || p.MaxTokens <= 0 || p.MeteringDelaySeconds < 0 {
+		return fmt.Errorf("probe.timeout_seconds / max_tokens must be positive and metering_delay_seconds non-negative")
+	}
+	if strings.TrimSpace(p.BaseURL) == "" {
+		return fmt.Errorf("probe.base_url is required when probe.enabled")
+	}
+	for i, t := range p.Targets {
+		if strings.TrimSpace(t.Model) == "" {
+			return fmt.Errorf("probe.targets[%d].model is required", i)
+		}
+		switch t.Protocol {
+		case "", "anthropic", "openai":
+		default:
+			return fmt.Errorf("probe.targets[%d].protocol must be anthropic or openai", i)
+		}
+		if strings.TrimSpace(t.APIKey) == "" && strings.TrimSpace(p.APIKey) == "" {
+			return fmt.Errorf("probe.targets[%d] has no api_key and probe.api_key is empty", i)
+		}
+	}
+	return nil
 }

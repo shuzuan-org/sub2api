@@ -1,0 +1,26 @@
+# 111.229.235.75：/etc/systemd/system/sql_exporter.service（安装步骤见 ../README.md「生产接线」）
+# 二进制 /usr/local/bin/sql_exporter（burningalchemist/sql_exporter release 0.24.11，与 metask-ai 同版本）；
+# 配置 /etc/sql_exporter/{sql_exporter.yml,sub2api.collector.yml}（本目录同名文件），
+# DSN 在 /etc/sql_exporter/env（0600，属主 sql_exporter）：
+#   SQL_EXPORTER_DSN=postgres://metrics_ro:<密码>@127.0.0.1:5432/sub2api_v2?sslmode=disable
+# 只绑回环；119 经隧道抓 172.17.0.1:9113。
+[Unit]
+Description=Prometheus sql_exporter for sub2api business invariants (127.0.0.1:9399)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=sql_exporter
+Group=sql_exporter
+EnvironmentFile=/etc/sql_exporter/env
+ExecStart=/bin/sh -c 'exec /usr/local/bin/sql_exporter -config.file=/etc/sql_exporter/sql_exporter.yml -config.data-source-name="$SQL_EXPORTER_DSN" -web.listen-address=127.0.0.1:9399'
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

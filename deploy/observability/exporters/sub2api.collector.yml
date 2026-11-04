@@ -1,0 +1,80 @@
+# sub2api 业务不变量（sql_exporter 只读查询，库账号 metrics_ro，见 metrics_ro.sql）。
+# 指标前缀 sub2api_biz_，与进程内的 sub2api_*（含 sub2api_db_pool_* 连接池）区分。
+# 约定：查询必须只读、只碰 metrics_ro 有 SELECT 权限的表；标签只能是有限集合（不要 user_id / api_key_id）。
+# 改完在生产只读跑一遍：sudo -u postgres psql -d sub2api_v2 -c "<query>"，再 systemctl restart sql_exporter。
+collector_name: sub2api
+metrics:
+  # ── 计量入库 ──────────────────────────────────────────────────────────────
+  # 与网关侧 sub2api_http_requests_total{code="200"} 对照：有成功请求但这里不涨 = 计量 / 扣费链路断了。
+  - metric_name: sub2api_biz_usage_logs_15m
+    type: gauge
+    help: "近 15 分钟写入 usage_logs 的条数（走 idx_usage_logs_created_at）"
+    values: [n]
+    query: select count(*)::float8 as n from usage_logs where created_at > now() - interval '15 minutes'
+
+  - metric_name: sub2api_biz_usage_logs_last_age_seconds
+    type: gauge
+    help: "距最近一条 usage_logs 的秒数"
+    values: [age]
+    query: select coalesce(extract(epoch from now() - max(created_at)), 1e9)::float8 as age from usage_logs where created_at > now() - interval '7 days'
+
+  # ── 订阅到期作业（SubscriptionExpiryService，每分钟一次）────────────────────
+  - metric_name: sub2api_biz_subscriptions
+    type: gauge
+    help: "用户订阅数，按状态"
+    key_labels: [status]
+    values: [n]
+    query: select status, count(*)::float8 as n from user_subscriptions where deleted_at is null group by status
+
+  - metric_name: sub2api_biz_subscriptions_active_past_expiry
+    type: gauge
+    help: "已过 expires_at 超过 5 分钟仍是 active 的订阅数；持续 > 0 说明到期作业没在跑（用户白用）"
+    values: [n]
+    query: |
+      select count(*)::float8 as n from user_subscriptions
+      where deleted_at is null and status = 'active' and expires_at < now() - interval '5 minutes'
+
+  # ── 支付宝订单（只导指标不告警：sub2api 没有关闭过期订单的作业，过期 pending 是常态）──
+  - metric_name: sub2api_biz_alipay_orders
+    type: gauge
+    help: "支付宝订单数，按状态（pending / paid / expired / refunded）"
+    key_labels: [status]
+    values: [n]
+    query: select status, count(*)::float8 as n from alipay_orders group by status
+
+  - metric_name: sub2api_biz_alipay_orders_created_24h
+    type: gauge
+    help: "近 24 小时新建的支付宝订单数"
+    values: [n]
+    query: select count(*)::float8 as n from alipay_orders where created_at > now() - interval '24 hours'
+
+  - metric_name: sub2api_biz_alipay_paid_24h
+    type: gauge
+    help: "近 24 小时已支付订单数"
+    values: [n]
+    query: select count(*)::float8 as n from alipay_orders where status = 'paid' and paid_at > now() - interval '24 hours'
+
+  - metric_name: sub2api_biz_alipay_paid_cny_fen_24h
+    type: gauge
+    help: "近 24 小时已支付金额（人民币分，cny_fee）"
+    values: [v]
+    query: select coalesce(sum(cny_fee), 0)::float8 as v from alipay_orders where status = 'paid' and paid_at > now() - interval '24 hours'
+
+  # ── 账号与分组目录（只导指标；notice 级变更通知 2026-11-04 决定先不加）────────────
+  - metric_name: sub2api_biz_accounts
+    type: gauge
+    help: "账号数，按平台 / 类型 / 状态 / 是否可调度（schedulable=false 是人为下线）"
+    key_labels: [platform, type, status, schedulable]
+    values: [n]
+    query: |
+      select platform, type, status, schedulable::text as schedulable, count(*)::float8 as n
+      from accounts where deleted_at is null group by 1, 2, 3, 4
+
+  - metric_name: sub2api_biz_group_info
+    type: gauge
+    help: "分组目录快照：每个未删除分组一条序列，值恒 1（以后做变更通知可与 offset 10m 对比）"
+    key_labels: [group_id, group_name, platform, status]
+    values: [v]
+    query: |
+      select id::text as group_id, name as group_name, platform, status, 1::float8 as v
+      from groups where deleted_at is null

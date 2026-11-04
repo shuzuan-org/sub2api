@@ -191,6 +191,9 @@ func init() {
 		UpstreamErrorShapedTotal.WithLabelValues(status, errType)
 	}
 	UpstreamErrorShapedTotal.WithLabelValues("502", "upstream_error")
+	for _, r := range []string{"ok", "partial", "failed"} {
+		ProbeRunsTotal.WithLabelValues(r)
+	}
 }
 
 // BootstrapModelMetrics 在配置加载后调用，用已知的模型白名单补注册 model 维度的零值序列。
@@ -266,7 +269,7 @@ func ObserveHTTP(path, method string, status int, elapsed time.Duration) {
 // 标签全部为低基数枚举：
 //   - platform:    anthropic|openai|gemini|antigravity|sora|deepseek|""
 //   - model:       NormalizeModel 归一化后的模型名
-//   - upstream_status: "200"|"400"|"401"|"403"|"429"|"500"|"502"|"503"|"other"
+//   - upstream_status: "200"|"400"|"401"|"402"|"403"|"429"|"500"|"502"|"503"|"2xx"|"4xx"|"5xx"|"other"
 //
 // 记录时机：每次上游 HTTP 往返完成后（无论成功/失败）。
 var UpstreamStatusTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -298,6 +301,9 @@ func upstreamStatusBucket(code int) string {
 		return "400"
 	case 401:
 		return "401"
+	case 402:
+		// 上游欠费（Insufficient Balance）。原先落在 "4xx" 桶里，告警分不出欠费和 404/413。
+		return "402"
 	case 403:
 		return "403"
 	case 429:
@@ -578,4 +584,107 @@ func (c *upstreamPoolCollector) Collect(ch chan<- prometheus.Metric) {
 	c.cachedGauge.Collect(ch)
 	c.limitGauge.Collect(ch)
 	c.flightGauge.Collect(ch)
+}
+
+// ---------------------------------------------------------------------------
+// 端到端合成探针（service.SyntheticProbeService 每轮写入）
+// ---------------------------------------------------------------------------
+//
+// 标签只有 model（配置里的有限列表，不经 NormalizeModel——探针模型由运维显式列出）。
+// 从配置里删掉的模型由 ResetProbeModels 清掉旧序列，避免一个已下线的模型永远停在 0 触发告警。
+
+var (
+	ProbeModelOK = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sub2api_probe_model_ok",
+		Help: "Synthetic probe: 1 if the latest round's request for this model succeeded end to end (HTTP 2xx and metered), else 0.",
+	}, []string{"model"})
+	ProbeModelHTTPOK = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sub2api_probe_model_http_ok",
+		Help: "Synthetic probe: 1 if the gateway returned 2xx for this model in the latest round.",
+	}, []string{"model"})
+	ProbeModelMetered = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sub2api_probe_model_metered",
+		Help: "Synthetic probe: 1 if a usage_logs row was found for this model's successful request in the latest round.",
+	}, []string{"model"})
+	ProbeModelStatus = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sub2api_probe_model_http_status",
+		Help: "Synthetic probe: HTTP status the gateway returned in the latest round (0 = transport error / timeout).",
+	}, []string{"model"})
+	ProbeModelLatency = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sub2api_probe_model_latency_seconds",
+		Help: "Synthetic probe: gateway round-trip seconds in the latest round.",
+	}, []string{"model"})
+	ProbeLastRunTimestamp = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "sub2api_probe_last_run_timestamp_seconds",
+		Help: "Unix time the latest synthetic probe round finished; stale means the probe loop stopped.",
+	})
+	ProbeRunsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "sub2api_probe_runs_total",
+		Help: "Synthetic probe rounds by result (ok = all targets ok, partial, failed).",
+	}, []string{"result"})
+)
+
+// ProbeResult 一个模型一轮的探测结果。
+type ProbeResult struct {
+	Model      string
+	HTTPStatus int
+	HTTPOK     bool
+	Metered    bool
+	Latency    time.Duration
+}
+
+var (
+	probeModelsMu sync.Mutex
+	probeModels   = map[string]struct{}{}
+)
+
+// RecordProbeRound 写入一轮探测结果并刷新最近运行时间。
+func RecordProbeRound(results []ProbeResult, finishedAt time.Time) {
+	okCount := 0
+	for _, r := range results {
+		ok := r.HTTPOK && r.Metered
+		if ok {
+			okCount++
+		}
+		ProbeModelOK.WithLabelValues(r.Model).Set(boolFloat(ok))
+		ProbeModelHTTPOK.WithLabelValues(r.Model).Set(boolFloat(r.HTTPOK))
+		ProbeModelMetered.WithLabelValues(r.Model).Set(boolFloat(r.Metered))
+		ProbeModelStatus.WithLabelValues(r.Model).Set(float64(r.HTTPStatus))
+		ProbeModelLatency.WithLabelValues(r.Model).Set(r.Latency.Seconds())
+	}
+	switch {
+	case len(results) > 0 && okCount == len(results):
+		ProbeRunsTotal.WithLabelValues("ok").Inc()
+	case okCount > 0:
+		ProbeRunsTotal.WithLabelValues("partial").Inc()
+	default:
+		ProbeRunsTotal.WithLabelValues("failed").Inc()
+	}
+	ProbeLastRunTimestamp.Set(float64(finishedAt.Unix()))
+}
+
+// ResetProbeModels 把探针模型集合设为 models：不再配置的模型删掉全部序列。
+func ResetProbeModels(models []string) {
+	probeModelsMu.Lock()
+	defer probeModelsMu.Unlock()
+	keep := make(map[string]struct{}, len(models))
+	for _, m := range models {
+		keep[m] = struct{}{}
+	}
+	for m := range probeModels {
+		if _, ok := keep[m]; ok {
+			continue
+		}
+		for _, g := range []*prometheus.GaugeVec{ProbeModelOK, ProbeModelHTTPOK, ProbeModelMetered, ProbeModelStatus, ProbeModelLatency} {
+			g.DeleteLabelValues(m)
+		}
+	}
+	probeModels = keep
+}
+
+func boolFloat(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }
