@@ -48,6 +48,15 @@ const (
 	opsCodeSubscriptionNotFound = "SUBSCRIPTION_NOT_FOUND"
 	opsCodeSubscriptionInvalid  = "SUBSCRIPTION_INVALID"
 	opsCodeUserInactive         = "USER_INACTIVE"
+
+	// API key 鉴权中间件（server/middleware/api_key_auth.go）的 401 错误码：响应体只有 code 没有 type，
+	// 不显式映射会落到 api_error → phase=internal/P2，把用户漏带 key、key 失效（以及 119 上
+	// blackbox-napi-gate 每 30 秒一次的未登录探测）算成服务内部故障。
+	opsCodeAPIKeyRequired = "API_KEY_REQUIRED"
+	opsCodeInvalidAPIKey  = "INVALID_API_KEY"
+	opsCodeAPIKeyDisabled = "API_KEY_DISABLED"
+	opsCodeAPIKeyExpired  = "API_KEY_EXPIRED"
+	opsCodeUserNotFound   = "USER_NOT_FOUND"
 )
 
 const (
@@ -1131,6 +1140,9 @@ func normalizeOpsErrorType(errType string, code string) string {
 		return "billing_error"
 	case opsCodeUsageLimitExceeded, opsCodeSubscriptionNotFound, opsCodeSubscriptionInvalid:
 		return "subscription_error"
+	case opsCodeAPIKeyRequired, opsCodeInvalidAPIKey, opsCodeAPIKeyDisabled, opsCodeAPIKeyExpired,
+		opsCodeUserNotFound, opsCodeUserInactive:
+		return "authentication_error"
 	default:
 		return "api_error"
 	}
