@@ -204,10 +204,12 @@ groups:
           description: "近 5m P1 错误占总请求 {{ $value | humanizePercentage }}，持续 5m。调度阶段（没号）由 Sub2apiNoAvailableAccount 单独判。"
           dashboard: "Grafana → Sub2api 错误分析与排障（by severity / 未解决 P1 表）"
 
+      # 不含 phase="auth"：未带 / 无效 key 的 401 是客户端问题，由 Sub2apiAuthErrorSpike 单独判；
+      # 119 上 blackbox-napi-gate 每 30s 一次未登录探测，低流量时单它就能占 ~5%。
       - alert: Sub2apiHighRealErrorRatio
         expr: |
           (
-            sum by (instance) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", business_limited="false", model!="__other__"}[5m]))
+            sum by (instance) (rate(sub2api_ops_error_total{job=~"sub2api|sub2api-backend", business_limited="false", model!="__other__", phase!="auth"}[5m]))
               / clamp_min(sum by (instance) (rate(sub2api_http_requests_total{job=~"sub2api|sub2api-backend"}[5m])), 1e-9)
           ) > 0.02
           and sum by (instance) (rate(sub2api_http_requests_total{job=~"sub2api|sub2api-backend"}[5m])) > 0.05
@@ -215,7 +217,7 @@ groups:
         labels: { severity: warning, env: prod, service: sub2api }
         annotations:
           summary: "sub2api 真实错误率超过 2%"
-          description: "近 5m 真实错误率（排除业务限制与白名单外模型）{{ $value | humanizePercentage }}，持续 10m。"
+          description: "近 5m 真实错误率（排除业务限制、鉴权失败与白名单外模型）{{ $value | humanizePercentage }}，持续 10m。"
           dashboard: "Grafana → Sub2api 错误分析与排障（真实错误率 / by type）"
 
       - alert: Sub2apiUpstreamPlatformDegraded
