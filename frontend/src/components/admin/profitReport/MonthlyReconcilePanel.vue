@@ -166,7 +166,12 @@
               <td class="r">{{ l.accountIds.length ? fi(l.requests) : '—' }}</td>
               <td class="r" :title="tokenTitle(l)">{{ l.accountIds.length ? formatTokensShort(l.backendTokens) : '—' }}</td>
               <td class="r">{{ l.billTokens == null ? '—' : formatTokensShort(l.billTokens) }}</td>
-              <td class="r" :class="tokenDiffClass(l)">{{ l.tokenDiff == null ? '—' : signedTokens(l.tokenDiff) }}</td>
+              <td class="r" :class="tokenDiffClass(l)">
+                <div>{{ l.tokenDiff == null ? '—' : signedTokens(l.tokenDiff) }}</div>
+                <div v-if="l.billTotalOnly" class="text-[11px] text-gray-400" data-test="total-only" :title="t('admin.profitReport.reconcile.totalOnlyTitle')">
+                  {{ t('admin.profitReport.reconcile.totalOnly') }}
+                </div>
+              </td>
               <td class="r">{{ l.accountIds.length ? yuan(l.revenue) : '—' }}</td>
               <td class="r">
                 <div>{{ l.estimate == null ? '—' : yuan(l.estimate) }}</div>
