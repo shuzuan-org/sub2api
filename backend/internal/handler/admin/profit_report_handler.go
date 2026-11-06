@@ -19,11 +19,12 @@ type profitReporter interface {
 // 标价/实付，以及账号成本折扣与分组倍率维表，成本和毛利由前端按折扣实时计算。
 type ProfitReportHandler struct {
 	svc profitReporter
+	rec profitReconciler
 }
 
 // NewProfitReportHandler 创建收入看板 handler。
 func NewProfitReportHandler(svc *service.ProfitReportService) *ProfitReportHandler {
-	return &ProfitReportHandler{svc: svc}
+	return &ProfitReportHandler{svc: svc, rec: svc}
 }
 
 type profitReportRowDTO struct {

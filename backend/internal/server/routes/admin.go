@@ -546,6 +546,9 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 
 func registerProfitReportRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/profit-report", h.Admin.ProfitReport.GetReport)
+	admin.GET("/profit-report/reconcile", h.Admin.ProfitReport.GetReconcile)
+	admin.PUT("/profit-report/supplier-bindings/:account_id", h.Admin.ProfitReport.SaveSupplierBinding)
+	admin.PUT("/profit-report/supplier-bills", h.Admin.ProfitReport.ReplaceSupplierBills)
 }
 
 func registerUserAttributeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
