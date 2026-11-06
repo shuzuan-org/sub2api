@@ -81,12 +81,13 @@ type ProfitReportRepository interface {
 // ProfitReportService 网关收入看板：把日志里的标价/实付与账号成本折扣放到一起，
 // 由前端按折扣实时算成本与毛利。
 type ProfitReportService struct {
-	repo ProfitReportRepository
+	repo  ProfitReportRepository
+	bills SupplierBillRepository // 月度对账：供应商绑定与账单
 }
 
 // NewProfitReportService 创建收入看板服务。
-func NewProfitReportService(repo ProfitReportRepository) *ProfitReportService {
-	return &ProfitReportService{repo: repo}
+func NewProfitReportService(repo ProfitReportRepository, bills SupplierBillRepository) *ProfitReportService {
+	return &ProfitReportService{repo: repo, bills: bills}
 }
 
 // GetReport 返回时间范围内的聚合行与账号/分组维表。

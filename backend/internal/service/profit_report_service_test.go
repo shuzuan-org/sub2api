@@ -35,7 +35,7 @@ func (s *stubProfitReportRepo) ListGroupsByIDs(_ context.Context, ids []int64) (
 }
 
 func TestProfitReportService_RangeValidation(t *testing.T) {
-	svc := NewProfitReportService(&stubProfitReportRepo{})
+	svc := NewProfitReportService(&stubProfitReportRepo{}, nil)
 	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
 	_, err := svc.GetReport(context.Background(), start, start, "")
@@ -62,7 +62,7 @@ func TestProfitReportService_TimezoneAndGroupLookup(t *testing.T) {
 		},
 		groups: []ProfitReportGroup{{ID: 1}, {ID: 2}},
 	}
-	svc := NewProfitReportService(repo)
+	svc := NewProfitReportService(repo, nil)
 	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
 	report, err := svc.GetReport(context.Background(), start, start.AddDate(0, 0, 2), "Asia/Shanghai")
@@ -81,7 +81,7 @@ func TestProfitReportService_TimezoneAndGroupLookup(t *testing.T) {
 
 func TestProfitReportService_NoGroupsSkipsLookup(t *testing.T) {
 	repo := &stubProfitReportRepo{rows: []ProfitReportRow{{Day: "2026-10-01", Model: "a", AccountID: 1}}}
-	svc := NewProfitReportService(repo)
+	svc := NewProfitReportService(repo, nil)
 	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
 	report, err := svc.GetReport(context.Background(), start, start.AddDate(0, 0, 1), "")
@@ -93,7 +93,7 @@ func TestProfitReportService_NoGroupsSkipsLookup(t *testing.T) {
 
 func TestProfitReportService_RepoErrorWrapped(t *testing.T) {
 	sentinel := errors.New("boom")
-	svc := NewProfitReportService(&stubProfitReportRepo{err: sentinel})
+	svc := NewProfitReportService(&stubProfitReportRepo{err: sentinel}, nil)
 	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 
 	_, err := svc.GetReport(context.Background(), start, start.AddDate(0, 0, 1), "")
