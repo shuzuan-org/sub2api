@@ -80,8 +80,8 @@ const createReport = (): ProfitReportResponse => ({
     }
   ],
   accounts: [
-    { id: 13, name: 'GLM5-小豪', platform: 'openai', rate_multiplier: 1, status: 'active', schedulable: true, deleted: false, last_used_at: null },
-    { id: 72, name: 'DeepSeek', platform: 'openai', rate_multiplier: 1, status: 'active', schedulable: false, deleted: false, last_used_at: null },
+    { id: 13, name: 'GLM5-小豪', platform: 'openai', rate_multiplier: 1, status: 'active', schedulable: true, deleted: false, last_used_at: null, upstream: 'https://llmapi.paratera.com, https://kspmas.ksyun.com', upstream_source: 'proxy' },
+    { id: 72, name: 'DeepSeek', platform: 'openai', rate_multiplier: 1, status: 'active', schedulable: false, deleted: false, last_used_at: null, upstream: 'http://127.0.0.1:8188', upstream_source: 'proxy_unresolved' },
     { id: 99, name: 'idle', platform: 'anthropic', rate_multiplier: 1, status: 'active', schedulable: true, deleted: false, last_used_at: null }
   ],
   groups: [{ id: 7, name: 'GLM-官方', platform: 'openai', rate_multiplier: 0.85, deleted: false }]
@@ -239,6 +239,19 @@ describe('admin ProfitReportView', () => {
     expect(updateAccount).toHaveBeenCalledWith(13, { rate_multiplier: 0.3 })
     expect(showSuccess).toHaveBeenCalled()
     expect(getReport).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the upstream host per account and flags unresolved proxy routes', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const cells = wrapper.findAll('[data-test="upstream"]')
+    expect(cells).toHaveLength(2)
+    expect(cells[0].text()).toContain('llmapi.paratera.com, kspmas.ksyun.com')
+    expect(cells[0].text()).not.toContain('https://')
+    expect(cells[0].text()).toContain('admin.profitReport.discount.viaProxy')
+    expect(cells[1].text()).toContain('127.0.0.1:8188')
+    expect(cells[1].find('.badge-warning').text()).toBe('admin.profitReport.discount.proxyUnresolved')
   })
 
   it('shows an error toast when loading fails', async () => {

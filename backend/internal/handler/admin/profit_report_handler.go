@@ -19,12 +19,11 @@ type profitReporter interface {
 // 标价/实付，以及账号成本折扣与分组倍率维表，成本和毛利由前端按折扣实时计算。
 type ProfitReportHandler struct {
 	svc profitReporter
-	rec profitReconciler
 }
 
 // NewProfitReportHandler 创建收入看板 handler。
 func NewProfitReportHandler(svc *service.ProfitReportService) *ProfitReportHandler {
-	return &ProfitReportHandler{svc: svc, rec: svc}
+	return &ProfitReportHandler{svc: svc}
 }
 
 type profitReportRowDTO struct {
@@ -50,6 +49,8 @@ type profitReportAccountDTO struct {
 	Schedulable    bool    `json:"schedulable"`
 	Deleted        bool    `json:"deleted"`
 	LastUsedAt     *string `json:"last_used_at"`
+	Upstream       string  `json:"upstream"`
+	UpstreamSource string  `json:"upstream_source"`
 }
 
 type profitReportGroupDTO struct {
@@ -110,6 +111,8 @@ func toProfitReportDTO(r *service.ProfitReport) profitReportDTO {
 			Status:         a.Status,
 			Schedulable:    a.Schedulable,
 			Deleted:        a.Deleted,
+			Upstream:       a.Upstream,
+			UpstreamSource: a.UpstreamSource,
 		}
 		if a.LastUsedAt != nil {
 			s := a.LastUsedAt.Format(time.RFC3339)
