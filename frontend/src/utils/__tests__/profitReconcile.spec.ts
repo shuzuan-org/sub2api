@@ -8,6 +8,8 @@ import type {
 } from '@/api/admin/profitReport'
 import {
   billPayable,
+  billTokenTotal,
+  isBillTotalOnly,
   buildReconcileLines,
   buildTemplateRows,
   computeKpis,
@@ -328,5 +330,96 @@ describe('buildTemplateRows round trip', () => {
       ['glm-5.2', 0.5, null, 'n'],
       ['调账', null, -0.1, '']
     ])
+  })
+})
+
+// 财务确认的最终版表头（2026-11-06），一字不差。
+const FINAL_HEADERS = [
+  '账期',
+  '供应商',
+  '供应商账号/API Key',
+  '标准模型',
+  '平台模型原名/别名',
+  '请求数',
+  '后台输入Token',
+  '后台输出Token',
+  '后台缓存读Token',
+  '后台缓存写Token',
+  '后台总Token（无分类时填）',
+  '用户实际扣费(U)',
+  '后台标价(U)',
+  '账号成本折扣',
+  'U兑人民币汇率',
+  '后台Token合计',
+  '账单币种',
+  '账单输入Token',
+  '账单输出Token',
+  '账单缓存读Token',
+  '账单缓存写Token',
+  '账单其他/总Token兜底',
+  '厂商Token合计',
+  '账单资源费(原币)',
+  '折扣/券抵扣(原币)',
+  '调账(原币，有正负)',
+  '税额(原币，若未含)',
+  '汇率(RMB/原币)',
+  '账单应付(RMB)',
+  '后台估算成本(RMB)',
+  '用户用量扣费(RMB)',
+  'Token差额(账单−后台)',
+  '金额差额(账单−估算)',
+  '自动核对状态',
+  '备注/厂商待问事项'
+]
+
+describe('final template headers', () => {
+  it('match the finance-approved list exactly', () => {
+    expect([...TEMPLATE_HEADERS]).toEqual(FINAL_HEADERS)
+  })
+
+  it('import the fallback token column under both the new and the old name', () => {
+    for (const name of ['账单其他/总Token兜底', '账单其他Token']) {
+      const H = FINAL_HEADERS.map((h) => (h === '账单其他/总Token兜底' ? name : h))
+      const row = H.map((h) => (h === '账期' ? '2026-08' : h === '标准模型' ? 'x' : h === name ? 1234 : null))
+      const r = parseTemplateRows([H, row])
+      expect(r.errors).toEqual([])
+      expect(r.lines[0].other_tokens).toBe(1234)
+    }
+  })
+
+  it('leaves the backend total column blank on export (backend tokens are always categorized)', () => {
+    const lines = buildReconcileLines([usage({ account_id: 1, requests: 1, input_tokens: 10, list_price: 1 })], [], KS, [account(1, 'ks-a')])
+    const row = buildTemplateRows(lines)[1]
+    expect(row[FINAL_HEADERS.indexOf('后台总Token（无分类时填）')]).toBeNull()
+    expect(row[FINAL_HEADERS.indexOf('后台Token合计')]).toEqual({ f: 'SUM(G2:K2)', v: 10 })
+  })
+})
+
+describe('fallback token column semantics', () => {
+  it('is added as "other" when any category is filled', () => {
+    const b = bill({ input_tokens: 100, output_tokens: 10, other_tokens: 5 })
+    expect(isBillTotalOnly(b)).toBe(false)
+    expect(billTokenTotal(b)).toBe(115)
+  })
+
+  it('is the total when every category is blank, and the line is flagged total-only', () => {
+    const b = bill({ other_tokens: 110, resource_fee: 1 })
+    expect(isBillTotalOnly(b)).toBe(true)
+    expect(billTokenTotal(b)).toBe(110)
+    const [line] = buildReconcileLines(
+      [usage({ account_id: 1, requests: 1, input_tokens: 100, output_tokens: 10, list_price: 10 })],
+      [b],
+      KS,
+      [account(1, 'ks-a', 1)]
+    )
+    expect(line.billTotalOnly).toBe(true)
+    expect(line.tokenDiff).toBe(0)
+    expect(line.status).toBe('match')
+  })
+
+  it('does not flag adjustments or bills without any tokens', () => {
+    expect(isBillTotalOnly(bill({ resource_fee: 1 }))).toBe(false)
+    const [adj] = buildReconcileLines([], [bill({ standard_model: '调账', other_tokens: 1, adjustment: -1 })], KS, [])
+    expect(adj.billTotalOnly).toBe(false)
   })
 })

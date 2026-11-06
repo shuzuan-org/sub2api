@@ -114,6 +114,16 @@ describe('MonthlyReconcilePanel', () => {
     expect(wrapper.get('[data-test="kpis"]').text()).toContain('"n":3')
   })
 
+  it('tags rows whose bill only gives a token total', async () => {
+    const data = createData()
+    data.bills[0] = { ...data.bills[0], input_tokens: null, other_tokens: 100 }
+    getReconcile.mockResolvedValue(data)
+    const wrapper = await mountPanel()
+    const tagged = wrapper.findAll('[data-test="total-only"]')
+    expect(tagged).toHaveLength(1)
+    expect(tagged[0].text()).toBe('admin.profitReport.reconcile.totalOnly')
+  })
+
   it('filters to rows that need attention', async () => {
     const wrapper = await mountPanel()
     await wrapper.get('[data-test="status-filter"]').setValue('pending')

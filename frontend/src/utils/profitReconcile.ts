@@ -13,6 +13,10 @@
  *   - Token 差额在 ±0.5% 内视为一致（两边计量不可能逐 token 相等），金额仍按 0.01 元判断；
  *   - 调账行状态单独为「调账」，只计入账单应付，不参与 Token 核对；
  *   - 账单行没填成本折扣时，用账号当前折扣估算，并标注来源。
+ *   - 「账单其他/总Token兜底」：这一行填了任意 Token 分类时，当「其他」与分类相加；
+ *     分类全空时，当供应商只给的总量单独使用，并标记为「仅总量对比」。
+ *     两种情况算术上都是把非空值相加，区别只在于能不能逐类核对。
+ *   - 联网搜索等按次计费项只计金额（进资源费），Token 留空，避免把次数混进 Token 差额。
  */
 
 import type {
@@ -77,7 +81,6 @@ export interface ReconcileLine {
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
-  otherTokens: number
   /** 后台 Token 合计（P） */
   backendTokens: number
   /** 用户实际扣费（U） */
@@ -90,6 +93,8 @@ export interface ReconcileLine {
 
   /** 厂商 Token 合计（W）；没有账单或调账行为 null */
   billTokens: number | null
+  /** 账单只给了总量（分类全空、只填了兜底列），只能比总量、不能逐类核对 */
+  billTotalOnly: boolean
   /** 账单应付 RMB（AC） */
   payable: number | null
   /** 后台估算成本 RMB（AD）；没有后台用量为 null */
@@ -125,9 +130,17 @@ export function billPayable(b: SupplierBillLine): number | null {
   return raw * (b.fx_rate ?? 1)
 }
 
-/** 账单 Token 合计。 */
+/**
+ * 账单 Token 合计。兜底列（other_tokens）在有分类时是「其他」、与分类相加；
+ * 分类全空时就是总量本身。两种情况都等于把非空值相加。
+ */
 export function billTokenTotal(b: SupplierBillLine): number {
   return sumNullable(b.input_tokens, b.output_tokens, b.cache_read_tokens, b.cache_write_tokens, b.other_tokens)
+}
+
+/** 账单是否只给了总量：四个分类全空，只填了兜底列。 */
+export function isBillTotalOnly(b: SupplierBillLine): boolean {
+  return [b.input_tokens, b.output_tokens, b.cache_read_tokens, b.cache_write_tokens].every((x) => x == null) && b.other_tokens != null
 }
 
 export function tokensMatch(backend: number, bill: number, tolerance = TOKEN_TOLERANCE): boolean {
@@ -283,13 +296,13 @@ export function buildReconcileLines(
       outputTokens: a.outputTokens,
       cacheReadTokens: a.cacheReadTokens,
       cacheWriteTokens: a.cacheWriteTokens,
-      otherTokens: 0,
       backendTokens,
       revenueU: a.revenueU,
       listU: a.listU,
       discount: a.listU > 0 ? a.costRmb / (a.listU * rate) : null,
       discountSource: a.sources.size === 0 ? null : a.sources.size > 1 ? 'mixed' : [...a.sources][0],
       billTokens,
+      billTotalOnly: a.bill != null && !adj && isBillTotalOnly(a.bill),
       payable,
       estimate,
       revenue: a.revenueU * rate,
@@ -370,7 +383,7 @@ export function suggestBinding(accountName: string): BindingSuggestion | null {
 
 // ---------- 模板导出 / 导入 ----------
 
-/** 模板第 20 行的表头，A..AI 共 35 列，顺序与财务模板完全一致。 */
+/** 财务最终版模板的表头，A..AI 共 35 列，顺序与名称都与模板完全一致。 */
 export const TEMPLATE_HEADERS = [
   '账期',
   '供应商',
@@ -382,7 +395,7 @@ export const TEMPLATE_HEADERS = [
   '后台输出Token',
   '后台缓存读Token',
   '后台缓存写Token',
-  '后台其他Token',
+  '后台总Token（无分类时填）',
   '用户实际扣费(U)',
   '后台标价(U)',
   '账号成本折扣',
@@ -393,7 +406,7 @@ export const TEMPLATE_HEADERS = [
   '账单输出Token',
   '账单缓存读Token',
   '账单缓存写Token',
-  '账单其他Token',
+  '账单其他/总Token兜底',
   '厂商Token合计',
   '账单资源费(原币)',
   '折扣/券抵扣(原币)',
@@ -446,19 +459,19 @@ export function buildTemplateRows(lines: ReconcileLine[], rate = U_TO_RMB, first
       hasBackend ? l.outputTokens : null,
       hasBackend ? l.cacheReadTokens : null,
       hasBackend ? l.cacheWriteTokens : null,
-      hasBackend ? l.otherTokens : null,
+      null, // 后台总Token：后台每条日志都有分类，不需要兜底
       hasBackend ? l.revenueU : null,
       hasBackend ? l.listU : null,
       b?.cost_discount ?? (l.discount != null ? Math.round(l.discount * 1e6) / 1e6 : null),
       rate,
-      { f: `SUM(${ref('后台输入Token')}:${ref('后台其他Token')})`, v: l.backendTokens },
+      { f: `SUM(${ref('后台输入Token')}:${ref('后台总Token（无分类时填）')})`, v: l.backendTokens },
       b?.currency || null,
       b?.input_tokens ?? null,
       b?.output_tokens ?? null,
       b?.cache_read_tokens ?? null,
       b?.cache_write_tokens ?? null,
       b?.other_tokens ?? null,
-      { f: `SUM(${ref('账单输入Token')}:${ref('账单其他Token')})`, v: l.billTokens ?? 0 },
+      { f: `SUM(${ref('账单输入Token')}:${ref('账单其他/总Token兜底')})`, v: l.billTokens ?? 0 },
       b?.resource_fee ?? null,
       b?.discount_amount ?? null,
       b?.adjustment ?? null,
@@ -506,6 +519,12 @@ export function toSheetCells(aoa: TemplateCell[][]): (SheetCell | null)[][] {
   )
 }
 
+/** 旧版模板的列名，导入时仍然认。 */
+const HEADER_ALIASES: Record<string, string[]> = {
+  '后台总Token（无分类时填）': ['后台其他Token'],
+  '账单其他/总Token兜底': ['账单其他Token']
+}
+
 export interface ParsedImport {
   lines: SupplierBillLine[]
   periods: string[]
@@ -547,7 +566,7 @@ const BILL_NUMBER_FIELDS: [keyof SupplierBillLine, (typeof TEMPLATE_HEADERS)[num
   ['output_tokens', '账单输出Token'],
   ['cache_read_tokens', '账单缓存读Token'],
   ['cache_write_tokens', '账单缓存写Token'],
-  ['other_tokens', '账单其他Token'],
+  ['other_tokens', '账单其他/总Token兜底'],
   ['resource_fee', '账单资源费(原币)'],
   ['discount_amount', '折扣/券抵扣(原币)'],
   ['adjustment', '调账(原币，有正负)'],
@@ -566,7 +585,13 @@ export function parseTemplateRows(aoa: unknown[][]): ParsedImport {
   const headerIdx = aoa.findIndex((row) => Array.isArray(row) && row.some((c) => norm(c) === '账期') && row.some((c) => norm(c) === '标准模型'))
   if (headerIdx < 0) return { lines: [], periods: [], errors: ['找不到表头行（需要包含「账期」和「标准模型」两列）'], skipped: 0 }
   const header = aoa[headerIdx].map(norm)
-  const at = (h: string) => header.indexOf(norm(h))
+  const at = (h: string) => {
+    for (const name of [h, ...(HEADER_ALIASES[h] ?? [])]) {
+      const j = header.indexOf(norm(name))
+      if (j >= 0) return j
+    }
+    return -1
+  }
 
   const lines: SupplierBillLine[] = []
   const periods = new Set<string>()
