@@ -90,7 +90,8 @@ func (r *profitReportRepository) AggregateUsage(ctx context.Context, startTime, 
 func (r *profitReportRepository) ListAccounts(ctx context.Context) (results []service.ProfitReportAccount, err error) {
 	query := `
 		SELECT id, name, COALESCE(platform, ''), COALESCE(rate_multiplier, 1), COALESCE(status, ''),
-		       COALESCE(schedulable, true), deleted_at IS NOT NULL, last_used_at
+		       COALESCE(schedulable, true), deleted_at IS NOT NULL, last_used_at,
+		       COALESCE(credentials->>'base_url', ''), COALESCE(credentials->>'api_key', '')
 		FROM accounts
 		ORDER BY id
 	`
@@ -109,7 +110,7 @@ func (r *profitReportRepository) ListAccounts(ctx context.Context) (results []se
 	for rows.Next() {
 		var a service.ProfitReportAccount
 		var lastUsed sql.NullTime
-		if err = rows.Scan(&a.ID, &a.Name, &a.Platform, &a.RateMultiplier, &a.Status, &a.Schedulable, &a.Deleted, &lastUsed); err != nil {
+		if err = rows.Scan(&a.ID, &a.Name, &a.Platform, &a.RateMultiplier, &a.Status, &a.Schedulable, &a.Deleted, &lastUsed, &a.BaseURL, &a.APIKey); err != nil {
 			return nil, err
 		}
 		if lastUsed.Valid {

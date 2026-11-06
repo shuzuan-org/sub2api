@@ -65,9 +65,9 @@ func TestProfitReportRepositoryListAccountsAndGroups(t *testing.T) {
 
 	lastUsed := time.Date(2026, 10, 27, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(`FROM accounts`).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "platform", "rate_multiplier", "status", "schedulable", "deleted", "last_used_at"}).
-			AddRow(int64(13), "GLM5-小豪", "openai", 1.0, "active", true, false, lastUsed).
-			AddRow(int64(80), "old", "anthropic", 0.5, "disabled", false, true, nil))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "platform", "rate_multiplier", "status", "schedulable", "deleted", "last_used_at", "base_url", "api_key"}).
+			AddRow(int64(13), "GLM5-小豪", "openai", 1.0, "active", true, false, lastUsed, "https://open.bigmodel.cn", "sk-x").
+			AddRow(int64(80), "old", "anthropic", 0.5, "disabled", false, true, nil, "", ""))
 
 	accounts, err := repo.ListAccounts(context.Background())
 	require.NoError(t, err)
@@ -78,6 +78,8 @@ func TestProfitReportRepositoryListAccountsAndGroups(t *testing.T) {
 	require.True(t, accounts[1].Deleted)
 	require.False(t, accounts[1].Schedulable)
 	require.InDelta(t, 0.5, accounts[1].RateMultiplier, 1e-9)
+	require.Equal(t, "https://open.bigmodel.cn", accounts[0].BaseURL)
+	require.Equal(t, "sk-x", accounts[0].APIKey)
 
 	mock.ExpectQuery(`FROM groups\s+WHERE id = ANY\(\$1\)`).
 		WithArgs(sqlmock.AnyArg()).

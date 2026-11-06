@@ -45,6 +45,10 @@ type ProfitReportAccount struct {
 	Schedulable    bool
 	Deleted        bool
 	LastUsedAt     *time.Time
+	BaseURL        string // credentials.base_url 原值，仅服务端使用
+	APIKey         string // credentials.api_key，仅用于向本机代理查路由，annotateUpstreams 后清空
+	Upstream       string // 真实上游 origin，多个用 ", " 连接
+	UpstreamSource string // base_url | proxy | proxy_unresolved；无 base_url 时为空
 }
 
 // ProfitReportGroup 分组维表，只取聚合行里出现过的分组。
@@ -81,13 +85,14 @@ type ProfitReportRepository interface {
 // ProfitReportService 网关收入看板：把日志里的标价/实付与账号成本折扣放到一起，
 // 由前端按折扣实时算成本与毛利。
 type ProfitReportService struct {
-	repo  ProfitReportRepository
-	bills SupplierBillRepository // 月度对账：供应商绑定与账单
+	repo      ProfitReportRepository
+	routes    UpstreamRouteResolver // 可为 nil：不查本机代理，只显示 base_url
+	upstreams upstreamCache
 }
 
 // NewProfitReportService 创建收入看板服务。
-func NewProfitReportService(repo ProfitReportRepository, bills SupplierBillRepository) *ProfitReportService {
-	return &ProfitReportService{repo: repo, bills: bills}
+func NewProfitReportService(repo ProfitReportRepository, routes UpstreamRouteResolver) *ProfitReportService {
+	return &ProfitReportService{repo: repo, routes: routes}
 }
 
 // GetReport 返回时间范围内的聚合行与账号/分组维表。
@@ -142,6 +147,7 @@ func (s *ProfitReportService) GetReport(ctx context.Context, startTime, endTime 
 	if accounts == nil {
 		accounts = []ProfitReportAccount{}
 	}
+	s.annotateUpstreams(ctx, accounts)
 	return &ProfitReport{
 		GeneratedAt: time.Now(),
 		StartTime:   startTime,

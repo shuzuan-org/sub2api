@@ -1,23 +1,6 @@
 <template>
   <AppLayout>
-    <!-- 页面级标签：收入看板 / 月度对账 -->
-    <div class="mb-4 flex gap-1 border-b border-gray-200 dark:border-dark-700" role="tablist" data-test="view-tabs">
-      <button
-        v-for="v in views"
-        :key="v"
-        role="tab"
-        :aria-selected="view === v"
-        class="-mb-px border-b-2 px-4 py-2 text-sm"
-        :class="view === v ? 'border-primary-500 font-semibold text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'"
-        @click="view = v"
-      >
-        {{ t(`admin.profitReport.views.${v}`) }}
-      </button>
-    </div>
-
-    <MonthlyReconcilePanel v-if="view === 'reconcile'" />
-
-    <div v-else class="space-y-6">
+    <div class="space-y-6">
       <!-- 控制条 -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -104,6 +87,7 @@
               <tr>
                 <th>{{ t('admin.profitReport.discount.account') }}</th>
                 <th>{{ t('admin.profitReport.discount.platform') }}</th>
+                <th>{{ t('admin.profitReport.discount.upstream') }}</th>
                 <th class="r">{{ t('admin.profitReport.discount.discount') }}</th>
                 <th class="r">{{ t('admin.profitReport.columns.requests') }}</th>
                 <th class="r">{{ t('admin.profitReport.columns.revenue') }}</th>
@@ -127,6 +111,20 @@
                     >{{ t('admin.profitReport.discount.unschedulable') }}</span>
                   </td>
                   <td><span v-if="a.platform" class="badge badge-gray">{{ a.platform }}</span></td>
+                  <td class="pr-upstream" data-test="upstream">
+                    <span v-if="a.upstream" class="font-mono text-xs" :title="a.upstream">{{ upstreamHosts(a.upstream) }}</span>
+                    <span v-else class="text-gray-400">—</span>
+                    <span
+                      v-if="a.upstream_source === 'proxy'"
+                      class="badge badge-gray ml-1"
+                      :title="t('admin.profitReport.discount.viaProxyTitle')"
+                    >{{ t('admin.profitReport.discount.viaProxy') }}</span>
+                    <span
+                      v-else-if="a.upstream_source === 'proxy_unresolved'"
+                      class="badge badge-warning ml-1"
+                      :title="t('admin.profitReport.discount.proxyUnresolvedTitle')"
+                    >{{ t('admin.profitReport.discount.proxyUnresolved') }}</span>
+                  </td>
                   <td class="r">
                     <input
                       type="number"
@@ -167,7 +165,7 @@
                   </td>
                 </tr>
                 <tr v-if="openIds.has(a.id)" class="pr-ov">
-                  <td colspan="9">
+                  <td colspan="10">
                     <div v-if="modelsOf(a.id).length" class="flex flex-wrap items-center gap-x-4 gap-y-2">
                       <label v-for="m in modelsOf(a.id)" :key="m" class="inline-flex items-center gap-1.5 font-mono text-xs">
                         {{ m }}
@@ -189,7 +187,7 @@
                 </tr>
               </template>
               <tr v-if="!visibleAccounts.length">
-                <td colspan="9" class="py-8 text-center text-gray-500 dark:text-gray-400">{{ t('admin.profitReport.tables.noData') }}</td>
+                <td colspan="10" class="py-8 text-center text-gray-500 dark:text-gray-400">{{ t('admin.profitReport.tables.noData') }}</td>
               </tr>
             </tbody>
           </table>
@@ -352,7 +350,6 @@ import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProfitTrendChart from '@/components/admin/profitReport/ProfitTrendChart.vue'
-import MonthlyReconcilePanel from '@/components/admin/profitReport/MonthlyReconcilePanel.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -365,7 +362,6 @@ interface PersistedState {
   ov?: Record<string, Record<string, string>>
   tab?: DetailTab
   showIdle?: boolean
-  view?: PageView
 }
 const loadPersisted = (): PersistedState => {
   try {
@@ -376,11 +372,6 @@ const loadPersisted = (): PersistedState => {
   }
 }
 const persisted = loadPersisted()
-
-// ---------- 页面级标签 ----------
-type PageView = 'report' | 'reconcile'
-const views: PageView[] = ['report', 'reconcile']
-const view = ref<PageView>(persisted.view && views.includes(persisted.view) ? persisted.view : 'report')
 
 // ---------- 日期范围 ----------
 const formatLocalDate = (d: Date) => {
@@ -427,6 +418,8 @@ const fm = (v: number, d = 2) => formatRmb(v, d)
 const fmK = (v: number) => formatRmbCompact(v)
 const fmAxis = (v: number) => formatRmbAxis(v)
 const fi = (v: number) => Number(v).toLocaleString('zh-CN')
+/** 上游列只显示域名（去掉 scheme），完整 origin 放在 title 里 */
+const upstreamHosts = (v: string) => v.split(',').map((x) => x.trim().replace(/^https?:\/\//, '')).join(', ')
 const pctText = (p: number | null) => (p == null ? '—' : `${p.toFixed(1)}%`)
 const signClass = (v: number) => (v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')
 const pctClass = (p: number | null) => (p == null ? 'text-gray-400' : signClass(p))
@@ -659,10 +652,10 @@ const calcOut = computed(() => {
 
 // ---------- 持久化 ----------
 watch(
-  [activeTab, showIdle, view, () => JSON.stringify(discState)],
+  [activeTab, showIdle, () => JSON.stringify(discState)],
   () => {
     try {
-      const data: PersistedState = { tab: activeTab.value, showIdle: showIdle.value, disc: discState.disc, ov: discState.ov, view: view.value }
+      const data: PersistedState = { tab: activeTab.value, showIdle: showIdle.value, disc: discState.disc, ov: discState.ov }
       localStorage.setItem(LS_KEY, JSON.stringify(data))
     } catch {
       /* 私密模式或禁用存储时忽略 */
