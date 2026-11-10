@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh finance_internal.usage_daily_mv for the finance MCP
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/opt/sub2api/finance/refresh-usage-daily.sh
+Nice=10
