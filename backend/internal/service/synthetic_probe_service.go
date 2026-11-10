@@ -148,7 +148,7 @@ func (s *SyntheticProbeService) RunOnce(ctx context.Context) []metrics.ProbeResu
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if s.targetDisabled(ctx, a.key) {
+			if a.target.Disabled || s.targetDisabled(ctx, a.key) {
 				a.result.Skipped = true
 				logger.LegacyPrintf("service.synthetic_probe", "[SyntheticProbe] model=%s skipped: probe API key or group is disabled", a.target.Model)
 				return

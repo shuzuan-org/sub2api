@@ -116,6 +116,8 @@ type ProbeTarget struct {
 	Protocol string `mapstructure:"protocol"`
 	// APIKey 可选；key 绑定分组，不同平台的模型通常要不同的 key。空则用 probe.api_key。
 	APIKey string `mapstructure:"api_key"`
+	// Disabled intentionally suppresses probing for a model that is administratively disabled.
+	Disabled bool `mapstructure:"disabled"`
 }
 
 // AlipayPaymentConfig 支付宝支付配置（config.yaml 中配置，优先于管理后台 Setting 表）

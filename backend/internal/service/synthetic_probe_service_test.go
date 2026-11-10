@@ -118,7 +118,7 @@ func TestSyntheticProbe_DisabledGroupIsSkipped(t *testing.T) {
 	s := NewSyntheticProbeService(config.ProbeConfig{
 		Enabled: true,
 		APIKey:  "sk-disabled-group",
-		Targets: []config.ProbeTarget{{Model: "probe-disabled-group"}},
+		Targets: []config.ProbeTarget{{Model: "probe-disabled-group", Disabled: true}},
 	}, disabledProbeGroupKeyLookup{}, &probeUsageStub{})
 	s.apiKeys = disabledProbeGroupKeyLookup{}
 	s.sleep = func(context.Context, time.Duration) bool { return true }
