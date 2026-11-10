@@ -1,0 +1,70 @@
+# 财务 MCP（DBHub 1.5.0）生产配置模板。复制到 /etc/dbhub/dbhub.toml（权限 600），把 <FINANCE_RO_PASSWORD> 换成 finance_ro 的密码。
+# 真实文件含密码，不进仓库。
+[[sources]]
+id = "napi_finance"
+description = "napi 业务数据（只读，PostgreSQL）。只能查询 finance schema 下的视图：充值订单、用户余额、余额调整、用量（明细与按天汇总）、上游账号成本倍率、分组、套餐、订阅、优惠码、渠道邀请。每个视图和每一列都有中文注释，查询前先用 search_objects 查看注释。日期列为上海自然日；*_yuan 为人民币元，*_u 为系统额度 U（1U=0.1 元）。"
+dsn = "postgres://finance_ro:<FINANCE_RO_PASSWORD>@127.0.0.1:5432/sub2api_v2?sslmode=disable"
+search_path = "finance"
+query_timeout = 15
+connection_timeout = 10
+pool_max_connections = 3
+
+[[tools]]
+name = "execute_sql"
+source = "napi_finance"
+readonly = true
+max_rows = 1000
+
+[[tools]]
+name = "search_objects"
+source = "napi_finance"
+
+[[tools]]
+name = "recharge_summary"
+source = "napi_finance"
+description = "按上海付款日汇总已付款的支付宝充值：订单数、付款人数、人民币金额（元）、到账额度（U）。日期含首尾两天。问充值金额、充值人数时优先用这个工具。"
+statement = """
+SELECT count(*)                       AS paid_orders,
+       count(DISTINCT user_id)        AS payers,
+       coalesce(sum(amount_yuan), 0)  AS amount_yuan,
+       coalesce(sum(credit_u), 0)     AS credit_u
+FROM finance.recharge_orders
+WHERE status = 'paid' AND paid_date BETWEEN $1::date AND $2::date
+"""
+
+[[tools.parameters]]
+name = "start_date"
+type = "string"
+description = "起始日期，格式 YYYY-MM-DD（上海时间，含当天）"
+
+[[tools.parameters]]
+name = "end_date"
+type = "string"
+description = "结束日期，格式 YYYY-MM-DD（上海时间，含当天）"
+
+[[tools]]
+name = "usage_summary"
+source = "napi_finance"
+description = "按上海自然日汇总用量与收入：请求数、原价、实际计费（收入）、上游成本、毛利，单位 U，按计费方式（0=余额，1=套餐）分行。口径与后台收入看板一致；当天数据可能滞后约 1 小时。"
+statement = """
+SELECT billing_type,
+       sum(requests)                       AS requests,
+       round(sum(list_price_u), 4)         AS list_price_u,
+       round(sum(revenue_u), 4)            AS revenue_u,
+       round(sum(cost_u), 4)               AS cost_u,
+       round(sum(revenue_u - cost_u), 4)   AS gross_profit_u
+FROM finance.usage_daily
+WHERE day BETWEEN $1::date AND $2::date
+GROUP BY billing_type
+ORDER BY billing_type
+"""
+
+[[tools.parameters]]
+name = "start_date"
+type = "string"
+description = "起始日期，格式 YYYY-MM-DD（上海时间，含当天）"
+
+[[tools.parameters]]
+name = "end_date"
+type = "string"
+description = "结束日期，格式 YYYY-MM-DD（上海时间，含当天）"
