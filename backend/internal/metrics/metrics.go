@@ -614,6 +614,10 @@ var (
 		Name: "sub2api_probe_model_latency_seconds",
 		Help: "Synthetic probe: gateway round-trip seconds in the latest round.",
 	}, []string{"model"})
+	ProbeModelSkipped = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "sub2api_probe_model_skipped",
+		Help: "Synthetic probe: 1 when the target was intentionally skipped because its API key or group is disabled.",
+	}, []string{"model"})
 	ProbeLastRunTimestamp = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "sub2api_probe_last_run_timestamp_seconds",
 		Help: "Unix time the latest synthetic probe round finished; stale means the probe loop stopped.",
@@ -630,6 +634,7 @@ type ProbeResult struct {
 	HTTPStatus int
 	HTTPOK     bool
 	Metered    bool
+	Skipped    bool
 	Latency    time.Duration
 }
 
@@ -642,7 +647,7 @@ var (
 func RecordProbeRound(results []ProbeResult, finishedAt time.Time) {
 	okCount := 0
 	for _, r := range results {
-		ok := r.HTTPOK && r.Metered
+		ok := r.Skipped || (r.HTTPOK && r.Metered)
 		if ok {
 			okCount++
 		}
@@ -651,6 +656,7 @@ func RecordProbeRound(results []ProbeResult, finishedAt time.Time) {
 		ProbeModelMetered.WithLabelValues(r.Model).Set(boolFloat(r.Metered))
 		ProbeModelStatus.WithLabelValues(r.Model).Set(float64(r.HTTPStatus))
 		ProbeModelLatency.WithLabelValues(r.Model).Set(r.Latency.Seconds())
+		ProbeModelSkipped.WithLabelValues(r.Model).Set(boolFloat(r.Skipped))
 	}
 	switch {
 	case len(results) > 0 && okCount == len(results):
@@ -675,7 +681,7 @@ func ResetProbeModels(models []string) {
 		if _, ok := keep[m]; ok {
 			continue
 		}
-		for _, g := range []*prometheus.GaugeVec{ProbeModelOK, ProbeModelHTTPOK, ProbeModelMetered, ProbeModelStatus, ProbeModelLatency} {
+		for _, g := range []*prometheus.GaugeVec{ProbeModelOK, ProbeModelHTTPOK, ProbeModelMetered, ProbeModelStatus, ProbeModelLatency, ProbeModelSkipped} {
 			g.DeleteLabelValues(m)
 		}
 	}

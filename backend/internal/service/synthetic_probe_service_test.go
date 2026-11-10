@@ -114,6 +114,28 @@ func TestSyntheticProbe_UpstreamErrorRecordsStatus(t *testing.T) {
 	require.Equal(t, 0.0, testutil.ToFloat64(metrics.ProbeModelOK.WithLabelValues("probe-503")))
 }
 
+func TestSyntheticProbe_DisabledGroupIsSkipped(t *testing.T) {
+	s := NewSyntheticProbeService(config.ProbeConfig{
+		Enabled: true,
+		APIKey:  "sk-disabled-group",
+		Targets: []config.ProbeTarget{{Model: "probe-disabled-group"}},
+	}, disabledProbeGroupKeyLookup{}, &probeUsageStub{})
+	s.apiKeys = disabledProbeGroupKeyLookup{}
+	s.sleep = func(context.Context, time.Duration) bool { return true }
+	results := s.RunOnce(context.Background())
+	require.Len(t, results, 1)
+	require.True(t, results[0].Skipped)
+	require.False(t, results[0].HTTPOK)
+	require.Equal(t, 1.0, testutil.ToFloat64(metrics.ProbeModelSkipped.WithLabelValues("probe-disabled-group")))
+	require.Equal(t, 1.0, testutil.ToFloat64(metrics.ProbeModelOK.WithLabelValues("probe-disabled-group")))
+}
+
+type disabledProbeGroupKeyLookup struct{}
+
+func (disabledProbeGroupKeyLookup) GetByKey(_ context.Context, key string) (*APIKey, error) {
+	return &APIKey{Key: key, Status: StatusAPIKeyActive, Group: &Group{Status: "disabled"}}, nil
+}
+
 func TestSyntheticProbe_DisabledIsNoop(t *testing.T) {
 	s := NewSyntheticProbeService(config.ProbeConfig{Enabled: false, Targets: []config.ProbeTarget{{Model: "x"}}}, nil, nil)
 	require.Nil(t, s.RunOnce(context.Background()))
