@@ -1,0 +1,1303 @@
+[
+ {
+  "started": "2026-11-04 14:17",
+  "labels": {
+   "alertname": "Sub2apiHighRealErrorRatio",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 190
+   },
+   "error_phase": {
+    "internal": 23,
+    "routing": 22
+   },
+   "error_type": {
+    "api_error": 46
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-code",
+   "route": "autofix"
+  }
+ },
+ {
+  "started": "2026-11-05 16:34",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAllFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "openai",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "503": 8
+   },
+   "error_phase": {},
+   "error_type": {}
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-06 08:13",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 500,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-06 10:28",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 624,
+    "429": 47
+   },
+   "error_phase": {
+    "request": 2,
+    "routing": 61,
+    "upstream": 47
+   },
+   "error_type": {
+    "api_error": 61,
+    "rate_limit_error": 47,
+    "billing_error": 2
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 10:49",
+  "labels": {
+   "alertname": "Sub2apiP1ErrorsPresent",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 859,
+    "400": 1,
+    "429": 163
+   },
+   "error_phase": {
+    "upstream": 163,
+    "request": 20,
+    "routing": 61,
+    "auth": 61
+   },
+   "error_type": {
+    "api_error": 61,
+    "authentication_error": 61,
+    "rate_limit_error": 184
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-upstream",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 10:51",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 817,
+    "400": 1,
+    "429": 121
+   },
+   "error_phase": {
+    "request": 41,
+    "routing": 59,
+    "upstream": 121
+   },
+   "error_type": {
+    "api_error": 59,
+    "rate_limit_error": 162
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 10:54",
+  "labels": {
+   "alertname": "Sub2apiModelRateLimited",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 736,
+    "400": 1,
+    "429": 121
+   },
+   "error_phase": {
+    "request": 41,
+    "routing": 61,
+    "upstream": 121
+   },
+   "error_type": {
+    "api_error": 61,
+    "rate_limit_error": 162
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 11:54",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 456,
+    "503": 16
+   },
+   "error_phase": {
+    "internal": 17,
+    "request": 6,
+    "routing": 59
+   },
+   "error_type": {
+    "api_error": 77,
+    "billing_error": 6
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 14:45",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 485
+   },
+   "error_phase": {
+    "request": 5,
+    "routing": 61
+   },
+   "error_type": {
+    "api_error": 61,
+    "billing_error": 5
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 18:44",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 355
+   },
+   "error_phase": {
+    "routing": 59
+   },
+   "error_type": {
+    "api_error": 59
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 19:03",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "deepseek-flash-1017",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 503,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-no-account",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-06 19:32",
+  "labels": {
+   "alertname": "Sub2apiP1ErrorsPresent",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 484
+   },
+   "error_phase": {
+    "internal": 23,
+    "routing": 61,
+    "auth": 59
+   },
+   "error_type": {
+    "api_error": 84,
+    "authentication_error": 59
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-code",
+   "route": "autofix"
+  }
+ },
+ {
+  "started": "2026-11-06 22:25",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 425
+   },
+   "error_phase": {
+    "routing": 61
+   },
+   "error_type": {
+    "api_error": 61
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-06 23:30",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 601
+   },
+   "error_phase": {
+    "request": 3,
+    "routing": 61
+   },
+   "error_type": {
+    "api_error": 61,
+    "billing_error": 3
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-07 10:20",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 184
+   },
+   "error_phase": {
+    "routing": 59
+   },
+   "error_type": {
+    "api_error": 59
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-07 11:57",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 466
+   },
+   "error_phase": {
+    "request": 4,
+    "routing": 61
+   },
+   "error_type": {
+    "api_error": 61,
+    "billing_error": 4
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-07 22:29",
+  "labels": {
+   "alertname": "Sub2apiModelHighLatency",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 620
+   },
+   "error_phase": {
+    "routing": 68
+   },
+   "error_type": {
+    "api_error": 68
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-07 22:52",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "deepseek-flash-1017",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 503,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-no-account",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-08 07:03",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 0,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-08 07:53",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 0,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-10 06:23",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 500,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-10 07:23",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 500,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-10 09:03",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 503,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-no-account",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-10 16:48",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "deepseek-flash-1017",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 503,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-no-account",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-11 08:09",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 0,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-11 08:49",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 0,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-11 10:14",
+  "labels": {
+   "alertname": "Sub2apiP1ErrorsPresent",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 144,
+    "503": 31
+   },
+   "error_phase": {
+    "internal": 31,
+    "routing": 64,
+    "auth": 61
+   },
+   "error_type": {
+    "api_error": 95,
+    "authentication_error": 61
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-upstream",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-11 10:16",
+  "labels": {
+   "alertname": "Sub2apiModelUpstream5xx",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 135,
+    "503": 35
+   },
+   "error_phase": {
+    "internal": 35,
+    "routing": 64
+   },
+   "error_type": {
+    "api_error": 99
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-11 12:39",
+  "labels": {
+   "alertname": "Sub2apiHighRealErrorRatio",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 215,
+    "503": 32
+   },
+   "error_phase": {
+    "internal": 39,
+    "routing": 97,
+    "auth": 61
+   },
+   "error_type": {
+    "api_error": 136,
+    "authentication_error": 61
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-upstream",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-11 12:39",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAllFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "glm-5.2",
+   "platform": "openai",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "503": 30
+   },
+   "error_phase": {
+    "internal": 30
+   },
+   "error_type": {
+    "api_error": 30
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-11 13:01",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAllFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "gpt-5.5",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "503": 15
+   },
+   "error_phase": {
+    "routing": 15
+   },
+   "error_type": {
+    "api_error": 15
+   },
+   "pool_available": 7,
+   "pool_total": 7
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-11 13:05",
+  "labels": {
+   "alertname": "Sub2apiHighRealErrorRatio",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 478,
+    "503": 47
+   },
+   "error_phase": {
+    "routing": 139,
+    "auth": 59
+   },
+   "error_type": {
+    "api_error": 139,
+    "authentication_error": 59
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-routing",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-11 13:06",
+  "labels": {
+   "alertname": "Sub2apiNoAvailableAccount",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "gpt-5.5",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "503": 24
+   },
+   "error_phase": {
+    "routing": 24
+   },
+   "error_type": {
+    "api_error": 24
+   },
+   "pool_available": 7,
+   "pool_total": 7
+  },
+  "expect": {
+   "rule": "no-account",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 01:05",
+  "labels": {
+   "alertname": "Sub2apiAuthErrorSpike",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 154
+   },
+   "error_phase": {
+    "routing": 63,
+    "auth": 304
+   },
+   "error_type": {
+    "api_error": 63,
+    "authentication_error": 304
+   }
+  },
+  "expect": {
+   "rule": "client-auth",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-12 11:38",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAllFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "gpt-5.5",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "5xx": 5
+   },
+   "error_phase": {
+    "internal": 5
+   },
+   "error_type": {
+    "api_error": 5
+   },
+   "pool_available": 7,
+   "pool_total": 7
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 14:46",
+  "labels": {
+   "alertname": "Sub2apiAuthErrorSpike",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 4002,
+    "401": 1,
+    "429": 760
+   },
+   "error_phase": {
+    "auth": 705,
+    "internal": 762,
+    "request": 44,
+    "routing": 1112
+   },
+   "error_type": {
+    "api_error": 1875,
+    "authentication_error": 705,
+    "rate_limit_error": 41,
+    "billing_error": 3
+   }
+  },
+  "expect": {
+   "rule": "client-auth",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-12 14:48",
+  "labels": {
+   "alertname": "Sub2apiP1ErrorsPresent",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 4715,
+    "401": 2,
+    "429": 806
+   },
+   "error_phase": {
+    "auth": 705,
+    "internal": 809,
+    "request": 159,
+    "routing": 1108
+   },
+   "error_type": {
+    "api_error": 1917,
+    "authentication_error": 705,
+    "rate_limit_error": 156,
+    "billing_error": 3
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-upstream",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-12 14:52",
+  "labels": {
+   "alertname": "Sub2apiModelRateLimited",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 6642,
+    "401": 5,
+    "429": 1009
+   },
+   "error_phase": {
+    "auth": 5,
+    "internal": 1013,
+    "request": 527,
+    "routing": 1107
+   },
+   "error_type": {
+    "authentication_error": 5,
+    "api_error": 2121,
+    "rate_limit_error": 524,
+    "billing_error": 3
+   }
+  },
+  "expect": {
+   "rule": "upstream-failure",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-12 14:52",
+  "labels": {
+   "alertname": "Sub2apiInternalErrorSpike",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "service": "sub2api",
+   "severity": "warning"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 6643,
+    "401": 6,
+    "429": 1009
+   },
+   "error_phase": {
+    "auth": 709,
+    "internal": 1013,
+    "request": 527,
+    "routing": 1107
+   },
+   "error_type": {
+    "api_error": 2121,
+    "authentication_error": 709,
+    "rate_limit_error": 524,
+    "billing_error": 3
+   }
+  },
+  "expect": {
+   "rule": "error-ratio-upstream",
+   "route": "log"
+  }
+ },
+ {
+  "started": "2026-11-12 14:54",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAuthRejected",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 7060,
+    "401": 7,
+    "429": 1024
+   },
+   "error_phase": {
+    "auth": 7,
+    "internal": 1029,
+    "request": 527,
+    "routing": 1114
+   },
+   "error_type": {
+    "authentication_error": 7,
+    "api_error": 2143,
+    "rate_limit_error": 524,
+    "billing_error": 3
+   }
+  },
+  "expect": {
+   "rule": "upstream-auth-alert",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 14:58",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 401,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-auth",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 14:58",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "MiniMax-M3",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 1,
+    "401": 1
+   },
+   "error_phase": {
+    "auth": 1
+   },
+   "error_type": {
+    "authentication_error": 1
+   },
+   "probe_status": 401,
+   "probe_metered": 0,
+   "pool_available": 1,
+   "pool_total": 1
+  },
+  "expect": {
+   "rule": "probe-auth",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 16:35",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAuthRejected",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 3854,
+    "401": 5
+   },
+   "error_phase": {
+    "auth": 5,
+    "routing": 91
+   },
+   "error_type": {
+    "authentication_error": 5,
+    "api_error": 91
+   }
+  },
+  "expect": {
+   "rule": "upstream-auth-alert",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 16:53",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAuthRejected",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 3731,
+    "401": 7
+   },
+   "error_phase": {
+    "auth": 7,
+    "internal": 4,
+    "request": 2,
+    "routing": 108
+   },
+   "error_type": {
+    "authentication_error": 7,
+    "api_error": 112,
+    "billing_error": 2
+   }
+  },
+  "expect": {
+   "rule": "upstream-auth-alert",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 17:09",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAuthRejected",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 2264,
+    "401": 7
+   },
+   "error_phase": {
+    "auth": 7,
+    "internal": 4,
+    "routing": 86
+   },
+   "error_type": {
+    "authentication_error": 7,
+    "api_error": 90
+   }
+  },
+  "expect": {
+   "rule": "upstream-auth-alert",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 17:25",
+  "labels": {
+   "alertname": "Sub2apiUpstreamAuthRejected",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "__other__",
+   "platform": "anthropic",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {
+    "200": 683,
+    "401": 7,
+    "5xx": 2
+   },
+   "error_phase": {
+    "auth": 7,
+    "internal": 3,
+    "request": 7,
+    "routing": 106
+   },
+   "error_type": {
+    "authentication_error": 7,
+    "api_error": 109,
+    "billing_error": 7
+   }
+  },
+  "expect": {
+   "rule": "upstream-auth-alert",
+   "route": "human"
+  }
+ },
+ {
+  "started": "2026-11-12 19:28",
+  "labels": {
+   "alertname": "Sub2apiProbeModelFailing",
+   "env": "prod",
+   "instance": "111.229.235.75",
+   "model": "DeepSeek-V4-Flash-0731",
+   "service": "sub2api",
+   "severity": "critical"
+  },
+  "evidence": {
+   "upstream_status": {},
+   "error_phase": {},
+   "error_type": {},
+   "probe_status": 500,
+   "probe_metered": 0
+  },
+  "expect": {
+   "rule": "probe-upstream",
+   "route": "human"
+  }
+ }
+]
