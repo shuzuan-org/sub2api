@@ -18,6 +18,8 @@
 | `exporters/postgres_exporter.service`、`exporters/sql_exporter.service` | 111.229 上的 systemd 单元（二进制，同 node_exporter 的装法，只绑 127.0.0.1） |
 | `exporters/sql_exporter.yml`、`exporters/sub2api.collector.yml` | sql_exporter 配置与业务不变量查询（`sub2api_biz_*`） |
 | `exporters/metrics_ro.sql` | 两个 exporter 共用的只读库账号（列级 SELECT + `pg_monitor`） |
+| `119/alert-triage/` | 告警自动分诊 + Claude Code 自动修复（接 Alertmanager webhook），说明见该目录 README |
+| `exporters/triage_ro.sql` | alert-triage 取证用的只读库账号（只能读 `ops_error_logs` 的分类列，可选） |
 | `prometheus.yml`、`grafana/` | 本机验收栈 |
 
 ## 指标来源
@@ -107,6 +109,12 @@ napi 平均 0.53 req/s；7 天上游状态码 200 ×74k、503 ×180、400 ×10�
 3. **抑制规则带 `equal: [service]`**：tassub2api 与 sub2api 共用 `Sub2apiSiteDown → Sub2api(NotReady|GatewayPublicDown|TargetDown)`、`Sub2apiMonitoringTunnelDown → scope=tunnel-*` 等告警名，metask-ai 的 `alertmanager.yml` 里这两条要加 `equal: [service]`，否则一套挂了会压掉另一套的告警。
 
 另：管理后台的「运维告警」（`ops_alert_evaluator_service`，按后台配置的规则发邮件）是进程内的第三套，与本体系独立，不受影响。
+
+## 告警自动分诊（alert-triage）
+
+`119/alert-triage/` 在 Alertmanager 后面加了一层：告警来了先自动取证、按规则表分类，修不了的（欠费 / 密钥失效 / 上游故障 / 没号）带诊断结论发邮件，
+代码类的在私有运维仓库建 issue 交给 GitHub Actions 里的 Claude Code，只提 PR、不自动合并发布。原有 `[sub2api CRITICAL]` 邮件保持不变。
+上线步骤、规则表写法、回放测试见 `119/alert-triage/README.md`。
 
 ## 约定
 

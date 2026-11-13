@@ -139,12 +139,14 @@ groups:
     rules:
       # 每 10 分钟一轮；for 15m ≈ 连续两轮失败。网关回 2xx 但 usage_logs 没写也算失败（计量断）。
       - alert: Sub2apiProbeModelFailing
-        expr: sub2api_probe_model_ok{job=~"sub2api|sub2api-backend"} == 0
+        expr: |
+          sub2api_probe_model_ok{job=~"sub2api|sub2api-backend"} == 0
+            unless on(model) sub2api_probe_model_skipped{job=~"sub2api|sub2api-backend"} == 1
         for: 15m
         labels: { severity: critical, env: prod, service: sub2api }
         annotations:
           summary: "合成探针连续失败：模型 {{ $labels.model }}"
-          description: "看 sub2api_probe_model_http_status{model=\"{{ $labels.model }}\"}：0 是超时 / 连不上，402/403 是上游欠费或密钥失效，503 是没号可用，200 但 sub2api_probe_model_metered=0 是计量没落库。journalctl -u sub2api | grep SyntheticProbe 有每次失败的响应体。"
+          description: "看 sub2api_probe_model_http_status{model=\"{{ $labels.model }}\"}：0 是超时 / 连不上，402/403 是上游欠费或密钥失效，503 是没号可用，200 但 sub2api_probe_model_metered=0 是计量没落库。若 sub2api_probe_model_skipped=1，表示探针 key 或所属分组已禁用，属于预期状态。journalctl -u sub2api | grep SyntheticProbe 有每次失败的响应体。"
 
       - alert: Sub2apiProbeStale
         expr: |

@@ -1,0 +1,140 @@
+{
+  "_comment": "分类规则表：自上而下第一条命中的生效。route 可以是字符串，也可以按 severity 分：human=发邮件给人，autofix=建 issue 交给 Claude Code，log=只记录不打扰。when 里的条件全部成立才算命中，写法见 README。",
+  "rules": [
+    {
+      "id": "infra",
+      "category": "基础设施",
+      "alerts": [
+        "Sub2apiSiteDown", "Sub2apiNotReady", "Sub2apiGatewayPublicDown", "Sub2apiTargetDown",
+        "Sub2apiPostgresDown", "Sub2apiMonitoringTunnelDown", "Sub2apiPostgresExporterDown",
+        "Sub2apiSqlExporterDown", "Sub2apiNoTraffic"
+      ],
+      "route": "human",
+      "advice": "入口 / 进程 / 依赖 / 监控链路本身的问题，按告警描述里的第一步排查命令处理。"
+    },
+    {
+      "id": "upstream-auth-alert",
+      "category": "上游欠费 / 密钥失效 / 封号",
+      "alerts": ["Sub2apiUpstreamAuthRejected"],
+      "route": "human",
+      "advice": "上游返回 401/402/403：到后台「账号管理」看对应账号的余额与状态，欠费就充值，密钥被吊销就换 key。代码修不了。"
+    },
+    {
+      "id": "probe-not-metered",
+      "category": "探针 200 但计量未落库",
+      "alerts": ["Sub2apiProbeModelFailing"],
+      "when": [{"probe_status": [200]}, {"probe_metered": 0}],
+      "route": "autofix",
+      "advice": "上游已成功但 usage_logs 没有记录，计量链路有 bug。"
+    },
+    {
+      "id": "probe-auth",
+      "category": "上游欠费 / 密钥失效 / 封号",
+      "alerts": ["Sub2apiProbeModelFailing"],
+      "when": [{"probe_status": [401, 402, 403]}],
+      "route": "human",
+      "advice": "探针拿到 401/402/403：该模型所在账号欠费或密钥失效，到后台「账号管理」处理。"
+    },
+    {
+      "id": "probe-no-account",
+      "category": "无可用账号",
+      "alerts": ["Sub2apiProbeModelFailing"],
+      "when": [{"probe_status": [503]}],
+      "route": "human",
+      "advice": "探针拿到 503：该模型没有可调度账号（限流 / 封禁 / mapping 缺自映射），到后台「账号管理」检查。"
+    },
+    {
+      "id": "probe-upstream",
+      "category": "上游故障 / 配额打满",
+      "alerts": ["Sub2apiProbeModelFailing"],
+      "when": [{"probe_status": [0, 429, 500, 502, 504, 520, 522, 524, 529]}],
+      "route": "human",
+      "advice": "探针超时或上游 5xx/429：上游侧故障或配额打满，联系供应商或临时下线该模型。"
+    },
+    {
+      "id": "any-upstream-auth-majority",
+      "category": "上游欠费 / 密钥失效 / 封号",
+      "when": [{"share": {"of": "upstream_status", "keys": ["401", "402", "403"], "exclude": ["200"], "min": 0.5}}],
+      "route": {"critical": "human", "default": "log"},
+      "advice": "失败请求里上游 401/402/403 占多数：欠费或密钥失效，到后台「账号管理」处理。"
+    },
+    {
+      "id": "no-account",
+      "category": "无可用账号",
+      "alerts": [
+        "Sub2apiNoAvailableAccount", "Sub2apiAccountPoolEmpty",
+        "Sub2apiModelAccountPoolExhausted", "Sub2apiUpstreamPoolSaturated"
+      ],
+      "route": {"critical": "human", "default": "log"},
+      "advice": "账号被限流 / 临时封禁 / 不可调度，或 sglang-proxy 端点 AIMD 限流塌缩。到后台「账号管理」解除封禁或补号。"
+    },
+    {
+      "id": "upstream-bad-request-majority",
+      "category": "上游拒绝请求（可能是协议转换 bug）",
+      "alerts": [
+        "Sub2apiUpstreamAllFailing", "Sub2apiUpstreamPlatformDegraded",
+        "Sub2apiModelUpstreamDegraded", "Sub2apiProbeModelFailing"
+      ],
+      "when": [{"share": {"of": "upstream_status", "keys": ["400", "404", "422", "4xx"], "exclude": ["200"], "min": 0.5}}],
+      "route": "autofix",
+      "advice": "上游对我们发出的请求回 4xx 且占多数，常见于请求格式 / 协议转换问题，值得让 AI 看一眼。"
+    },
+    {
+      "id": "upstream-failure",
+      "category": "上游故障 / 配额打满",
+      "alerts": [
+        "Sub2apiUpstreamAllFailing", "Sub2apiUpstreamPlatformDegraded", "Sub2apiModelUpstreamDegraded",
+        "Sub2apiModelUpstream5xx", "Sub2apiModelRateLimited", "Sub2apiModelHighLatency", "Sub2apiProbeModelFailing"
+      ],
+      "route": {"critical": "human", "default": "log"},
+      "advice": "上游 5xx / 429 / 超时：供应商侧故障或配额打满（paratera 按 max_tokens 预扣）。联系供应商或切换账号。"
+    },
+    {
+      "id": "client-auth",
+      "category": "客户端鉴权失败",
+      "alerts": ["Sub2apiAuthErrorSpike"],
+      "route": "log",
+      "advice": "多为客户端用了失效的 API key，不是服务端问题。"
+    },
+    {
+      "id": "code-candidate",
+      "category": "代码类候选",
+      "alerts": ["Sub2apiUsageNotRecorded", "Sub2apiSubscriptionExpiryStuck", "Sub2apiProbeStale"],
+      "route": "autofix",
+      "advice": "后台作业 / 计量链路卡住，优先怀疑代码。"
+    },
+    {
+      "id": "error-ratio-upstream",
+      "category": "上游故障 / 配额打满",
+      "alerts": ["Sub2apiInternalErrorSpike", "Sub2apiP1ErrorsPresent", "Sub2apiHighRealErrorRatio"],
+      "when": [{"ratio": {
+        "num": {"of": "upstream_status", "keys": ["429", "500", "502", "503", "504", "529", "5xx"]},
+        "den": {"of": "error_phase", "keys": ["internal", "upstream"]},
+        "min": 0.6
+      }}],
+      "route": "log",
+      "advice": "这段时间的错误基本都能对上上游 429 / 5xx，是上游问题传导过来的，由上游类告警单独判。"
+    },
+    {
+      "id": "error-ratio-routing",
+      "category": "无可用账号",
+      "alerts": ["Sub2apiHighRealErrorRatio"],
+      "when": [{"share": {"of": "error_phase", "keys": ["routing"], "exclude": ["auth"], "min": 0.6}}],
+      "route": "log",
+      "advice": "错误集中在调度阶段（没号可用），由 Sub2apiNoAvailableAccount 单独判。"
+    },
+    {
+      "id": "error-ratio-code",
+      "category": "代码类候选",
+      "alerts": ["Sub2apiInternalErrorSpike", "Sub2apiP1ErrorsPresent", "Sub2apiHighRealErrorRatio"],
+      "route": "autofix",
+      "advice": "错误率升高且不是单纯的没号 / 上游问题，交给 AI 判断是否代码 bug。"
+    },
+    {
+      "id": "unknown",
+      "category": "不确定",
+      "route": {"critical": "autofix", "default": "log"},
+      "advice": "规则表没有覆盖的告警，先让 AI 诊断。"
+    }
+  ]
+}

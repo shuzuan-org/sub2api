@@ -148,6 +148,11 @@ func (s *SyntheticProbeService) RunOnce(ctx context.Context) []metrics.ProbeResu
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			if a.target.Disabled || s.targetDisabled(ctx, a.key) {
+				a.result.Skipped = true
+				logger.LegacyPrintf("service.synthetic_probe", "[SyntheticProbe] model=%s skipped: probe API key or group is disabled", a.target.Model)
+				return
+			}
 			s.call(ctx, a)
 		}()
 	}
@@ -168,13 +173,30 @@ func (s *SyntheticProbeService) RunOnce(ctx context.Context) []metrics.ProbeResu
 	results := make([]metrics.ProbeResult, len(attempts))
 	for i, a := range attempts {
 		results[i] = a.result
-		if !a.result.HTTPOK || !a.result.Metered {
+		if !a.result.Skipped && (!a.result.HTTPOK || !a.result.Metered) {
 			logger.LegacyPrintf("service.synthetic_probe", "[SyntheticProbe] model=%s status=%d metered=%v latency=%s err=%s",
 				a.target.Model, a.result.HTTPStatus, a.result.Metered, a.result.Latency.Round(time.Millisecond), a.errMsg)
 		}
 	}
 	metrics.RecordProbeRound(results, s.now())
 	return results
+}
+
+// targetDisabled prevents an intentionally disabled probe group from becoming a
+// false production alert. A disabled target is exported as skipped=1 so it is
+// visible in Prometheus while excluded from the failing alert.
+func (s *SyntheticProbeService) targetDisabled(ctx context.Context, key string) bool {
+	if s.apiKeys == nil || strings.TrimSpace(key) == "" {
+		return false
+	}
+	k, err := s.apiKeys.GetByKey(ctx, key)
+	if err != nil || k == nil {
+		return false
+	}
+	if k.Status != "" && k.Status != StatusAPIKeyActive {
+		return true
+	}
+	return k.Group != nil && !k.Group.IsActive()
 }
 
 func (s *SyntheticProbeService) call(ctx context.Context, a *probeAttempt) {
