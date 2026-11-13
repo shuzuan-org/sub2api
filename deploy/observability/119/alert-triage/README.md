@@ -119,9 +119,24 @@ Alertmanager ──webhook──> alert-triage ──┬─ 邮件（human / 结
 
 ### 第二阶段：打开自动修复
 
-6. 建私有仓库（如 `shuzuan-org/sub2api-ops`），建标签 `alert`、`auto-fix`、`pr-opened`、`needs-human`，把 `ops-repo/alert-autofix.yml` 放到它的 `.github/workflows/`，按文件头注配好 secrets / vars。
-7. 119 的 compose 给 alert-triage 加 `TRIAGE_MODE: autofix`、`GITHUB_REPO`、`GITHUB_TOKEN_FILE` 后重建容器。
+6. 建私有仓库，建标签 `alert`、`auto-fix`、`pr-opened`、`needs-human`，把 `ops-repo/alert-autofix.yml` 放到它的 `.github/workflows/`，按文件头注配好 secrets / vars。
+   - 仓库所在账号必须能跑私有仓库的 Actions。组织的 Actions 额度用完或扣款失败时任务不会启动
+     （`The job was not started because recent account payments have failed…`），可以放到个人账号名下。
+   - 模型认证二选一：Claude 订阅 token（`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`）或 API key（`ANTHROPIC_API_KEY`，
+     走网关 / 中转时再配 `ANTHROPIC_BASE_URL`、`CLAUDE_MODEL`）。用 API key 时工作流会先探测一次接口，
+     失败原因直接写进 issue（secret 填进去就读不回来，这是唯一能看到「key 无效 / 分组下没有账号」的地方）。
+   - 需要两个 token：`SUB2API_BOT_TOKEN`（sub2api 的 Contents / Pull requests 读写，放运维仓库的 secret）和
+     119 上建 issue 用的 token（运维仓库的 Issues 读写）。细粒度 PAT 只能有一个所有者，两个仓库不在同一账号下时要分开生成。
+   - `TRIAGE_BOT_LOGIN` 填 119 那个 token 所属账号的登录名，不必另建机器人账号。
+7. 119 上把 token 写到 `~/server-prometheus/alert-triage-secrets/github_token`（属主 65534、权限 0400，目录在镜像构建上下文之外），
+   compose 给 alert-triage 加 `TRIAGE_MODE: autofix`、`GITHUB_REPO`、`GITHUB_TOKEN_FILE: /run/secrets/github_token` 和对应的只读挂载后重建容器。
+   写 token 时从剪贴板走管道（`pbpaste | ssh … 'cat > …'`），不要把它敲在命令行或聊天里。
 8. 验证：灌一条 `alertname=Sub2apiUsageNotRecorded` → 私有仓库出现 issue → 工作流运行 → issue 得到 `pr-opened` 或 `needs-human` → 2 分钟内收到结论邮件。
+   要验证「提 PR」这条路：往 sub2api 推一个埋了 bug 的临时分支，把运维仓库的 variable `SUB2API_BASE_REF` 指向它，手工建一张带证据的 issue 并打 `auto-fix`；
+   测完关掉 PR、删分支、删这个 variable。
+
+2026-11-13 已按以上步骤上线并实测：欠费场景 → `needs-human`；埋 bug → AI 改 1 行 + 补测试 + 提 PR（约 15 分钟，主要是跑单元测试）；
+119 自动建单 → AI 判 `needs-human` → 结论邮件并关单（约 2 分钟）。「119 自动建单一路到 `已提PR` 邮件」没有连起来跑过。
 
 ### 可选：ops_error_logs 证据
 
@@ -132,7 +147,8 @@ Alertmanager ──webhook──> alert-triage ──┬─ 邮件（human / 结
 
 ## 已知限制
 
-- 工作流模板的「提 PR / 转人工」脚本在本地用假 `gh` 模拟过五种分支；`claude-code-action` 那一步和整条 GitHub 链路要等私有仓库和 key 就位后才能实测。
+- sub2api 仓库目前没有 CI 在跑，AI 提的 PR 只在它自己的运行环境里跑过 `make -C backend test-unit`，合并前要人看改动。
+- 用 Claude 订阅 token 时，AI 的运行占用该订阅的用量；token 有效期一年，到期要重新生成。
 - PR 描述由 AI 生成并出现在公开仓库。提示词要求不带生产数据，但没有机器校验，合并前留意。
 - AI 的改动范围被限制在后端非迁移、非生成代码；前端和迁移一律转人工。
 - 只处理 `service=sub2api`。tassub2api / metask-ai 接入时各起一个实例（`TRIAGE_SERVICE` 不同）并补各自的规则表。

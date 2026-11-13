@@ -1,4 +1,4 @@
-# 放到私有运维仓库（如 shuzuan-org/sub2api-ops）的 .github/workflows/alert-autofix.yml。
+# 放到私有运维仓库的 .github/workflows/alert-autofix.yml。
 # 不要放进 sub2api 本仓库：它是公开的，告警证据不能出现在公开 issue 里。
 #
 # 触发：alert-triage 用机器人账号建 issue 并打上 auto-fix 标签。
@@ -6,9 +6,15 @@
 #       推分支、提 PR、打标签由后面的固定步骤完成，Claude 手里没有可写的 GitHub 凭据。
 #
 # 仓库需要配置：
-#   secrets.ANTHROPIC_API_KEY   模型 key（建议直连，不走自家网关）
+#   模型认证二选一：
+#     secrets.CLAUDE_CODE_OAUTH_TOKEN  Claude 订阅（Pro/Max）的长期 token，本机运行 `claude setup-token` 生成
+#     secrets.ANTHROPIC_API_KEY        API key（直连 Anthropic，或网关 / 中转的 key）
+#   走网关 / 中转时另配（variable 或 secret 均可）：
+#     ANTHROPIC_BASE_URL          网关地址，不带 /v1
+#     CLAUDE_MODEL                网关上要用的模型名
 #   secrets.SUB2API_BOT_TOKEN   机器人身份的 token：对 shuzuan-org/sub2api 有 contents + pull requests 写权限。
 #                               必须不是默认 GITHUB_TOKEN，否则它提的 PR 不会触发 sub2api 的 CI。
+#   vars.SUB2API_BASE_REF      可选。检出并作为 PR 目标的 sub2api 分支，默认 main；只在全流程测试时改
 #   vars.TRIAGE_BOT_LOGIN       alert-triage 建 issue 所用账号的登录名
 name: alert-autofix
 
@@ -20,22 +26,23 @@ permissions:
   contents: read
   issues: write
 
-concurrency:
-  group: alert-autofix-${{ github.event.issue.number }}
-  cancel-in-progress: false
-
 jobs:
   autofix:
     if: github.event.label.name == 'auto-fix' && github.event.sender.login == vars.TRIAGE_BOT_LOGIN
+    # 放在 job 上：其他标签触发的运行会直接跳过，不会排在真正的运行前面占住队列
+    concurrency:
+      group: alert-autofix-${{ github.event.issue.number }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       ISSUE_NUMBER: ${{ github.event.issue.number }}
+      BASE_REF: ${{ vars.SUB2API_BASE_REF || 'main' }}
     steps:
       - uses: actions/checkout@v6
         with:
           repository: shuzuan-org/sub2api
-          ref: main
+          ref: ${{ vars.SUB2API_BASE_REF || 'main' }}
           token: ${{ secrets.SUB2API_BOT_TOKEN }}
           persist-credentials: false
 
@@ -52,14 +59,55 @@ jobs:
           mkdir -p .alert
           { printf '# %s\n\n' "$ISSUE_TITLE"; printf '%s\n' "$ISSUE_BODY"; } > .alert/issue.md
 
+      # 用 API key 时先发一次最小请求探一下：key、余额、地址、模型名任何一个不对，
+      # Claude Code 只会重试几分钟后空手而归，看不到原因。
+      - name: Preflight the model endpoint
+        id: preflight
+        env:
+          BASE_URL: ${{ vars.ANTHROPIC_BASE_URL || secrets.ANTHROPIC_BASE_URL || 'https://api.anthropic.com' }}
+          MODEL: ${{ vars.CLAUDE_MODEL || secrets.CLAUDE_MODEL || 'claude-haiku-5-5' }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # 走订阅 token 时没有 API key，跳过探测
+          [ -n "$API_KEY" ] || exit 0
+          body=$(jq -n --arg m "$MODEL" '{model:$m,max_tokens:16,messages:[{role:"user",content:"ping"}]}')
+          code=$(curl -sS -o "$RUNNER_TEMP/preflight.json" -w '%{http_code}' --max-time 60 \
+            -X POST "${BASE_URL%/}/v1/messages" \
+            -H "x-api-key: $API_KEY" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+            -d "$body" 2>"$RUNNER_TEMP/preflight.err") || code="000"
+          detail=$(head -c 300 "$RUNNER_TEMP/preflight.json" 2>/dev/null | tr '\n' ' ' || true)
+          [ -n "$detail" ] || detail=$(head -c 300 "$RUNNER_TEMP/preflight.err" 2>/dev/null | tr '\n' ' ' || true)
+          echo "preflight HTTP $code: $detail"
+          if [ "$code" = "200" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            # 顺便列出这个 key 能用的模型，方便改 CLAUDE_MODEL（名字用空格隔开输出，避免被 secret 掩码整行吃掉）
+            echo "models available to this key:"
+            mcode=$(curl -sS -o "$RUNNER_TEMP/models.json" -w '%{http_code}' --max-time 30 "${BASE_URL%/}/v1/models" \
+              -H "x-api-key: $API_KEY" -H "Authorization: Bearer $API_KEY" 2>/dev/null) || mcode="000"
+            echo "GET /v1/models -> HTTP $mcode"
+            { jq -r '.data[]?.id' "$RUNNER_TEMP/models.json" 2>/dev/null || true; } | sed 's/./& /g' | head -100
+            head -c 400 "$RUNNER_TEMP/models.json" 2>/dev/null | tr '\n' ' ' | sed 's/./& /g' || true; echo
+            { echo 'message<<PREFLIGHT_EOF'; echo "模型接口探测失败（HTTP $code）：$detail"; echo 'PREFLIGHT_EOF'; } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Diagnose and fix with Claude Code
         id: claude
+        if: steps.preflight.outputs.ok != 'false'
         continue-on-error: true
         uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL || secrets.ANTHROPIC_BASE_URL }}
+          # 网关上通常没有 Claude Code 后台任务默认用的小模型，统一指到同一个模型
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ vars.CLAUDE_MODEL || secrets.CLAUDE_MODEL }}
         with:
+          # 不传的话 action 会去换 Claude GitHub App 的 token（需要 id-token 权限并安装该 App）。
+          # 这里给的是本仓库的作业 token：只有 contents 读 + issues 写，碰不到 sub2api。
+          github_token: ${{ github.token }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
             --max-turns 80
+            ${{ (vars.CLAUDE_MODEL || secrets.CLAUDE_MODEL) && format('--model {0}', vars.CLAUDE_MODEL || secrets.CLAUDE_MODEL) || '' }}
             --json-schema '{"type":"object","required":["verdict","summary"],"properties":{"verdict":{"enum":["fix","needs-human"]},"summary":{"type":"string"},"pr_title":{"type":"string"},"pr_body":{"type":"string"}}}'
           prompt: |
             你在 sub2api 仓库（Go 后端 + Vue 前端，约定见 AGENTS.md）。生产监控触发了一条告警，
@@ -87,6 +135,7 @@ jobs:
           SUB2API_BOT_TOKEN: ${{ secrets.SUB2API_BOT_TOKEN }}
           STRUCTURED: ${{ steps.claude.outputs.structured_output }}
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+          PREFLIGHT_MSG: ${{ steps.preflight.outputs.message }}
           OPS_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -99,6 +148,9 @@ jobs:
             gh issue edit "$ISSUE_NUMBER" --repo "$OPS_REPO" --add-label needs-human
             exit 0
           }
+          if [ -n "${PREFLIGHT_MSG:-}" ]; then
+            hand_over "AI 没有运行：$PREFLIGHT_MSG 运行记录：$GITHUB_SERVER_URL/$OPS_REPO/actions/runs/$GITHUB_RUN_ID"
+          fi
           if [ "$CLAUDE_OUTCOME" != "success" ] || [ -z "$verdict" ]; then
             hand_over "AI 运行失败或没有给出结论，需要人工排查。运行记录：$GITHUB_SERVER_URL/$OPS_REPO/actions/runs/$GITHUB_RUN_ID"
           fi
@@ -121,7 +173,7 @@ jobs:
           field pr_body > "$RUNNER_TEMP/body.md"
           git commit -F "$RUNNER_TEMP/title.txt"
           git push "https://x-access-token:${SUB2API_BOT_TOKEN}@github.com/shuzuan-org/sub2api.git" "$branch"
-          pr_url=$(GH_TOKEN="$SUB2API_BOT_TOKEN" gh pr create --repo shuzuan-org/sub2api --base main --head "$branch" \
+          pr_url=$(GH_TOKEN="$SUB2API_BOT_TOKEN" gh pr create --repo shuzuan-org/sub2api --base "$BASE_REF" --head "$branch" \
             --title "$(cat "$RUNNER_TEMP/title.txt")" --body-file "$RUNNER_TEMP/body.md")
           printf '%s\n\nPR：%s\n' "$summary" "$pr_url" > "$RUNNER_TEMP/comment.md"
           gh issue comment "$ISSUE_NUMBER" --repo "$OPS_REPO" --body-file "$RUNNER_TEMP/comment.md"
