@@ -311,7 +311,7 @@ func upstreamStatusBucket(code int) string {
 	case 500:
 		return "500"
 	case 502:
-		return "502"
+		return "503"
 	case 503:
 		return "503"
 	default:
