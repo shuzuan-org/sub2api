@@ -16,8 +16,10 @@ func TestParseToolResultContent_MixedTextAndImage(t *testing.T) {
 	]`)
 
 	got := parseToolResultContent(content, false)
-	want := "before\n![image](data:image/png;base64,aGVsbG8=)\nafter"
-	require.Equal(t, want, got)
+	// 文本保持原顺序；图片不能拼进文本，必须单独作为 inlineData 交付。
+	// 占位句让模型知道这段 tool_result 还带着一张图。
+	require.Equal(t, "before\n[image attached: image/png]\nafter", got.Text)
+	require.Equal(t, []GeminiInlineData{{MimeType: "image/png", Data: "aGVsbG8="}}, got.Images)
 }
 
 func TestParseToolResultContent_ImageOnly(t *testing.T) {
@@ -26,7 +28,33 @@ func TestParseToolResultContent_ImageOnly(t *testing.T) {
 	]`)
 
 	got := parseToolResultContent(content, false)
-	require.Equal(t, "![image](data:image/jpeg;base64,/9j/4AAQ)", got)
+	require.Equal(t, "[image attached: image/jpeg]", got.Text)
+	require.Equal(t, []GeminiInlineData{{MimeType: "image/jpeg", Data: "/9j/4AAQ"}}, got.Images)
+}
+
+// TestBuildParts_ToolResultImageBecomesInlineData 是本 issue 的核心回归：
+// tool_result 里的图必须变成 inlineData part，而不是一段 Markdown 文本。
+// 顺序必须是 functionResponse 在前、inlineData 紧随其后（Gemini 的附件交付顺序）。
+func TestBuildParts_ToolResultImageBecomesInlineData(t *testing.T) {
+	content := json.RawMessage(`[
+		{"type":"tool_use","id":"toolu_01","name":"Read","input":{"file_path":"/tmp/a.png"}},
+		{"type":"tool_result","tool_use_id":"toolu_01","content":[
+			{"type":"text","text":"see attached"},
+			{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}
+		]}
+	]`)
+
+	parts, _, err := buildParts(content, map[string]string{}, false)
+	require.NoError(t, err)
+	require.Len(t, parts, 3, "tool_use + functionResponse + inlineData")
+
+	require.NotNil(t, parts[1].FunctionResponse)
+	require.Equal(t, "Read", parts[1].FunctionResponse.Name)
+	require.Equal(t, "see attached\n[image attached: image/png]", parts[1].FunctionResponse.Response["result"])
+
+	require.NotNil(t, parts[2].InlineData, "image in tool_result must be delivered as inlineData")
+	require.Equal(t, "image/png", parts[2].InlineData.MimeType)
+	require.Equal(t, "aGVsbG8=", parts[2].InlineData.Data)
 }
 
 // TestBuildParts_ThinkingBlockWithoutSignature 测试thinking block无signature时的处理

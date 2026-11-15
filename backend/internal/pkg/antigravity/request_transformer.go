@@ -514,24 +514,41 @@ func buildParts(content json.RawMessage, toolIDToName map[string]string, allowDu
 				FunctionResponse: &GeminiFunctionResponse{
 					Name: funcName,
 					Response: map[string]any{
-						"result": resultContent,
+						"result": resultContent.Text,
 					},
 					ID: block.ToolUseID,
 				},
 			})
+
+			// tool_result 里的图片必须作为紧随其后的 inlineData part 发出。
+			// functionResponse.response 只能承载 JSON 标量，塞不进二进制；
+			// 早前把它拼成 "![image](data:...;base64,...)" 文本，模型收到的只是
+			// 一长串 base64 字符，既看不懂又白占几万 token。Gemini 支持在同一
+			// content 里按 functionResponse → inlineData 的顺序交付附件。
+			for i := range resultContent.Images {
+				img := resultContent.Images[i]
+				parts = append(parts, GeminiPart{InlineData: &img})
+			}
 		}
 	}
 
 	return parts, strippedThinking, nil
 }
 
+// toolResultContent 是 tool_result 解析后的两部分：能塞进 functionResponse.response
+// 的文本，以及必须作为独立 inlineData part 交付的图片。
+type toolResultContent struct {
+	Text   string
+	Images []GeminiInlineData
+}
+
 // parseToolResultContent 解析 tool_result 的 content
-func parseToolResultContent(content json.RawMessage, isError bool) string {
+func parseToolResultContent(content json.RawMessage, isError bool) toolResultContent {
 	if len(content) == 0 {
 		if isError {
-			return "Tool execution failed with no output."
+			return toolResultContent{Text: "Tool execution failed with no output."}
 		}
-		return "Command executed successfully."
+		return toolResultContent{Text: "Command executed successfully."}
 	}
 
 	// 尝试解析为字符串
@@ -539,17 +556,18 @@ func parseToolResultContent(content json.RawMessage, isError bool) string {
 	if err := json.Unmarshal(content, &str); err == nil {
 		if strings.TrimSpace(str) == "" {
 			if isError {
-				return "Tool execution failed with no output."
+				return toolResultContent{Text: "Tool execution failed with no output."}
 			}
-			return "Command executed successfully."
+			return toolResultContent{Text: "Command executed successfully."}
 		}
-		return str
+		return toolResultContent{Text: str}
 	}
 
 	// 尝试解析为数组
 	var arr []map[string]any
 	if err := json.Unmarshal(content, &arr); err == nil {
 		var results []string
+		var images []GeminiInlineData
 		for _, item := range arr {
 			switch item["type"] {
 			case "text":
@@ -560,24 +578,28 @@ func parseToolResultContent(content json.RawMessage, isError bool) string {
 				if source, ok := item["source"].(map[string]any); ok && source["type"] == "base64" {
 					mediaType, mediaTypeOK := source["media_type"].(string)
 					data, dataOK := source["data"].(string)
-					if mediaTypeOK && dataOK {
-						results = append(results, fmt.Sprintf("![image](data:%s;base64,%s)", mediaType, data))
+					if mediaTypeOK && dataOK && mediaType != "" && data != "" {
+						images = append(images, GeminiInlineData{MimeType: mediaType, Data: data})
+						// 图片本体走 inlineData；这里留一句占位，让模型知道
+						// 这段 tool_result 除了文字还带了几张图。
+						results = append(results, fmt.Sprintf("[image attached: %s]", mediaType))
 					}
 				}
 			}
 		}
-		result := strings.Join(results, "\n")
-		if strings.TrimSpace(result) == "" {
+		text := strings.Join(results, "\n")
+		if strings.TrimSpace(text) == "" {
 			if isError {
-				return "Tool execution failed with no output."
+				text = "Tool execution failed with no output."
+			} else {
+				text = "Command executed successfully."
 			}
-			return "Command executed successfully."
 		}
-		return result
+		return toolResultContent{Text: text, Images: images}
 	}
 
 	// 返回原始 JSON
-	return string(content)
+	return toolResultContent{Text: string(content)}
 }
 
 // buildGenerationConfig 构建 generationConfig
