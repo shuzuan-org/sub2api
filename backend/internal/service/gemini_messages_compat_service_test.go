@@ -663,7 +663,7 @@ func TestConvertClaudeMessagesToGemini_ToolResultImage(t *testing.T) {
 	require.True(t, ok)
 	parts, ok := last["parts"].([]any)
 	require.True(t, ok)
-	require.Len(t, parts, 2, "functionResponse + inlineData")
+	require.Len(t, parts, 1, "one functionResponse part carrying text + image")
 
 	fr, ok := parts[0].(map[string]any)["functionResponse"].(map[string]any)
 	require.True(t, ok)
@@ -671,8 +671,14 @@ func TestConvertClaudeMessagesToGemini_ToolResultImage(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "see attached\n[image attached: image/png]", resp["content"])
 
-	inline, ok := parts[1].(map[string]any)["inlineData"].(map[string]any)
-	require.True(t, ok, "tool_result image must be delivered as inlineData part")
+	// 图片走 functionResponse.parts（FunctionResponsePart），不进 response 也不做顶层 part。
+	frParts, ok := fr["parts"].([]any)
+	require.True(t, ok, "tool_result image must ride in functionResponse.parts")
+	require.Len(t, frParts, 1)
+	first, ok := frParts[0].(map[string]any)
+	require.True(t, ok)
+	inline, ok := first["inlineData"].(map[string]any)
+	require.True(t, ok)
 	require.Equal(t, "image/png", inline["mimeType"])
 	require.Equal(t, "aGVsbG8=", inline["data"])
 }

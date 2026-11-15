@@ -3051,20 +3051,20 @@ func convertClaudeMessagesToGeminiContents(messages any, toolUseIDToName map[str
 						name = "tool"
 					}
 					resultText, resultImages := extractClaudeToolResultContent(bm["content"])
-					parts = append(parts, map[string]any{
-						"functionResponse": map[string]any{
-							"name": name,
-							"response": map[string]any{
-								"content": resultText,
-							},
+					functionResponse := map[string]any{
+						"name": name,
+						"response": map[string]any{
+							"content": resultText,
 						},
-					})
-					// functionResponse.response 只能放 JSON 标量，图片必须作为
-					// 紧随其后的 inlineData part 交付。早前这里只取 text，
-					// tool_result 里的图被静默丢掉（agent 的 Read 工具回图全靠它）。
-					for _, img := range resultImages {
-						parts = append(parts, map[string]any{"inlineData": img})
 					}
+					// functionResponse.response 只能放 JSON 标量，图片必须走
+					// functionResponse.parts（genai SDK 的 FunctionResponsePart）。
+					// 早前这里只取 text，tool_result 里的图被静默丢掉——agent 的
+					// Read 工具回图全靠这条路径。
+					if len(resultImages) > 0 {
+						functionResponse["parts"] = resultImages
+					}
+					parts = append(parts, map[string]any{"functionResponse": functionResponse})
 				case "image":
 					if src, ok := bm["source"].(map[string]any); ok {
 						if srcType, _ := src["type"].(string); srcType == "base64" {
@@ -3108,6 +3108,7 @@ func extractClaudeToolResultContent(v any) (string, []map[string]any) {
 		return t, nil
 	case []any:
 		var sb strings.Builder
+		var wroteText bool
 		var images []map[string]any
 		for _, part := range t {
 			pm, ok := part.(map[string]any)
@@ -3118,6 +3119,7 @@ func extractClaudeToolResultContent(v any) (string, []map[string]any) {
 			case "text":
 				if text, ok := pm["text"].(string); ok {
 					_, _ = sb.WriteString(text)
+					wroteText = true
 				}
 			case "image":
 				src, ok := pm["source"].(map[string]any)
@@ -3132,11 +3134,15 @@ func extractClaudeToolResultContent(v any) (string, []map[string]any) {
 				if mediaType == "" || data == "" {
 					continue
 				}
-				if sb.Len() > 0 && !strings.HasSuffix(sb.String(), "\n") {
+				if wroteText {
 					sb.WriteString("\n")
 				}
 				sb.WriteString("[image attached: " + mediaType + "]")
-				images = append(images, map[string]any{"mimeType": mediaType, "data": data})
+				wroteText = true
+				// 形状即 FunctionResponsePart：{"inlineData": {...}}
+				images = append(images, map[string]any{
+					"inlineData": map[string]any{"mimeType": mediaType, "data": data},
+				})
 			}
 		}
 		return sb.String(), images

@@ -33,8 +33,9 @@ func TestParseToolResultContent_ImageOnly(t *testing.T) {
 }
 
 // TestBuildParts_ToolResultImageBecomesInlineData 是本 issue 的核心回归：
-// tool_result 里的图必须变成 inlineData part，而不是一段 Markdown 文本。
-// 顺序必须是 functionResponse 在前、inlineData 紧随其后（Gemini 的附件交付顺序）。
+// tool_result 里的图必须变成 functionResponse.parts 里的 inlineData，而不是一段
+// Markdown 文本。functionResponse.response 只能放 JSON 标量，二进制附件走 parts
+// （对应 genai SDK 的 FunctionResponse.Parts / FunctionResponsePart）。
 func TestBuildParts_ToolResultImageBecomesInlineData(t *testing.T) {
 	content := json.RawMessage(`[
 		{"type":"tool_use","id":"toolu_01","name":"Read","input":{"file_path":"/tmp/a.png"}},
@@ -46,15 +47,24 @@ func TestBuildParts_ToolResultImageBecomesInlineData(t *testing.T) {
 
 	parts, _, err := buildParts(content, map[string]string{}, false)
 	require.NoError(t, err)
-	require.Len(t, parts, 3, "tool_use + functionResponse + inlineData")
+	require.Len(t, parts, 2, "tool_use + functionResponse")
 
-	require.NotNil(t, parts[1].FunctionResponse)
-	require.Equal(t, "Read", parts[1].FunctionResponse.Name)
-	require.Equal(t, "see attached\n[image attached: image/png]", parts[1].FunctionResponse.Response["result"])
+	fr := parts[1].FunctionResponse
+	require.NotNil(t, fr)
+	require.Equal(t, "Read", fr.Name)
+	require.Equal(t, "see attached\n[image attached: image/png]", fr.Response["result"])
 
-	require.NotNil(t, parts[2].InlineData, "image in tool_result must be delivered as inlineData")
-	require.Equal(t, "image/png", parts[2].InlineData.MimeType)
-	require.Equal(t, "aGVsbG8=", parts[2].InlineData.Data)
+	require.Len(t, fr.Parts, 1, "image in tool_result must ride in functionResponse.parts")
+	require.NotNil(t, fr.Parts[0].InlineData)
+	require.Equal(t, "image/png", fr.Parts[0].InlineData.MimeType)
+	require.Equal(t, "aGVsbG8=", fr.Parts[0].InlineData.Data)
+
+	// 序列化后必须是 Gemini 认识的形状，而不是拼进文本的 base64。
+	raw, err := json.Marshal(parts[1])
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"functionResponse"`)
+	require.Contains(t, string(raw), `"parts":[{"inlineData":{"mimeType":"image/png","data":"aGVsbG8="}}]`)
+	require.NotContains(t, string(raw), "![image]")
 }
 
 // TestBuildParts_ThinkingBlockWithoutSignature 测试thinking block无signature时的处理

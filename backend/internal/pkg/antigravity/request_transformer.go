@@ -510,25 +510,24 @@ func buildParts(content json.RawMessage, toolIDToName map[string]string, allowDu
 			// 解析 content
 			resultContent := parseToolResultContent(block.Content, block.IsError)
 
-			parts = append(parts, GeminiPart{
-				FunctionResponse: &GeminiFunctionResponse{
-					Name: funcName,
-					Response: map[string]any{
-						"result": resultContent.Text,
-					},
-					ID: block.ToolUseID,
+			// tool_result 里的图片必须作为 functionResponse.parts 里的 inlineData 发出。
+			// functionResponse.response 只能承载 JSON 标量，塞不进二进制；早前把它拼成
+			// "![image](data:...;base64,...)" 文本，模型收到的只是一长串 base64 字符，
+			// 既看不懂又白占几万 token。functionResponse.parts 是 Gemini 官方为「工具返回
+			// 媒体」提供的字段（见 google.golang.org/genai 的 FunctionResponse.Parts /
+			// FunctionResponsePart），图片放进这里语义上属于这次工具调用。
+			fr := &GeminiFunctionResponse{
+				Name: funcName,
+				Response: map[string]any{
+					"result": resultContent.Text,
 				},
-			})
-
-			// tool_result 里的图片必须作为紧随其后的 inlineData part 发出。
-			// functionResponse.response 只能承载 JSON 标量，塞不进二进制；
-			// 早前把它拼成 "![image](data:...;base64,...)" 文本，模型收到的只是
-			// 一长串 base64 字符，既看不懂又白占几万 token。Gemini 支持在同一
-			// content 里按 functionResponse → inlineData 的顺序交付附件。
-			for i := range resultContent.Images {
-				img := resultContent.Images[i]
-				parts = append(parts, GeminiPart{InlineData: &img})
+				ID: block.ToolUseID,
 			}
+			for _, img := range resultContent.Images {
+				fr.Parts = append(fr.Parts, GeminiFunctionResponsePart{InlineData: &img})
+			}
+
+			parts = append(parts, GeminiPart{FunctionResponse: fr})
 		}
 	}
 

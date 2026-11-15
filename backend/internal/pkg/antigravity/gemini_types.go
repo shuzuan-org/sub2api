@@ -57,6 +57,15 @@ type GeminiFunctionResponse struct {
 	Name     string         `json:"name"`
 	Response map[string]any `json:"response"`
 	ID       string         `json:"id,omitempty"`
+	// Parts 承载函数返回的媒体（图片等）。functionResponse.response 只能放 JSON
+	// 标量，二进制附件必须走这里 —— 与 google.golang.org/genai 的
+	// FunctionResponse.Parts / FunctionResponsePart 结构一致。
+	Parts []GeminiFunctionResponsePart `json:"parts,omitempty"`
+}
+
+// GeminiFunctionResponsePart 函数响应里的一个媒体 part（inlineData）
+type GeminiFunctionResponsePart struct {
+	InlineData *GeminiInlineData `json:"inlineData,omitempty"`
 }
 
 // GeminiGenerationConfig Gemini 生成配置
