@@ -3050,14 +3050,21 @@ func convertClaudeMessagesToGeminiContents(messages any, toolUseIDToName map[str
 					if name == "" {
 						name = "tool"
 					}
-					parts = append(parts, map[string]any{
-						"functionResponse": map[string]any{
-							"name": name,
-							"response": map[string]any{
-								"content": extractClaudeContentText(bm["content"]),
-							},
+					resultText, resultImages := extractClaudeToolResultContent(bm["content"])
+					functionResponse := map[string]any{
+						"name": name,
+						"response": map[string]any{
+							"content": resultText,
 						},
-					})
+					}
+					// functionResponse.response 只能放 JSON 标量，图片必须走
+					// functionResponse.parts（genai SDK 的 FunctionResponsePart）。
+					// 早前这里只取 text，tool_result 里的图被静默丢掉——agent 的
+					// Read 工具回图全靠这条路径。
+					if len(resultImages) > 0 {
+						functionResponse["parts"] = resultImages
+					}
+					parts = append(parts, map[string]any{"functionResponse": functionResponse})
 				case "image":
 					if src, ok := bm["source"].(map[string]any); ok {
 						if srcType, _ := src["type"].(string); srcType == "base64" {
@@ -3092,27 +3099,56 @@ func convertClaudeMessagesToGeminiContents(messages any, toolUseIDToName map[str
 	return out, nil
 }
 
-func extractClaudeContentText(v any) string {
+// extractClaudeToolResultContent 拆解 tool_result 的 content：文本进
+// functionResponse.response，图片单独返回，由调用方作为 inlineData part 追加。
+// 只返回文本会把工具回的图静默丢掉（agent 的 Read 工具回图全靠这条路径）。
+func extractClaudeToolResultContent(v any) (string, []map[string]any) {
 	switch t := v.(type) {
 	case string:
-		return t
+		return t, nil
 	case []any:
 		var sb strings.Builder
+		var wroteText bool
+		var images []map[string]any
 		for _, part := range t {
 			pm, ok := part.(map[string]any)
 			if !ok {
 				continue
 			}
-			if pm["type"] == "text" {
+			switch pm["type"] {
+			case "text":
 				if text, ok := pm["text"].(string); ok {
 					_, _ = sb.WriteString(text)
+					wroteText = true
 				}
+			case "image":
+				src, ok := pm["source"].(map[string]any)
+				if !ok {
+					continue
+				}
+				if srcType, _ := src["type"].(string); srcType != "base64" {
+					continue
+				}
+				mediaType, _ := src["media_type"].(string)
+				data, _ := src["data"].(string)
+				if mediaType == "" || data == "" {
+					continue
+				}
+				if wroteText {
+					sb.WriteString("\n")
+				}
+				sb.WriteString("[image attached: " + mediaType + "]")
+				wroteText = true
+				// 形状即 FunctionResponsePart：{"inlineData": {...}}
+				images = append(images, map[string]any{
+					"inlineData": map[string]any{"mimeType": mediaType, "data": data},
+				})
 			}
 		}
-		return sb.String()
+		return sb.String(), images
 	default:
 		b, _ := json.Marshal(t)
-		return string(b)
+		return string(b), nil
 	}
 }
 

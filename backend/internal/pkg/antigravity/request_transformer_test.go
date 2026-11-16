@@ -16,8 +16,10 @@ func TestParseToolResultContent_MixedTextAndImage(t *testing.T) {
 	]`)
 
 	got := parseToolResultContent(content, false)
-	want := "before\n![image](data:image/png;base64,aGVsbG8=)\nafter"
-	require.Equal(t, want, got)
+	// 文本保持原顺序；图片不能拼进文本，必须单独作为 inlineData 交付。
+	// 占位句让模型知道这段 tool_result 还带着一张图。
+	require.Equal(t, "before\n[image attached: image/png]\nafter", got.Text)
+	require.Equal(t, []GeminiInlineData{{MimeType: "image/png", Data: "aGVsbG8="}}, got.Images)
 }
 
 func TestParseToolResultContent_ImageOnly(t *testing.T) {
@@ -26,7 +28,43 @@ func TestParseToolResultContent_ImageOnly(t *testing.T) {
 	]`)
 
 	got := parseToolResultContent(content, false)
-	require.Equal(t, "![image](data:image/jpeg;base64,/9j/4AAQ)", got)
+	require.Equal(t, "[image attached: image/jpeg]", got.Text)
+	require.Equal(t, []GeminiInlineData{{MimeType: "image/jpeg", Data: "/9j/4AAQ"}}, got.Images)
+}
+
+// TestBuildParts_ToolResultImageBecomesInlineData 是本 issue 的核心回归：
+// tool_result 里的图必须变成 functionResponse.parts 里的 inlineData，而不是一段
+// Markdown 文本。functionResponse.response 只能放 JSON 标量，二进制附件走 parts
+// （对应 genai SDK 的 FunctionResponse.Parts / FunctionResponsePart）。
+func TestBuildParts_ToolResultImageBecomesInlineData(t *testing.T) {
+	content := json.RawMessage(`[
+		{"type":"tool_use","id":"toolu_01","name":"Read","input":{"file_path":"/tmp/a.png"}},
+		{"type":"tool_result","tool_use_id":"toolu_01","content":[
+			{"type":"text","text":"see attached"},
+			{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}
+		]}
+	]`)
+
+	parts, _, err := buildParts(content, map[string]string{}, false)
+	require.NoError(t, err)
+	require.Len(t, parts, 2, "tool_use + functionResponse")
+
+	fr := parts[1].FunctionResponse
+	require.NotNil(t, fr)
+	require.Equal(t, "Read", fr.Name)
+	require.Equal(t, "see attached\n[image attached: image/png]", fr.Response["result"])
+
+	require.Len(t, fr.Parts, 1, "image in tool_result must ride in functionResponse.parts")
+	require.NotNil(t, fr.Parts[0].InlineData)
+	require.Equal(t, "image/png", fr.Parts[0].InlineData.MimeType)
+	require.Equal(t, "aGVsbG8=", fr.Parts[0].InlineData.Data)
+
+	// 序列化后必须是 Gemini 认识的形状，而不是拼进文本的 base64。
+	raw, err := json.Marshal(parts[1])
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"functionResponse"`)
+	require.Contains(t, string(raw), `"parts":[{"inlineData":{"mimeType":"image/png","data":"aGVsbG8="}}]`)
+	require.NotContains(t, string(raw), "![image]")
 }
 
 // TestBuildParts_ThinkingBlockWithoutSignature 测试thinking block无signature时的处理

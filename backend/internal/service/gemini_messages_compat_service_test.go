@@ -627,3 +627,58 @@ func TestParseGeminiRateLimitResetTime(t *testing.T) {
 		})
 	}
 }
+
+// TestConvertClaudeMessagesToGemini_ToolResultImage 是 shuzuan-org/sub2api#2 的回归：
+// tool_result 里的 image block 必须变成紧随 functionResponse 之后的 inlineData part，
+// 而不是被 extractClaudeContentText 只取 text 后静默丢掉。
+func TestConvertClaudeMessagesToGemini_ToolResultImage(t *testing.T) {
+	body := []byte(`{
+		"model": "gemini-2.5-flash",
+		"max_tokens": 1024,
+		"messages": [
+			{"role": "user", "content": "read /tmp/a.png"},
+			{"role": "assistant", "content": [
+				{"type": "tool_use", "id": "toolu_01", "name": "Read", "input": {"file_path": "/tmp/a.png"}}
+			]},
+			{"role": "user", "content": [
+				{"type": "tool_result", "tool_use_id": "toolu_01", "content": [
+					{"type": "text", "text": "see attached"},
+					{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "aGVsbG8="}}
+				]}
+			]}
+		]
+	}`)
+
+	out, err := convertClaudeMessagesToGeminiGenerateContent(body)
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(out, &got))
+
+	contents, ok := got["contents"].([]any)
+	require.True(t, ok)
+	require.Len(t, contents, 3)
+
+	last, ok := contents[2].(map[string]any)
+	require.True(t, ok)
+	parts, ok := last["parts"].([]any)
+	require.True(t, ok)
+	require.Len(t, parts, 1, "one functionResponse part carrying text + image")
+
+	fr, ok := parts[0].(map[string]any)["functionResponse"].(map[string]any)
+	require.True(t, ok)
+	resp, ok := fr["response"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "see attached\n[image attached: image/png]", resp["content"])
+
+	// 图片走 functionResponse.parts（FunctionResponsePart），不进 response 也不做顶层 part。
+	frParts, ok := fr["parts"].([]any)
+	require.True(t, ok, "tool_result image must ride in functionResponse.parts")
+	require.Len(t, frParts, 1)
+	first, ok := frParts[0].(map[string]any)
+	require.True(t, ok)
+	inline, ok := first["inlineData"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "image/png", inline["mimeType"])
+	require.Equal(t, "aGVsbG8=", inline["data"])
+}
