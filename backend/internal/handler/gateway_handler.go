@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1497,9 +1498,10 @@ func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, e
 
 // ensureForwardErrorResponse 在 Forward 返回错误时补写错误响应，确保客户端不会拿到"无终止事件的静默截断流"。
 //
-// 两种情形：
+// 三种情形：
 //   - 尚未写任何字节：正常返回 JSON 错误（带状态码）。
-//   - 已落字节（流已开始）：HTTP 状态码无法再改，必须补发一个 terminal SSE error 事件，
+//   - 已写非 SSE 响应：保留原响应，不补发事件，也不计入流截断。
+//   - 已开始 SSE：HTTP 状态码无法再改，必须补发一个 terminal SSE error 事件，
 //     否则客户端表现为对话莫名卡死。此处吸取 cc2codex 的两个教训：
 //     1) ctx.Err() 门控——客户端主动断连时不向死连接写入、只记 cause=client，不污染上游截断指标；
 //     2) 去重——已补发过 terminal 事件则不再发，且绝不伪造成功/usage。
@@ -1524,12 +1526,22 @@ func (h *GatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarte
 	return true
 }
 
-// shouldEmitStreamTruncation 在"流已开始(已落字节)后又出错"时决定是否应补发一个 terminal SSE error 事件，
+// shouldEmitStreamTruncation 在流式请求出错时决定是否应补发一个 terminal SSE error 事件，
 // 并据 cc2codex 的截断处理教训记录成因：
+//   - 已写非 SSE 响应：返回 false，避免把完整 JSON 错误误判为流截断；
 //   - 客户端主动断连(c.Request.Context() 已取消)：返回 false，不向死连接写入，记 cause=client；
 //   - 本请求已补发过 terminal 事件：返回 false，避免重复补发；
 //   - 否则视为上游静默截断：记 cause=upstream 并返回 true，由调用方补发事件。
 func shouldEmitStreamTruncation(c *gin.Context) bool {
+	// streamStarted 可能仅由请求的 stream 标志和 Writer 增量推导，
+	// 此时 Forward 写出的也可能是完整 JSON 错误。必须先检查响应格式，
+	// 再补帧或计数；ParseMediaType 同时支持带 charset 参数的 SSE。
+	if c.Writer.Written() {
+		mediaType, _, _ := mime.ParseMediaType(c.Writer.Header().Get("Content-Type"))
+		if mediaType != "text/event-stream" {
+			return false
+		}
+	}
 	if c.Request != nil && c.Request.Context().Err() != nil {
 		metrics.StreamTruncationTotal.WithLabelValues("client").Inc()
 		// 流式阶段被客户端中断（项5）：与 slotwait 阶段共用 phase/cause 词表。
