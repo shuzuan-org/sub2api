@@ -370,7 +370,8 @@ func TestAuthService_Register_Success(t *testing.T) {
 	require.Equal(t, "user@test.com", user.Email)
 	require.Equal(t, RoleUser, user.Role)
 	require.Equal(t, StatusActive, user.Status)
-	require.Equal(t, 3.5, user.Balance)
+	// 邮箱注册建号时不发注册赠送（配置里的 3.5 不生效），绑定手机号后才发。
+	require.Zero(t, user.Balance)
 	require.Equal(t, 2, user.Concurrency)
 	require.Len(t, repo.created, 1)
 	require.True(t, user.CheckPassword("password"))
@@ -551,6 +552,57 @@ func TestAuthService_Register_AllowsOrdinaryDomainWithoutWhitelist(t *testing.T)
 	_, user, err := service.Register(context.Background(), "user@myexample.com", "password")
 	require.NoError(t, err)
 	require.NotNil(t, user)
+}
+
+func TestAuthService_Register_NoSignupBalanceEvenWhenDefaultBalanceSet(t *testing.T) {
+	repo := &userRepoStub{nextID: 6}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+		SettingKeyDefaultBalance:      "250",
+	}, nil)
+
+	_, user, err := service.Register(context.Background(), "user@test.com", "password")
+	require.NoError(t, err)
+	require.Zero(t, user.Balance)
+	require.Nil(t, user.PhoneBonusGrantedAt)
+}
+
+// bindBonusRecordingRepo 记录绑定手机号时实际发放的赠送金额。
+type bindBonusRecordingRepo struct {
+	mockUserRepo
+	bonus float64
+}
+
+func (r *bindBonusRecordingRepo) BindPhoneAndGrantBonus(_ context.Context, id int64, phone string, bonus float64) (*User, error) {
+	r.bonus = bonus
+	return &User{ID: id, Phone: phone, Balance: bonus}, nil
+}
+
+func TestUserService_BindPhoneAndGrantBonus_GrantsDeferredSignupBonus(t *testing.T) {
+	cases := []struct {
+		name     string
+		settings map[string]string // nil = 未注入 SettingService
+		want     float64
+	}{
+		{name: "no setting service falls back to floor", settings: nil, want: phoneBindBonusAmount},
+		{name: "default balance zero grants floor", settings: map[string]string{SettingKeyDefaultBalance: "0"}, want: phoneBindBonusAmount},
+		{name: "default balance above floor is granted in full", settings: map[string]string{SettingKeyDefaultBalance: "250"}, want: 250},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &bindBonusRecordingRepo{}
+			svc := NewUserService(repo, nil, nil)
+			if tc.settings != nil {
+				svc.SetSettingService(NewSettingService(&settingRepoStub{values: tc.settings}, &config.Config{}))
+			}
+
+			granted, user, err := svc.BindPhoneAndGrantBonus(context.Background(), 9, "+8613800000000")
+			require.NoError(t, err)
+			require.Equal(t, tc.want, granted)
+			require.Equal(t, tc.want, repo.bonus)
+			require.Equal(t, tc.want, user.Balance)
+		})
+	}
 }
 
 func TestPhoneSignupBalance(t *testing.T) {
