@@ -141,3 +141,82 @@ func TestRateLimiterSuccessAndLimit(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusTooManyRequests, recorder.Code)
 }
+
+func TestRateLimiterGlobalSharesCounterAcrossIPs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalRun := rateLimitRun
+	counters := map[string]int64{}
+	rateLimitRun = func(ctx context.Context, client *redis.Client, key string, windowMillis int64) (int64, bool, error) {
+		counters[key]++
+		return counters[key], false, nil
+	}
+	t.Cleanup(func() {
+		rateLimitRun = originalRun
+	})
+
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+
+	router := gin.New()
+	router.Use(limiter.LimitWithOptions("signup", 2, time.Hour, RateLimitOptions{Global: true}))
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	codes := make([]int, 0, 3)
+	for _, addr := range []string{"203.0.113.1:1000", "203.0.113.2:1000", "203.0.113.3:1000"} {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = addr
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		codes = append(codes, recorder.Code)
+	}
+
+	// 三个不同 IP 共用一个计数器：第三个请求触发熔断。
+	require.Equal(t, []int{http.StatusOK, http.StatusOK, http.StatusTooManyRequests}, codes)
+	require.Equal(t, map[string]int64{"rate_limit:signup:global": 3}, counters)
+}
+
+func TestRateLimiterLimitFunc(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalRun := rateLimitRun
+	calls := 0
+	rateLimitRun = func(ctx context.Context, client *redis.Client, key string, windowMillis int64) (int64, bool, error) {
+		calls++
+		return int64(calls), false, nil
+	}
+	t.Cleanup(func() {
+		rateLimitRun = originalRun
+	})
+
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	dynamicLimit := 0
+
+	router := gin.New()
+	router.Use(limiter.LimitWithOptions("signup", 1, time.Hour, RateLimitOptions{
+		FailureMode: RateLimitFailClose,
+		LimitFunc:   func(context.Context) int { return dynamicLimit },
+	}))
+	router.GET("/test", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	do := func() int {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.RemoteAddr = "203.0.113.1:1000"
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	// 上限 <= 0：不限流，也不访问 Redis。
+	require.Equal(t, http.StatusOK, do())
+	require.Equal(t, 0, calls)
+
+	// 动态上限覆盖静态 limit(1)。
+	dynamicLimit = 2
+	require.Equal(t, http.StatusOK, do())
+	require.Equal(t, http.StatusOK, do())
+	require.Equal(t, http.StatusTooManyRequests, do())
+}

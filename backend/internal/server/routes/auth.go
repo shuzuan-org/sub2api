@@ -28,12 +28,23 @@ func RegisterAuthRoutes(
 	auth.Use(servermiddleware.BackendModeAuthGuard(settingService))
 	{
 		// 注册/登录/2FA/验证码发送均属于高风险入口，增加服务端兜底限流（Redis 故障时 fail-close）
+		// 注册另加两道防刷：单 IP 每日上限 + 全站每小时总量熔断（邮箱/手机注册共用计数）。
+		// 仅靠每分钟 5 次挡不住脚本：单 IP 卡着上限一天仍能注册 7000+ 个号。
+		signupIPDaily := rateLimiter.LimitWithOptions("auth-signup-daily", service.DefaultSignupIPDailyLimit, 24*time.Hour, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+			LimitFunc:   settingService.GetSignupIPDailyLimit,
+		})
+		signupGlobalHourly := rateLimiter.LimitWithOptions("auth-signup-hourly", service.DefaultSignupGlobalHourlyLimit, time.Hour, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+			Global:      true,
+			LimitFunc:   settingService.GetSignupGlobalHourlyLimit,
+		})
 		auth.POST("/register", rateLimiter.LimitWithOptions("auth-register", 5, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.Register)
+		}), signupIPDaily, signupGlobalHourly, h.Auth.Register)
 		auth.POST("/register/phone", rateLimiter.LimitWithOptions("auth-register-phone", 5, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.RegisterWithPhone)
+		}), signupIPDaily, signupGlobalHourly, h.Auth.RegisterWithPhone)
 		auth.POST("/login", rateLimiter.LimitWithOptions("auth-login", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.Login)

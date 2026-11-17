@@ -393,19 +393,28 @@ func (s *AuthService) RegisterWithPhoneVerification(ctx context.Context, phone, 
 		defaultConcurrency = s.settingService.GetDefaultConcurrency(ctx)
 	}
 
+	// 手机号注册即完成了手机验证，赠送不低于「绑定手机」的额度。
+	// 这样可以把 default_balance 设为 0（邮箱注册不送），而赠送只发给验证过手机的账号；
+	// 手机号受唯一索引约束，一个号只能领一次。
 	now := time.Now()
+	var phoneBonusGrantedAt *time.Time
+	defaultBalance, bonusApplied := phoneSignupBalance(defaultBalance)
+	if bonusApplied {
+		phoneBonusGrantedAt = &now
+	}
 	emailLocal := strings.TrimPrefix(normalized, "+")
 	user := &User{
-		Email:         fmt.Sprintf("phone-%s@phone.sub2api.local", emailLocal),
-		PasswordHash:  hashedPassword,
-		Role:          RoleUser,
-		Balance:       defaultBalance,
-		Concurrency:   defaultConcurrency,
-		Status:        StatusActive,
-		Phone:         normalized,
-		PhoneVerified: true,
-		PhoneNumber:   &normalized,
-		PhoneBoundAt:  &now,
+		Email:               fmt.Sprintf("phone-%s@phone.sub2api.local", emailLocal),
+		PasswordHash:        hashedPassword,
+		Role:                RoleUser,
+		Balance:             defaultBalance,
+		Concurrency:         defaultConcurrency,
+		Status:              StatusActive,
+		Phone:               normalized,
+		PhoneVerified:       true,
+		PhoneNumber:         &normalized,
+		PhoneBoundAt:        &now,
+		PhoneBonusGrantedAt: phoneBonusGrantedAt,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -438,6 +447,15 @@ func (s *AuthService) RegisterWithPhoneVerification(ctx context.Context, phone, 
 		return "", nil, fmt.Errorf("generate token: %w", err)
 	}
 	return token, user, nil
+}
+
+// phoneSignupBalance 返回手机号注册用户的初始余额：不低于绑定手机的赠送额度。
+// 第二个返回值表示是否由手机赠送补足（用于记录 phone_bonus_granted_at）。
+func phoneSignupBalance(defaultBalance float64) (float64, bool) {
+	if defaultBalance < phoneBindBonusAmount {
+		return phoneBindBonusAmount, true
+	}
+	return defaultBalance, false
 }
 
 func (s *AuthService) SendPhoneRegisterCode(ctx context.Context, phone string) (*SendVerifyCodeResult, error) {
@@ -994,10 +1012,17 @@ func (s *AuthService) createDefaultAPIKey(ctx context.Context, userID int64) {
 }
 
 func (s *AuthService) validateRegistrationEmailPolicy(ctx context.Context, email string) error {
-	if s.settingService == nil {
+	var whitelist []string
+	if s.settingService != nil {
+		whitelist = s.settingService.GetRegistrationEmailSuffixWhitelist(ctx)
+	}
+	if len(whitelist) == 0 {
+		// 未配置白名单时，拒绝保留域名和一次性邮箱；管理员显式配置的白名单优先。
+		if IsRegistrationEmailDomainBlocked(email) {
+			return ErrEmailSuffixNotAllowed
+		}
 		return nil
 	}
-	whitelist := s.settingService.GetRegistrationEmailSuffixWhitelist(ctx)
 	if !IsRegistrationEmailSuffixAllowed(email, whitelist) {
 		return buildEmailSuffixNotAllowedError(whitelist)
 	}

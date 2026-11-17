@@ -23,6 +23,10 @@ const (
 // RateLimitOptions 限流可选配置
 type RateLimitOptions struct {
 	FailureMode RateLimitFailureMode
+	// Global 为 true 时所有客户端共用一个计数器（不按 IP 区分），用作总量熔断。
+	Global bool
+	// LimitFunc 非空时在每次请求时动态取上限（覆盖静态 limit）；返回值 <= 0 表示不限流。
+	LimitFunc func(ctx context.Context) int
 }
 
 var rateLimitScript = redis.NewScript(`
@@ -88,10 +92,21 @@ func (r *RateLimiter) LimitWithOptions(key string, limit int, window time.Durati
 	}
 
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		redisKey := r.prefix + key + ":" + ip
-
 		ctx := c.Request.Context()
+
+		limit := limit
+		if opts.LimitFunc != nil {
+			limit = opts.LimitFunc(ctx)
+			if limit <= 0 {
+				c.Next()
+				return
+			}
+		}
+
+		redisKey := r.prefix + key + ":" + c.ClientIP()
+		if opts.Global {
+			redisKey = r.prefix + key + ":global"
+		}
 
 		windowMillis := windowTTLMillis(window)
 
@@ -113,6 +128,10 @@ func (r *RateLimiter) LimitWithOptions(key string, limit int, window time.Durati
 
 		// 超过限制
 		if count > int64(limit) {
+			if opts.Global && count == int64(limit)+1 {
+				// 总量熔断只在触发的那一次打日志，便于告警且不刷屏。
+				log.Printf("[RateLimit] global limit tripped: key=%s limit=%d window_ms=%d", redisKey, limit, windowMillis)
+			}
 			abortRateLimit(c)
 			return
 		}

@@ -20,6 +20,34 @@ func RegistrationEmailSuffix(email string) string {
 	return "@" + domain
 }
 
+// blockedRegistrationEmailDomains 是注册时拒绝的邮箱域名：RFC 2606/6761 保留域名
+// （永远收不到信，只会出现在脚本批量注册里）和常见的一次性邮箱服务。
+// 条目匹配域名本身及其所有子域名。
+var blockedRegistrationEmailDomains = []string{
+	// RFC 2606 / RFC 6761 保留域名
+	"example.com", "example.net", "example.org",
+	"example", "test", "invalid", "localhost", "local",
+	// 常见一次性邮箱
+	"mailinator.com", "guerrillamail.com", "guerrillamailblock.com", "sharklasers.com",
+	"grr.la", "yopmail.com", "10minutemail.com", "tempmail.com", "temp-mail.org",
+	"throwawaymail.com", "trashmail.com", "getnada.com", "maildrop.cc", "dispostable.com",
+}
+
+// IsRegistrationEmailDomainBlocked reports whether the email uses a reserved or
+// disposable domain that must not be used for self-service registration.
+func IsRegistrationEmailDomainBlocked(email string) bool {
+	_, domain, ok := splitEmailForPolicy(email)
+	if !ok {
+		return false
+	}
+	for _, blocked := range blockedRegistrationEmailDomains {
+		if domain == blocked || strings.HasSuffix(domain, "."+blocked) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsRegistrationEmailSuffixAllowed checks whether an email is allowed by suffix whitelist.
 // Empty whitelist means allow all.
 func IsRegistrationEmailSuffixAllowed(email string, whitelist []string) bool {
