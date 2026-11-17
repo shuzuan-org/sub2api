@@ -4724,7 +4724,7 @@ export default {
         title: '用户默认设置',
         description: '新用户的默认值',
         defaultBalance: '默认余额',
-        defaultBalanceHint: '新用户的初始余额',
+        defaultBalanceHint: '注册赠送额度，仅发给验证过手机号的账号：手机号注册时发放，邮箱 / 第三方登录注册需绑定手机号后发放（最低 100）',
         defaultConcurrency: '默认并发数',
         defaultConcurrencyHint: '新用户的最大并发请求数',
         defaultSubscriptions: '默认订阅列表',

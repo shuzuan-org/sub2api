@@ -104,6 +104,7 @@ type UserService struct {
 	billingCache         BillingCache
 	channelInviteSvc     *ChannelInviteService
 	inviteSvc            *InviteService
+	settingService       *SettingService
 	// authUserCache 是鉴权读路径专用的本地用户缓存，消除中间件每请求查库。
 	// 详见 user_auth_cache.go。
 	authUserCache *userAuthCache
@@ -127,6 +128,11 @@ func (s *UserService) SetChannelInviteService(svc *ChannelInviteService) {
 // SetInviteService 注入普通邀请码服务，用于被邀请人绑机成功后给邀请人发放奖励。
 func (s *UserService) SetInviteService(svc *InviteService) {
 	s.inviteSvc = svc
+}
+
+// SetSettingService 注入设置服务，用于绑定手机号时读取注册赠送额度（default_balance）。
+func (s *UserService) SetSettingService(svc *SettingService) {
+	s.settingService = svc
 }
 
 // GetFirstAdmin 获取首个管理员用户（用于 Admin API Key 认证）
@@ -302,15 +308,27 @@ func (s *UserService) Delete(ctx context.Context, userID int64) error {
 	return nil
 }
 
-const phoneBindBonusAmount = 100.0 // 绑定手机号赠送 100U
+const phoneBindBonusAmount = 100.0 // 绑定手机号赠送的保底额度 100U
 
-// BindPhoneAndGrantBonus 绑定手机号并赠送余额。
+// phoneBindBonus 返回绑定手机号时发放的注册赠送。
+// 邮箱 / OAuth 注册建号时不发 default_balance，统一在这里补发，
+// 金额与手机号注册一致：max(default_balance, phoneBindBonusAmount)。
+func (s *UserService) phoneBindBonus(ctx context.Context) float64 {
+	defaultBalance := 0.0
+	if s.settingService != nil {
+		defaultBalance = s.settingService.GetDefaultBalance(ctx)
+	}
+	bonus, _ := phoneSignupBalance(defaultBalance)
+	return bonus
+}
+
+// BindPhoneAndGrantBonus 绑定手机号并发放注册赠送。
 // 使用 Redis 分布式锁 + 数据库事务保证并发安全。
-// 若用户有待发放的渠道活动奖励，则跳过 100U 基础奖励（不叠加）。
+// 若用户有待发放的渠道活动奖励，则跳过基础赠送（不叠加）。
 // 返回实际赠送金额和更新后的用户。
 func (s *UserService) BindPhoneAndGrantBonus(ctx context.Context, userID int64, phone string) (float64, *User, error) {
-	// 检查是否有待发放的渠道邀请奖励，有则跳过 100U 基础奖励
-	bonusAmount := phoneBindBonusAmount
+	// 检查是否有待发放的渠道邀请奖励，有则跳过基础赠送
+	bonusAmount := s.phoneBindBonus(ctx)
 	if s.channelInviteSvc != nil {
 		hasPending, err := s.channelInviteSvc.HasPendingBonuses(ctx, userID)
 		if err == nil && hasPending {

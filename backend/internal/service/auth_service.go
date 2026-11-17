@@ -248,10 +248,9 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	}
 
 	// 获取默认配置
-	defaultBalance := s.cfg.Default.UserBalance
+	// 注册赠送不在建号时发放，绑定手机号后才发（见 UserService.BindPhoneAndGrantBonus）。
 	defaultConcurrency := s.cfg.Default.UserConcurrency
 	if s.settingService != nil {
-		defaultBalance = s.settingService.GetDefaultBalance(ctx)
 		defaultConcurrency = s.settingService.GetDefaultConcurrency(ctx)
 	}
 
@@ -260,7 +259,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		Email:        email,
 		PasswordHash: hashedPassword,
 		Role:         RoleUser,
-		Balance:      defaultBalance,
+		Balance:      signupBalanceBeforePhoneBind,
 		Concurrency:  defaultConcurrency,
 		Status:       StatusActive,
 	}
@@ -449,7 +448,13 @@ func (s *AuthService) RegisterWithPhoneVerification(ctx context.Context, phone, 
 	return token, user, nil
 }
 
-// phoneSignupBalance 返回手机号注册用户的初始余额：不低于绑定手机的赠送额度。
+// signupBalanceBeforePhoneBind 是邮箱 / OAuth 注册用户的初始余额。
+// 这两类账号没有验证过手机，注册赠送一律推迟到绑定手机号成功后发放，
+// 金额与手机号注册一致（见 phoneSignupBalance），所以建号时恒为 0。
+const signupBalanceBeforePhoneBind = 0.0
+
+// phoneSignupBalance 返回验证过手机的账号应得的注册赠送：不低于绑定手机的赠送额度。
+// 手机号注册在建号时发放，邮箱 / OAuth 注册在绑定手机号时发放。
 // 第二个返回值表示是否由手机赠送补足（用于记录 phone_bonus_granted_at）。
 func phoneSignupBalance(defaultBalance float64) (float64, bool) {
 	if defaultBalance < phoneBindBonusAmount {
@@ -720,10 +725,9 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 			}
 
 			// 新用户默认值。
-			defaultBalance := s.cfg.Default.UserBalance
+			// 注册赠送不在建号时发放，绑定手机号后才发（见 UserService.BindPhoneAndGrantBonus）。
 			defaultConcurrency := s.cfg.Default.UserConcurrency
 			if s.settingService != nil {
-				defaultBalance = s.settingService.GetDefaultBalance(ctx)
 				defaultConcurrency = s.settingService.GetDefaultConcurrency(ctx)
 			}
 
@@ -732,7 +736,7 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 				Username:     username,
 				PasswordHash: hashedPassword,
 				Role:         RoleUser,
-				Balance:      defaultBalance,
+				Balance:      signupBalanceBeforePhoneBind,
 				Concurrency:  defaultConcurrency,
 				Status:       StatusActive,
 			}
@@ -832,10 +836,9 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				return nil, nil, fmt.Errorf("hash password: %w", err)
 			}
 
-			defaultBalance := s.cfg.Default.UserBalance
+			// 注册赠送不在建号时发放，绑定手机号后才发（见 UserService.BindPhoneAndGrantBonus）。
 			defaultConcurrency := s.cfg.Default.UserConcurrency
 			if s.settingService != nil {
-				defaultBalance = s.settingService.GetDefaultBalance(ctx)
 				defaultConcurrency = s.settingService.GetDefaultConcurrency(ctx)
 			}
 
@@ -844,7 +847,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				Username:     username,
 				PasswordHash: hashedPassword,
 				Role:         RoleUser,
-				Balance:      defaultBalance,
+				Balance:      signupBalanceBeforePhoneBind,
 				Concurrency:  defaultConcurrency,
 				Status:       StatusActive,
 			}

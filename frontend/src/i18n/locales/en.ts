@@ -4557,7 +4557,7 @@ export default {
         title: 'Default User Settings',
         description: 'Default values for new users',
         defaultBalance: 'Default Balance',
-        defaultBalanceHint: 'Initial balance for new users',
+        defaultBalanceHint: 'Signup bonus, granted only to phone-verified accounts: on phone signup, or after an email / OAuth account binds a phone number (minimum 100)',
         defaultConcurrency: 'Default Concurrency',
         defaultConcurrencyHint: 'Maximum concurrent requests for new users',
         defaultSubscriptions: 'Default Subscriptions',
