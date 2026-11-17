@@ -20,6 +20,13 @@
       "advice": "上游返回 401/402/403：到后台「账号管理」看对应账号的余额与状态，欠费就充值，密钥被吊销就换 key。代码修不了。"
     },
     {
+      "id": "signup-abuse",
+      "category": "注册刷号",
+      "alerts": ["Sub2apiSignupSurge", "Sub2apiUnverifiedSignupsHigh"],
+      "route": "human",
+      "advice": "注册量异常，多半是注册机刷注册赠送：按告警描述查注册来源 IP 与邮箱规律，先把 default_balance 设 0 或调低 signup_global_hourly_limit 止血，确认后批量禁用。封号要人决定，代码修不了。"
+    },
+    {
       "id": "probe-not-metered",
       "category": "探针 200 但计量未落库",
       "alerts": ["Sub2apiProbeModelFailing"],

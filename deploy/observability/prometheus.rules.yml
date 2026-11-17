@@ -180,6 +180,27 @@ groups:
           summary: "{{ $value }} 个订阅已过期仍是 active（到期作业没在跑）"
           description: "SubscriptionExpiryService 每分钟一次；journalctl -u sub2api | grep SubscriptionExpiry。过期订阅仍能用订阅额度。"
 
+  # ── 注册防刷（sql_exporter，sub2api_biz_signups_*）──────────────────────────────────────
+  # 2026-11 事故：脚本批量注册薅注册赠送，14 天注册 1 万多个号才被人工发现。
+  # 阈值依据：事故前全站一天最多十几个注册；事故中最小的一批也是 1 小时 50 个。
+  - name: sub2api-signup
+    rules:
+      - alert: Sub2apiSignupSurge
+        expr: sub2api_biz_signups_1h{job="sub2api-sql"} >= 30
+        for: 5m
+        labels: { severity: critical, env: prod, service: sub2api }
+        annotations:
+          summary: "近 1 小时新注册 {{ $value | printf \"%.0f\" }} 个用户（平时一天才十几个）"
+          description: "多半是注册机刷号。先看来源：sudo grep 'POST /api/v1/auth/register ' /var/log/nginx/access.log | awk '$9==200{print $1}' | sort | uniq -c | sort -rn | head；再看邮箱规律：select split_part(email,'@',2), count(*) from users where created_at > now() - interval '1 hour' group by 1 order by 2 desc。止血：后台把 default_balance 设 0，或调低 settings 里的 signup_global_hourly_limit；确认是刷号后批量把这些账号 status 改 disabled。"
+
+      - alert: Sub2apiUnverifiedSignupsHigh
+        expr: sub2api_biz_signups_unverified_24h{job="sub2api-sql"} >= 100
+        for: 30m
+        labels: { severity: warning, env: prod, service: sub2api }
+        annotations:
+          summary: "近 24 小时有 {{ $value | printf \"%.0f\" }} 个未验证手机的新注册"
+          description: "低速刷号不会触发 Sub2apiSignupSurge（每小时不到 30 个）。按注册 IP 和邮箱前缀规律排查，见 Sub2apiSignupSurge 的描述。"
+
   # ── 降级级：原有错误规则（2026-11-04 起从 page 降为 warning，不发信）───────────────────────────
   # 回放依据：P1 占比规则在 napi 上 14 天响 219 次——user 7 的 claude-3-haiku 503 每天约 2900 次，单独就把 P1 占比顶在 6%；
   # 排除 routing 后还有 8 次。内部错误规则 137 次，集中在 10-21 事故。持续性中断已由上面的 outage / probe 组判定。
