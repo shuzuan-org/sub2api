@@ -157,6 +157,10 @@ const (
 	SettingKeyDefaultBalance       = "default_balance"       // 新用户默认余额
 	SettingKeyDefaultSubscriptions = "default_subscriptions" // 新用户默认订阅列表（JSON）
 
+	// 注册防刷
+	SettingKeySignupIPDailyLimit      = "signup_ip_daily_limit"      // 单 IP 每 24 小时注册请求上限（0 = 不限）
+	SettingKeySignupGlobalHourlyLimit = "signup_global_hourly_limit" // 全站每小时注册请求上限，超出即熔断（0 = 不限）
+
 	// 管理员 API Key
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）
 

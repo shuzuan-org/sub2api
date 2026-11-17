@@ -521,3 +521,71 @@ func TestAuthService_Register_AssignsDefaultSubscriptions(t *testing.T) {
 	require.Equal(t, int64(12), assigner.calls[1].PlanID)
 	require.Equal(t, 7, assigner.calls[1].ValidityDays)
 }
+
+func TestAuthService_Register_RejectsReservedAndDisposableDomains(t *testing.T) {
+	for _, email := range []string{
+		"bot@example.com",
+		"bot@mail.example",
+		"bot@sub.example.org",
+		"bot@foo.test",
+		"bot@mailinator.com",
+	} {
+		repo := &userRepoStub{}
+		service := newAuthService(repo, map[string]string{
+			SettingKeyRegistrationEnabled: "true",
+		}, nil)
+
+		_, _, err := service.Register(context.Background(), email, "password")
+		require.ErrorIs(t, err, ErrEmailSuffixNotAllowed, "email=%s", email)
+		require.Empty(t, repo.created, "email=%s", email)
+	}
+}
+
+func TestAuthService_Register_AllowsOrdinaryDomainWithoutWhitelist(t *testing.T) {
+	repo := &userRepoStub{nextID: 7}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+	}, nil)
+
+	// "myexample.com" 只是以 example.com 结尾，不是它的子域名，不能误伤。
+	_, user, err := service.Register(context.Background(), "user@myexample.com", "password")
+	require.NoError(t, err)
+	require.NotNil(t, user)
+}
+
+func TestPhoneSignupBalance(t *testing.T) {
+	balance, applied := phoneSignupBalance(0)
+	require.Equal(t, phoneBindBonusAmount, balance)
+	require.True(t, applied)
+
+	balance, applied = phoneSignupBalance(phoneBindBonusAmount)
+	require.Equal(t, phoneBindBonusAmount, balance)
+	require.False(t, applied)
+
+	balance, applied = phoneSignupBalance(250)
+	require.Equal(t, 250.0, balance)
+	require.False(t, applied)
+}
+
+func TestSettingService_SignupLimits(t *testing.T) {
+	ctx := context.Background()
+
+	defaults := NewSettingService(&settingRepoStub{values: map[string]string{}}, &config.Config{})
+	require.Equal(t, DefaultSignupIPDailyLimit, defaults.GetSignupIPDailyLimit(ctx))
+	require.Equal(t, DefaultSignupGlobalHourlyLimit, defaults.GetSignupGlobalHourlyLimit(ctx))
+
+	custom := NewSettingService(&settingRepoStub{values: map[string]string{
+		SettingKeySignupIPDailyLimit:      "0",
+		SettingKeySignupGlobalHourlyLimit: " 50 ",
+	}}, &config.Config{})
+	require.Equal(t, 0, custom.GetSignupIPDailyLimit(ctx))
+	require.Equal(t, 50, custom.GetSignupGlobalHourlyLimit(ctx))
+
+	invalid := NewSettingService(&settingRepoStub{values: map[string]string{
+		SettingKeySignupIPDailyLimit: "-3",
+	}}, &config.Config{})
+	require.Equal(t, DefaultSignupIPDailyLimit, invalid.GetSignupIPDailyLimit(ctx))
+
+	var nilService *SettingService
+	require.Equal(t, DefaultSignupGlobalHourlyLimit, nilService.GetSignupGlobalHourlyLimit(ctx))
+}

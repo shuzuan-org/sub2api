@@ -816,6 +816,37 @@ func (s *SettingService) GetDefaultBalance(ctx context.Context) float64 {
 	return s.cfg.Default.UserBalance
 }
 
+// 注册防刷默认阈值：正常情况下全站一天只有几个到几十个注册。
+const (
+	DefaultSignupIPDailyLimit      = 20
+	DefaultSignupGlobalHourlyLimit = 300
+)
+
+// GetSignupIPDailyLimit 返回单 IP 每 24 小时的注册请求上限；0 表示不限。
+func (s *SettingService) GetSignupIPDailyLimit(ctx context.Context) int {
+	return s.getNonNegativeIntSetting(ctx, SettingKeySignupIPDailyLimit, DefaultSignupIPDailyLimit)
+}
+
+// GetSignupGlobalHourlyLimit 返回全站每小时的注册请求上限；0 表示不限。
+func (s *SettingService) GetSignupGlobalHourlyLimit(ctx context.Context) int {
+	return s.getNonNegativeIntSetting(ctx, SettingKeySignupGlobalHourlyLimit, DefaultSignupGlobalHourlyLimit)
+}
+
+// getNonNegativeIntSetting 读取非负整数配置；缺失或非法时回退默认值。
+func (s *SettingService) getNonNegativeIntSetting(ctx context.Context, key string, fallback int) int {
+	if s == nil || s.settingRepo == nil {
+		return fallback
+	}
+	value, err := s.settingRepo.GetValue(ctx, key)
+	if err != nil {
+		return fallback
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && v >= 0 {
+		return v
+	}
+	return fallback
+}
+
 // GetInviteRewardAmount 获取邀请好友奖励金额（被邀请人注册后给邀请人发放的固定 U）。
 // 默认 0（即不发放）；非法或缺失时回退 0。
 func (s *SettingService) GetInviteRewardAmount(ctx context.Context) float64 {
