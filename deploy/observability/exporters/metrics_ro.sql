@@ -14,3 +14,4 @@ GRANT SELECT (status, expires_at, deleted_at) ON user_subscriptions TO metrics_r
 GRANT SELECT (status, created_at, paid_at, cny_fee) ON alipay_orders TO metrics_ro;
 GRANT SELECT (platform, type, status, schedulable, deleted_at) ON accounts TO metrics_ro;
 GRANT SELECT (id, name, platform, status, deleted_at) ON groups TO metrics_ro;
+GRANT SELECT (created_at, phone_verified) ON users TO metrics_ro;

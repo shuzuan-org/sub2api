@@ -34,6 +34,20 @@ metrics:
       select count(*)::float8 as n from user_subscriptions
       where deleted_at is null and status = 'active' and expires_at < now() - interval '5 minutes'
 
+  # ── 注册量（防刷号：2026-11 被脚本批量注册薅注册赠送，两周后才发现）────────────────
+  # 正常一天只有几个到几十个注册。users 没有 created_at 索引，全表约 1 万行，顺扫可接受。
+  - metric_name: sub2api_biz_signups_1h
+    type: gauge
+    help: "近 1 小时新注册的用户数"
+    values: [n]
+    query: select count(*)::float8 as n from users where created_at > now() - interval '1 hour'
+
+  - metric_name: sub2api_biz_signups_unverified_24h
+    type: gauge
+    help: "近 24 小时新注册且未验证手机的用户数"
+    values: [n]
+    query: select count(*)::float8 as n from users where created_at > now() - interval '24 hours' and not phone_verified
+
   # ── 支付宝订单（只导指标不告警：sub2api 没有关闭过期订单的作业，过期 pending 是常态）──
   - metric_name: sub2api_biz_alipay_orders
     type: gauge
