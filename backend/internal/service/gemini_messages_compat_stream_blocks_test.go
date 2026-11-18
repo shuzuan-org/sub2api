@@ -74,7 +74,7 @@ func runGeminiStreamConversion(t *testing.T, chunks []string) string {
 
 	var sb strings.Builder
 	for _, chunk := range chunks {
-		sb.WriteString("data: " + chunk + "\n\n")
+		_, _ = sb.WriteString("data: " + chunk + "\n\n")
 	}
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
