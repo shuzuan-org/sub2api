@@ -134,57 +134,57 @@ func TestOperationsReport_Matched(t *testing.T) {
 	w, body := doOperationsRequest(t, router, "?account=a@x.com")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	data := body["data"].(map[string]any)
+	data := requireOperationsValue[map[string]any](t, body["data"])
 	require.Equal(t, true, data["matched"])
 	require.NotContains(t, data, "candidates")
 
-	report := data["report"].(map[string]any)
-	user := report["user"].(map[string]any)
+	report := requireOperationsValue[map[string]any](t, data["report"])
+	user := requireOperationsValue[map[string]any](t, report["user"])
 	require.EqualValues(t, 12, user["id"])
 	require.Equal(t, "alice", user["username"])
 
-	invitation := report["invitation"].(map[string]any)
+	invitation := requireOperationsValue[map[string]any](t, report["invitation"])
 	require.Equal(t, code, invitation["referral_code"])
 	require.EqualValues(t, 3, invitation["inviter_id"])
-	require.Equal(t, "inv@x.com", invitation["inviter"].(map[string]any)["email"])
+	require.Equal(t, "inv@x.com", requireOperationsValue[map[string]any](t, invitation["inviter"])["email"])
 	require.EqualValues(t, 152, invitation["invited_count"])
-	require.Len(t, invitation["invitees"].([]any), 1)
+	require.Len(t, requireOperationsValue[[]any](t, invitation["invitees"]), 1)
 	require.Equal(t, true, invitation["invitees_truncated"])
 
 	// 渠道邀请码：与 invitation 同级的独立节点
-	channel := report["channel_invitation"].(map[string]any)
+	channel := requireOperationsValue[map[string]any](t, report["channel_invitation"])
 	require.EqualValues(t, 1, channel["batch_count"])
 	require.EqualValues(t, 1, channel["code_count"])
 	require.EqualValues(t, 2, channel["invited_count"])
 	require.Equal(t, true, channel["invitees_truncated"])
 
-	batches := channel["batches"].([]any)
+	batches := requireOperationsValue[[]any](t, channel["batches"])
 	require.Len(t, batches, 1)
-	batch := batches[0].(map[string]any)
+	batch := requireOperationsValue[map[string]any](t, batches[0])
 	require.EqualValues(t, 7, batch["id"])
 	require.Equal(t, "小红书拉新", batch["name"])
 	require.EqualValues(t, 2, batch["used_count"])
 	require.Equal(t, []any{"AAA111"}, batch["codes"])
 
-	channelInvitees := channel["invitees"].([]any)
+	channelInvitees := requireOperationsValue[[]any](t, channel["invitees"])
 	require.Len(t, channelInvitees, 1)
-	require.Equal(t, "c@z.com", channelInvitees[0].(map[string]any)["user"].(map[string]any)["email"])
-	require.Equal(t, "AAA111", channelInvitees[0].(map[string]any)["code"])
+	require.Equal(t, "c@z.com", requireOperationsValue[map[string]any](t, requireOperationsValue[map[string]any](t, channelInvitees[0])["user"])["email"])
+	require.Equal(t, "AAA111", requireOperationsValue[map[string]any](t, channelInvitees[0])["code"])
 
-	claims := channel["claims"].([]any)
+	claims := requireOperationsValue[[]any](t, channel["claims"])
 	require.Len(t, claims, 1)
-	require.EqualValues(t, 77, claims[0].(map[string]any)["owner_id"])
-	require.Equal(t, "owner@x.com", claims[0].(map[string]any)["owner"].(map[string]any)["email"])
+	require.EqualValues(t, 77, requireOperationsValue[map[string]any](t, claims[0])["owner_id"])
+	require.Equal(t, "owner@x.com", requireOperationsValue[map[string]any](t, requireOperationsValue[map[string]any](t, claims[0])["owner"])["email"])
 
-	recharge := report["recharge"].(map[string]any)
-	alipay := recharge["alipay"].(map[string]any)
+	recharge := requireOperationsValue[map[string]any](t, report["recharge"])
+	alipay := requireOperationsValue[map[string]any](t, recharge["alipay"])
 	require.EqualValues(t, 4, alipay["paid_order_count"])
 	require.EqualValues(t, 39800, alipay["cny_fee_total"])
 	require.EqualValues(t, 400, alipay["usd_amount_total"])
 	require.EqualValues(t, 250, recharge["redeem_balance_total"])
 	require.EqualValues(t, 650, recharge["combined_usd_total"])
 
-	usage := report["usage"].(map[string]any)
+	usage := requireOperationsValue[map[string]any](t, report["usage"])
 	require.EqualValues(t, 10234, usage["total_requests"])
 	require.EqualValues(t, 1750000, usage["total_tokens"])
 }
@@ -202,14 +202,14 @@ func TestOperationsReport_Candidates(t *testing.T) {
 	w, body := doOperationsRequest(t, router, "?account=alice")
 	require.Equal(t, http.StatusOK, w.Code)
 
-	data := body["data"].(map[string]any)
+	data := requireOperationsValue[map[string]any](t, body["data"])
 	require.Equal(t, false, data["matched"])
 	require.NotContains(t, data, "report")
 
-	candidates := data["candidates"].([]any)
+	candidates := requireOperationsValue[[]any](t, data["candidates"])
 	require.Len(t, candidates, 2)
-	require.EqualValues(t, 12, candidates[0].(map[string]any)["id"])
-	require.EqualValues(t, 47, candidates[1].(map[string]any)["id"])
+	require.EqualValues(t, 12, requireOperationsValue[map[string]any](t, candidates[0])["id"])
+	require.EqualValues(t, 47, requireOperationsValue[map[string]any](t, candidates[1])["id"])
 }
 
 func TestOperationsReport_UserIDPassedThrough(t *testing.T) {
@@ -225,4 +225,11 @@ func TestOperationsReport_UserIDPassedThrough(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.EqualValues(t, 12, stub.gotUserID)
 	require.Empty(t, stub.gotAccount)
+}
+
+func requireOperationsValue[T any](t *testing.T, value any) T {
+	t.Helper()
+	result, ok := value.(T)
+	require.True(t, ok, "unexpected JSON value type: %T", value)
+	return result
 }
