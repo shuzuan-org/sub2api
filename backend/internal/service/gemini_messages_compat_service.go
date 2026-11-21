@@ -1911,7 +1911,6 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 							"index": openToolIndex,
 						})
 						openToolIndex = -1
-						openToolID = ""
 						openToolName = ""
 						seenToolJSON = ""
 					}
@@ -1984,7 +1983,6 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 						"index": openToolIndex,
 					})
 					openToolIndex = -1
-					openToolID = ""
 					openToolName = ""
 					seenToolJSON = ""
 				}
@@ -3135,9 +3133,9 @@ func extractClaudeToolResultContent(v any) (string, []map[string]any) {
 					continue
 				}
 				if wroteText {
-					sb.WriteString("\n")
+					_, _ = sb.WriteString("\n")
 				}
-				sb.WriteString("[image attached: " + mediaType + "]")
+				_, _ = sb.WriteString("[image attached: " + mediaType + "]")
 				wroteText = true
 				// 形状即 FunctionResponsePart：{"inlineData": {...}}
 				images = append(images, map[string]any{

@@ -218,6 +218,28 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/migrate',
+    name: 'Migrate',
+    component: () => import('@/views/user/MigrateView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Migrate to metask-ai',
+      titleKey: 'migrate.title',
+      descriptionKey: 'migrate.description'
+    }
+  },
+  {
+    path: '/migrated',
+    name: 'Migrated',
+    component: () => import('@/views/user/MigratedView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Migration completed',
+      titleKey: 'migrate.doneTitle'
+    }
+  },
+  {
     path: '/invite',
     name: 'Invite',
     component: () => import('@/views/user/InviteView.vue'),

@@ -402,6 +402,21 @@ func ProvideOpsScheduledReportService(
 	return svc
 }
 
+// ProvideMetaskMigrationService creates MetaskMigrationService and starts its retry loop.
+func ProvideMetaskMigrationService(
+	repo MetaskMigrationRepository,
+	client MetaskMigrationClient,
+	cfg *config.Config,
+	userService *UserService,
+	authCache APIKeyAuthCacheInvalidator,
+	billingCache *BillingCacheService,
+	subService *SubscriptionService,
+) *MetaskMigrationService {
+	svc := NewMetaskMigrationService(repo, client, cfg, userService, authCache, billingCache, subService)
+	svc.StartRetryLoop()
+	return svc
+}
+
 // ProvideAPIKeyAuthCacheInvalidator 提供 API Key 认证缓存失效能力
 func ProvideAPIKeyAuthCacheInvalidator(apiKeyService *APIKeyService) APIKeyAuthCacheInvalidator {
 	// Start Pub/Sub subscriber for L1 cache invalidation across instances
@@ -538,6 +553,7 @@ var ProviderSet = wire.NewSet(
 	ProvideTokenRefreshService,
 	ProvideAccountExpiryService,
 	ProvideSubscriptionExpiryService,
+	ProvideMetaskMigrationService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
 	ProvideUsageCleanupService,

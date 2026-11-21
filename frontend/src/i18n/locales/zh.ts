@@ -392,6 +392,7 @@ export default {
     redeem: '兑换',
     profile: '个人资料',
     invite: '邀请好友',
+    migrate: '迁移到 metask-ai',
     users: '用户管理',
     groups: '分组管理',
     subscriptions: '订阅管理',
@@ -1003,6 +1004,12 @@ export default {
   // Empty States
   empty: {
     noData: '暂无数据'
+  },
+
+  migrate: {
+    title: '迁移到 metask-ai',
+    description: '把账号、余额、订阅额度和 API Key 一次迁移到新站。',
+    doneTitle: '迁移完成'
   },
 
   invite: {

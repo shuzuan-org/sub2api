@@ -14,6 +14,18 @@
       <!-- Header -->
       <AppHeader />
 
+      <!-- 迁移到 metask-ai：开放期间每个页面顶部都提示 -->
+      <div
+        v-if="showMigrationBanner"
+        class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-100 md:mx-6 lg:mx-8"
+        data-testid="migration-banner"
+      >
+        <span>
+          本站即将停止服务，本站已停止充值与兑换。请把账号、余额和 API Key 迁移到 metask-ai<template v-if="migrationStatus?.deadline">（{{ migrationStatus.deadline }} 之后本站停止 API 调用）</template>。
+        </span>
+        <router-link to="/migrate" class="btn btn-primary btn-sm">去迁移</router-link>
+      </div>
+
       <!-- Main Content -->
       <main class="p-4 md:p-6 lg:p-8">
         <slot />
@@ -25,6 +37,8 @@
 <script setup lang="ts">
 import '@/styles/onboarding.css'
 import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { useMigrationStatus } from '@/composables/useMigrationStatus'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
@@ -44,8 +58,19 @@ const { replayTour } = useOnboardingTour({
 
 const onboardingStore = useOnboardingStore()
 
+const route = useRoute()
+const { status: migrationStatus, load: loadMigrationStatus } = useMigrationStatus()
+const showMigrationBanner = computed(
+  () =>
+    !!migrationStatus.value?.enabled &&
+    migrationStatus.value.status !== 'completed' &&
+    (migrationStatus.value.eligible || migrationStatus.value.status === 'frozen') &&
+    route.path !== '/migrate'
+)
+
 onMounted(() => {
   onboardingStore.setReplayCallback(replayTour)
+  void loadMigrationStatus()
 })
 
 defineExpose({ replayTour })

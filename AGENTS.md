@@ -13,7 +13,7 @@ Sub2API is split into a Go backend and Vue 3 frontend:
 
 ## Build, Test, and Development Commands
 
-Use Go 1.26.1, Node.js 20, and pnpm 9.
+Use Go 1.26.11, Node.js 20, and pnpm 9.
 
 - `pnpm --dir frontend install --frozen-lockfile` installs the locked frontend dependencies.
 - `make build` builds the frontend first, then embeds it into the backend binary.
