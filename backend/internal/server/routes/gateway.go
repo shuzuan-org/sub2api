@@ -28,6 +28,11 @@ func RegisterGatewayRoutes(
 		soraMaxBodySize = cfg.Gateway.MaxBodySize
 	}
 	soraBodyLimit := middleware.RequestBodyLimit(soraMaxBodySize)
+	// 迁移截止后停止全部 API 调用：每条网关链路都以 bodyLimit / soraBodyLimit 开头，在这里统一拦截
+	if cfg.MetaskMigration.GatewayStopped {
+		stopped := func(c *gin.Context) { middleware.MetaskMigrationGatewayStopped(cfg, c) }
+		bodyLimit, soraBodyLimit = stopped, stopped
+	}
 	clientRequestID := middleware.ClientRequestID()
 	opsErrorLogger := handler.OpsErrorLoggerMiddleware(opsService)
 	endpointNorm := handler.InboundEndpointMiddleware()

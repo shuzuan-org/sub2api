@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -14,7 +15,10 @@ func RegisterUserRoutes(
 	h *handler.Handlers,
 	jwtAuth middleware.JWTAuthMiddleware,
 	settingService *service.SettingService,
+	cfg *config.Config,
 ) {
+	// 迁移到 metask-ai 开放期间，停止充值、兑换与订阅购买
+	migrationTopupGuard := middleware.MetaskMigrationTopupGuard(cfg)
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(middleware.BackendModeUserGuard(settingService))
@@ -36,6 +40,10 @@ func RegisterUserRoutes(
 				totp.POST("/enable", h.Totp.Enable)
 				totp.POST("/disable", h.Totp.Disable)
 			}
+
+			// 迁移到 metask-ai
+			user.GET("/migration", h.MetaskMigration.GetStatus)
+			user.POST("/migration", h.MetaskMigration.Migrate)
 
 			// 手机号绑定
 			phone := user.Group("/phone")
@@ -86,7 +94,7 @@ func RegisterUserRoutes(
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{
-			redeem.POST("", h.Redeem.Redeem)
+			redeem.POST("", migrationTopupGuard, h.Redeem.Redeem)
 			redeem.GET("/history", h.Redeem.GetHistory)
 		}
 
@@ -113,7 +121,7 @@ func RegisterUserRoutes(
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 			subscriptions.GET("/merged", h.Subscription.GetMerged)
-			subscriptions.POST("/purchase", h.Subscription.Purchase)
+			subscriptions.POST("/purchase", migrationTopupGuard, h.Subscription.Purchase)
 		}
 
 		// 订阅计划列表（公开可见的活跃计划）
@@ -123,7 +131,7 @@ func RegisterUserRoutes(
 		alipay := authenticated.Group("/payments/alipay")
 		{
 			alipay.GET("/packages", h.Alipay.GetPackages)
-			alipay.POST("/create-order", h.Alipay.CreateOrder)
+			alipay.POST("/create-order", migrationTopupGuard, h.Alipay.CreateOrder)
 			alipay.GET("/order/:order_no", h.Alipay.GetOrderStatus)
 			alipay.GET("/orders", h.Alipay.GetOrders)
 		}

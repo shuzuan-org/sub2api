@@ -392,6 +392,7 @@ export default {
     redeem: 'Redeem',
     profile: 'Profile',
     invite: 'Invite Friends',
+    migrate: 'Migrate to metask-ai',
     users: 'Users',
     groups: 'Groups',
     subscriptions: 'Subscriptions',
@@ -997,6 +998,12 @@ export default {
   // Empty States
   empty: {
     noData: 'No data found'
+  },
+
+  migrate: {
+    title: 'Migrate to metask-ai',
+    description: 'Move your account, balance, subscription quota and API keys to the new site.',
+    doneTitle: 'Migration completed'
   },
 
   invite: {

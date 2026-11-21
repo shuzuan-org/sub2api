@@ -85,6 +85,42 @@ type Config struct {
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	Alipay                  AlipayPaymentConfig           `mapstructure:"alipay"`
 	Probe                   ProbeConfig                   `mapstructure:"probe"`
+	MetaskMigration         MetaskMigrationConfig         `mapstructure:"metask_migration"`
+}
+
+// MetaskMigrationConfig 迁移到 metask-ai：用户登录后点「迁移」，本站清零余额、停用 Key、终止订阅，
+// 再服务端对服务端调 metask-ai 入账，成功后停用账号。enabled 且 base_url / token 都有才开放；
+// 开放期间本站同时停止充值、兑换与订阅购买。
+type MetaskMigrationConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	// BaseURL metask-ai 站点地址（服务端调用 POST {base_url}/api/internal/migrations/sub2api）。
+	BaseURL string `mapstructure:"base_url"`
+	// Token 与 metask-ai 的 SUB2API_MIGRATION_TOKEN 相同。
+	Token string `mapstructure:"token"`
+	// SiteURL 结果页上「去新站登录」的地址；空则用 base_url。
+	SiteURL string `mapstructure:"site_url"`
+	// GatewayBaseURL 结果页上展示的新 API base URL。
+	GatewayBaseURL string `mapstructure:"gateway_base_url"`
+	// UsageSince 订阅用量从这个时间点起算（RFC3339），用于从迁入的订阅额度里扣掉已在本站用掉的部分。
+	UsageSince string `mapstructure:"usage_since"`
+	// Deadline 页面上展示的截止日期（纯展示，如 2026-12-25）。
+	Deadline string `mapstructure:"deadline"`
+	// GatewayStopped 截止后置 true：本站停止全部 API 调用，只留登录与迁移页。
+	GatewayStopped bool `mapstructure:"gateway_stopped"`
+}
+
+// Active 迁移是否开放：开关打开且地址、令牌都已配置。
+func (c MetaskMigrationConfig) Active() bool {
+	return c.Enabled && strings.TrimSpace(c.BaseURL) != "" && strings.TrimSpace(c.Token) != ""
+}
+
+// UsageSinceTime 解析 usage_since；为空或格式不对时返回零值（不扣订阅用量）。
+func (c MetaskMigrationConfig) UsageSinceTime() time.Time {
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(c.UsageSince))
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // ProbeConfig 端到端合成探针：定时用一把专用 API key 走本进程网关真调一次模型，
@@ -1391,6 +1427,14 @@ func setDefaults() {
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
 
 	// Idempotency
+	viper.SetDefault("metask_migration.enabled", false)
+	viper.SetDefault("metask_migration.base_url", "")
+	viper.SetDefault("metask_migration.token", "")
+	viper.SetDefault("metask_migration.site_url", "")
+	viper.SetDefault("metask_migration.gateway_base_url", "")
+	viper.SetDefault("metask_migration.usage_since", "2026-10-24T16:21:00+08:00")
+	viper.SetDefault("metask_migration.deadline", "")
+	viper.SetDefault("metask_migration.gateway_stopped", false)
 	viper.SetDefault("probe.enabled", false)
 	viper.SetDefault("probe.base_url", "http://127.0.0.1:8080")
 	viper.SetDefault("probe.interval_seconds", 600)

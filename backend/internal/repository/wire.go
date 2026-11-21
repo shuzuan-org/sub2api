@@ -119,6 +119,8 @@ var ProviderSet = wire.NewSet(
 
 	// HTTP service ports (DI Strategy A: return interface directly)
 	NewTurnstileVerifier,
+	NewMetaskMigrationRepository,
+	NewMetaskMigrationClient,
 	ProvidePricingRemoteClient,
 	ProvideGitHubReleaseClient,
 	NewProxyExitInfoProber,

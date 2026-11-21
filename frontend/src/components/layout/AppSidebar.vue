@@ -290,6 +290,7 @@ import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
+import { useMigrationStatus } from '@/composables/useMigrationStatus'
 
 interface NavItem {
   path: string
@@ -673,6 +674,9 @@ const ChevronRightSmallIcon = {
     )
 }
 
+// 「迁移到 metask-ai」入口只在迁移开放时出现
+const { status: migrationStatus } = useMigrationStatus()
+
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
@@ -698,6 +702,7 @@ const userNavItems = computed((): NavItem[] => {
     { path: '/orders', label: '充值记录', icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     { path: '/invite', label: t('nav.invite'), icon: ShareIcon },
+    ...(migrationStatus.value?.enabled ? [{ path: '/migrate', label: t('nav.migrate'), icon: ShareIcon }] : []),
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
       label: item.label,
@@ -774,6 +779,7 @@ const userNavCategories = computed((): NavCategory[] => {
       children: [
         { path: '/profile', label: t('nav.profile'), icon: null },
         { path: '/invite', label: t('nav.invite'), icon: null },
+        ...(migrationStatus.value?.enabled ? [{ path: '/migrate', label: t('nav.migrate'), icon: null }] : []),
       ]
     },
   ]
