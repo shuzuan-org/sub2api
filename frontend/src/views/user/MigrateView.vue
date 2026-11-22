@@ -60,9 +60,8 @@
             <li>余额按点击这一刻的数额迁入新站；此前已在新站用掉的迁入额度会相应扣除。</li>
             <li>订阅的剩余额度迁入新站，到期日不变。</li>
             <li>
-              原来的 API Key 在新站继续可用，但需要把 base URL 改成
-              <code v-if="status.gateway_base_url" class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-dark-700">{{ status.gateway_base_url }}</code
-              ><span v-else>新站的地址</span>，模型名称改成新站「模型列表」里的名称。
+              原来的 API Key 在新站继续可用，具体新 apikey 和 baseurl 设置请参考
+              <a href="https://www.metask-ai.com/app/access" target="_blank" rel="noopener" class="text-primary-600 underline">https://www.metask-ai.com/app/access</a>。
             </li>
             <li>在新站用本站的邮箱和密码登录；手机号账号用手机验证码登录。</li>
           </ul>
