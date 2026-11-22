@@ -32,11 +32,10 @@
       </dl>
 
       <ul class="list-disc space-y-2 pl-5 text-sm leading-6 text-gray-600 dark:text-dark-300">
-        <li v-if="status?.gateway_base_url">
-          API base URL 改成
-          <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-dark-700">{{ status.gateway_base_url }}</code>
+        <li>
+          API Key 和 base URL 设置参考
+          <a :href="`${status?.site_url ?? 'https://www.metask-ai.com'}/app/access`" target="_blank" rel="noopener" class="text-primary-600 underline">https://www.metask-ai.com/app/access</a>。
         </li>
-        <li>原来的 API Key 不用换；模型名称改成新站「模型列表」里的名称。</li>
         <li v-if="result && !result.phone_account">用本站的邮箱和密码登录新站；忘记密码可在新站找回。</li>
       </ul>
 
