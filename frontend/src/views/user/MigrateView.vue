@@ -79,9 +79,16 @@
             <input v-model="confirmed" type="checkbox" class="mt-1" data-testid="migrate-confirm" />
             <span>我已了解：迁移后本站账号与 API Key 立即停用，且不可撤销。</span>
           </label>
+          <label class="flex items-start gap-3 text-sm text-gray-700 dark:text-dark-200">
+            <input v-model="confirmedMetawork" type="checkbox" class="mt-1" data-testid="migrate-confirm-metawork" />
+            <span>
+              metacode 用户全面迁入 metawork，下载地址
+              <a href="https://metawork.metask-ai.com/" target="_blank" rel="noopener" class="text-primary-600 underline">https://metawork.metask-ai.com/</a>。
+            </span>
+          </label>
           <button
             class="btn btn-primary"
-            :disabled="submitting || (status.status !== 'frozen' && !confirmed)"
+            :disabled="submitting || (status.status !== 'frozen' && (!confirmed || !confirmedMetawork))"
             data-testid="migrate-submit"
             @click="submit"
           >
@@ -110,6 +117,7 @@ const { status, load, set } = useMigrationStatus()
 const loading = ref(true)
 const submitting = ref(false)
 const confirmed = ref(false)
+const confirmedMetawork = ref(false)
 
 function formatDate(value: string): string {
   const d = new Date(value)
